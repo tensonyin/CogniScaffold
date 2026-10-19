@@ -1,0 +1,40 @@
+# Python & Virtual Environment
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Environment Variables & Secrets (CRITICAL)
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+
+# Streamlit Local Cache & Config
+.streamlit/secrets.toml
+
+# User Data & History Storage (Prevent committing private student chat history)
+data/history_store.json
+data/*.json
+
+# Release & Archive files
+*.zip
+*.tar.gz
+*.tar
+*.rar
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
