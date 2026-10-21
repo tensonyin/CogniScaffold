@@ -1,0 +1,2655 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>CogniScaffold | 智构思维导师</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
+  
+  <!-- 本地 KaTeX 科学公式与 Marked 渲染引擎（完全脱机支持内网极速加载） -->
+  <link rel="stylesheet" href="static/vendor/katex.min.css">
+  <script src="static/vendor/katex.min.js"></script>
+  <script src="static/vendor/auto-render.min.js"></script>
+  <script src="static/vendor/marked.min.js"></script>
+
+  <style>
+    /* 全局与字体重置 */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.2s ease, color 0.2s ease;
+      overflow-x: hidden;
+    }
+
+    /* ============================================================
+       🌙 暗色模式 (Dark Mode Theme) - 与原版 Streamlit 100% 像素级对齐
+       ============================================================ */
+    body[data-theme="dark"] {
+      --bg-color: #0e1117;
+      --card-bg: rgba(22, 27, 34, 0.72);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --text-main: #f1f5f9;
+      --text-sub: #cbd5e1;
+      --text-muted: #94a3b8;
+      --primary: #3b82f6;
+      --primary-hover: #60a5fa;
+      --input-bg: rgba(15, 23, 42, 0.75);
+      --input-border: rgba(255, 255, 255, 0.12);
+      --tabbar-bg: #0d1117;
+      --tabbar-border: #21262d;
+      --tab-hover: #161b22;
+      --tab-active: #161b22;
+      --tab-text: #8b949e;
+      --tab-active-text: #58a6ff;
+      --chat-student-bg: rgba(255, 255, 255, 0.07);
+      --chat-student-border: transparent;
+      --chat-student-text: #e2e8f0;
+      --chat-tutor-bg: rgba(22, 27, 34, 0.9);
+      --chat-tutor-border: rgba(255, 255, 255, 0.08);
+      --chat-tutor-text: #f8fafc;
+      --stepper-bg: rgba(22, 27, 34, 0.6);
+      --stepper-border: rgba(255, 255, 255, 0.08);
+      --expander-bg: rgba(22, 27, 34, 0.6);
+      --expander-border: rgba(255, 255, 255, 0.08);
+    }
+
+    /* ============================================================
+       ☀️ 亮色模式 (Light Mode Theme) - 与原版 Streamlit 100% 像素级对齐
+       ============================================================ */
+    body[data-theme="light"] {
+      --bg-color: #f8fafc;
+      --card-bg: #ffffff;
+      --card-border: #e2e8f0;
+      --text-main: #0f172a;
+      --text-sub: #1e293b;
+      --text-muted: #64748b;
+      --primary: #2563eb;
+      --primary-hover: #1d4ed8;
+      --input-bg: #ffffff;
+      --input-border: #cbd5e1;
+      --tabbar-bg: #f1f5f9;
+      --tabbar-border: #cbd5e1;
+      --tab-hover: #ffffff;
+      --tab-active: #ffffff;
+      --tab-text: #64748b;
+      --tab-active-text: #2563eb;
+      --chat-student-bg: #eff6ff;
+      --chat-student-border: #bfdbfe;
+      --chat-student-text: #1e3a8a;
+      --chat-tutor-bg: #ffffff;
+      --chat-tutor-border: #e2e8f0;
+      --chat-tutor-text: #0f172a;
+      --stepper-bg: #ffffff;
+      --stepper-border: #e2e8f0;
+      --expander-bg: #ffffff;
+      --expander-border: #e2e8f0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+    }
+
+    /* 顶部原生 Chrome 标签栏 */
+    .chrome-tabbar-container {
+      display: flex;
+      align-items: center;
+      background: var(--tabbar-bg);
+      height: 44px;
+      padding: 0 12px;
+      border-bottom: 1px solid var(--tabbar-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      width: 100%;
+    }
+    .tabs-scroll-area {
+      display: flex;
+      align-items: flex-end;
+      height: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: none;
+      gap: 2px;
+      flex: 1;
+    }
+    .tabs-scroll-area::-webkit-scrollbar {
+      display: none;
+    }
+    .chrome-tab {
+      position: relative;
+      display: flex;
+      align-items: center;
+      height: 36px;
+      max-width: 220px;
+      min-width: 130px;
+      padding: 0 8px 0 12px;
+      border-radius: 8px 8px 0 0;
+      cursor: pointer;
+      font-size: 12.5px;
+      color: var(--tab-text);
+      background: transparent;
+      transition: background 0.15s ease, color 0.15s ease;
+      flex-shrink: 0;
+      border: 1px solid transparent;
+      border-bottom: none;
+    }
+    .chrome-tab:hover {
+      background: var(--tab-hover);
+      color: var(--text-main);
+    }
+    .chrome-tab.active {
+      background: var(--tab-active);
+      color: var(--tab-active-text);
+      font-weight: 600;
+      border-top: 2px solid var(--primary);
+      border-left: 1px solid var(--tabbar-border);
+      border-right: 1px solid var(--tabbar-border);
+      box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.15);
+    }
+    .tab-icon {
+      font-size: 13.5px;
+      margin-right: 7px;
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .tab-title-text {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 36px;
+      letter-spacing: 0.2px;
+    }
+    .tab-action-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      margin-left: 6px;
+      flex-shrink: 0;
+    }
+    .star-toggle-btn {
+      font-size: 13px;
+      color: #8b949e;
+      cursor: pointer;
+      line-height: 1;
+      transition: color 0.15s, transform 0.1s;
+      padding: 2px;
+    }
+    .star-toggle-btn.is-starred {
+      color: #e3b341;
+      text-shadow: 0 0 6px rgba(227, 179, 65, 0.4);
+    }
+    .star-toggle-btn:hover {
+      color: #f0883e;
+      transform: scale(1.15);
+    }
+    .close-tab-cross {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 17px;
+      height: 17px;
+      border-radius: 50%;
+      color: #8b949e;
+      font-size: 13px;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity 0.15s, background 0.15s, color 0.15s;
+      cursor: pointer;
+    }
+    .chrome-tab:hover .close-tab-cross,
+    .chrome-tab.active .close-tab-cross {
+      opacity: 0.85;
+    }
+    .close-tab-cross:hover {
+      background: rgba(248, 81, 73, 0.2);
+      color: #f85149;
+    }
+    .vertical-divider {
+      position: absolute;
+      right: 0;
+      top: 11px;
+      height: 14px;
+      width: 1px;
+      background: rgba(128, 128, 128, 0.2);
+    }
+    .chrome-tab.active .vertical-divider,
+    .chrome-tab:hover .vertical-divider {
+      opacity: 0;
+    }
+    .add-tab-circle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      margin-left: 6px;
+      margin-bottom: 2px;
+      color: var(--tab-text);
+      cursor: pointer;
+      font-size: 18px;
+      font-weight: 300;
+      line-height: 1;
+      transition: background 0.15s, color 0.15s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    .add-tab-circle:hover {
+      background: var(--tab-hover);
+      color: var(--primary);
+      transform: scale(1.08);
+    }
+    .right-controls {
+      margin-left: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .history-archive-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-main);
+      background: var(--tab-hover);
+      border: 1px solid var(--tabbar-border);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .history-archive-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    #archivedBadge {
+      background: rgba(128, 128, 128, 0.15);
+      padding: 1px 6px;
+      border-radius: 10px;
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      color: var(--text-main);
+      background: var(--tab-hover);
+      border: 1px solid var(--tabbar-border);
+      cursor: pointer;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .theme-toggle-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* 主容器 */
+    .app-main-layout {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.2rem 1.8rem 2.5rem 1.8rem;
+    }
+
+    /* 历史归档抽屉 */
+    .history-drawer {
+      display: none;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 1.2rem;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    }
+    .history-drawer.show {
+      display: block;
+    }
+
+    /* 开题引导区 (Onboarding View) */
+    .onboarding-hero {
+      max-width: 860px;
+      margin: 1.2rem auto 1.6rem auto;
+      text-align: center;
+    }
+    .onboarding-icon-box {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 54px;
+      height: 54px;
+      border-radius: 16px;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      font-size: 28px;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 4px 18px rgba(59, 130, 246, 0.18);
+    }
+    .hero-title {
+      font-size: 2.25rem;
+      font-weight: 800;
+      margin-bottom: 0.6rem;
+      letter-spacing: -0.5px;
+      line-height: 1.2;
+      color: var(--text-main);
+    }
+    .hero-sub {
+      font-size: 1.05rem;
+      font-weight: 500;
+      margin-bottom: 0.3rem;
+      line-height: 1.4;
+      color: var(--text-sub);
+    }
+    .hero-desc {
+      font-size: 0.94rem;
+      margin-bottom: 1.2rem;
+      line-height: 1.4;
+      color: var(--text-muted);
+    }
+    .hero-badge-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .hero-badge-blue, .hero-badge-indigo, .hero-badge-emerald {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.84rem;
+      font-weight: 500;
+    }
+    body[data-theme="dark"] .hero-badge-blue {
+      background: rgba(59, 130, 246, 0.1);
+      border: 1px solid rgba(59, 130, 246, 0.25);
+      color: #93c5fd;
+    }
+    body[data-theme="dark"] .hero-badge-indigo {
+      background: rgba(99, 102, 241, 0.12);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      color: #c7d2fe;
+    }
+    body[data-theme="dark"] .hero-badge-emerald {
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      color: #a7f3d0;
+    }
+    body[data-theme="light"] .hero-badge-blue {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      color: #1d4ed8;
+    }
+    body[data-theme="light"] .hero-badge-indigo {
+      background: #eef2ff;
+      border: 1px solid #c7d2fe;
+      color: #4338ca;
+    }
+    body[data-theme="light"] .hero-badge-emerald {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #047857;
+    }
+
+    .onboarding-card {
+      max-width: 820px;
+      margin: 0 auto;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 20px 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    }
+
+    /* 双栏主界面布局 (60% : 40%) */
+    .st-columns {
+      display: flex;
+      gap: 2rem;
+      align-items: flex-start;
+    }
+    .col-left {
+      flex: 1.5;
+      min-width: 0;
+    }
+    .col-right {
+      flex: 1.0;
+      min-width: 0;
+      position: sticky;
+      top: 56px;
+    }
+    @media (max-width: 900px) {
+      .st-columns {
+        flex-direction: column;
+      }
+      .col-right {
+        position: static;
+        width: 100%;
+      }
+    }
+
+    h3.column-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* 原版折叠框 (Expander) */
+    details.st-expander {
+      background: var(--expander-bg);
+      border: 1px solid var(--expander-border);
+      border-radius: 10px;
+      margin-bottom: 0.8rem;
+      overflow: hidden;
+      transition: all 0.15s ease;
+    }
+    details.st-expander summary {
+      padding: 10px 14px;
+      font-weight: 600;
+      font-size: 0.92rem;
+      cursor: pointer;
+      user-select: none;
+      outline: none;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    details.st-expander summary:hover {
+      background: rgba(128, 128, 128, 0.06);
+      color: var(--primary);
+    }
+    .expander-content {
+      padding: 12px 16px;
+      border-top: 1px solid var(--card-border);
+      font-size: 0.92rem;
+      line-height: 1.6;
+    }
+
+    /* 聊天视窗容器 (410px 高度独立滚动) */
+    .chat-box {
+      height: 410px;
+      overflow-y: auto;
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      background: var(--card-bg);
+      padding: 14px 16px;
+      margin-bottom: 0.8rem;
+      scroll-behavior: smooth;
+    }
+    .chat-box::-webkit-scrollbar {
+      width: 6px;
+    }
+    .chat-box::-webkit-scrollbar-thumb {
+      background: rgba(128, 128, 128, 0.25);
+      border-radius: 3px;
+    }
+
+    .st-chat-message {
+      display: flex;
+      margin-bottom: 12px;
+      gap: 10px;
+      align-items: flex-start;
+    }
+    .st-chat-avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      background: rgba(128, 128, 128, 0.1);
+      flex-shrink: 0;
+    }
+    .st-chat-content {
+      max-width: 88%;
+      padding: 13px 18px;
+      font-size: 0.94rem;
+      line-height: 1.75;
+      word-break: break-word;
+      letter-spacing: 0.2px;
+    }
+    .st-chat-content p {
+      margin: 0.65rem 0;
+      line-height: 1.75;
+    }
+    .st-chat-content p:first-child {
+      margin-top: 0;
+    }
+    .st-chat-content p:last-child {
+      margin-bottom: 0;
+    }
+    .st-chat-content ul, .st-chat-content ol {
+      margin: 0.5rem 0;
+      padding-left: 1.4rem;
+    }
+    .st-chat-content li {
+      margin: 0.3rem 0;
+      line-height: 1.7;
+    }
+    .st-chat-content blockquote {
+      margin: 0.85rem 0;
+      padding: 10px 14px;
+      background: rgba(16, 185, 129, 0.08);
+      border-left: 3px solid #10b981;
+      border-radius: 0 8px 8px 0;
+      font-size: 0.88rem;
+      line-height: 1.7;
+    }
+    body[data-theme="light"] .st-chat-content blockquote {
+      background: #f0fdf4;
+      border-left: 3px solid #10b981;
+      color: #064e3b;
+    }
+    .st-chat-content blockquote p {
+      margin: 0.35rem 0;
+    }
+    .st-chat-content .katex {
+      font-size: 1.05em;
+      margin: 0 0.12em;
+    }
+    .st-chat-content .katex-display {
+      margin: 0.8em 0;
+    }
+    /* 学生发言（右对齐） */
+    .st-chat-message.user-message {
+      flex-direction: row-reverse;
+    }
+    .st-chat-message.user-message .st-chat-content {
+      background: var(--chat-student-bg);
+      border: 1px solid var(--chat-student-border);
+      color: var(--chat-student-text);
+      border-radius: 12px 2px 12px 12px;
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+    }
+    /* 导师发言（左对齐，蓝侧边） */
+    .st-chat-message.tutor-message .st-chat-content {
+      background: var(--chat-tutor-bg);
+      border: 1px solid var(--chat-tutor-border);
+      border-left: 3px solid var(--primary);
+      color: var(--chat-tutor-text);
+      border-radius: 2px 12px 12px 12px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+    /* 变式题目发言（左对齐，绿侧边） */
+    .st-chat-message.variant-message .st-chat-content {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-left: 3px solid #10b981;
+      border-radius: 2px 12px 12px 12px;
+      box-shadow: 0 2px 8px rgba(16, 185, 129, 0.08);
+    }
+    body[data-theme="light"] .st-chat-message.variant-message .st-chat-content {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-left: 3px solid #10b981;
+      color: #064e3b;
+    }
+
+    /* 变式闯关分隔横幅 (Divider) */
+    .variant-divider-card {
+      border-radius: 8px;
+      padding: 8px 14px;
+      margin: 0.8rem 0;
+      text-align: center;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px dashed rgba(16, 185, 129, 0.4);
+    }
+    body[data-theme="light"] .variant-divider-card {
+      background: #ecfdf5;
+      border: 1px dashed #10b981;
+    }
+    .variant-divider-title {
+      color: #10b981;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+    .variant-divider-sub {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-top: 3px;
+    }
+
+    /* 考查要点与暗坑提示（默认折叠组件） */
+    details.st-hint-expander {
+      margin: 0.85rem 0;
+      border: 1px dashed rgba(16, 185, 129, 0.35);
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.04);
+      overflow: hidden;
+      transition: all 0.2s ease;
+    }
+    details.st-hint-expander[open] {
+      background: rgba(16, 185, 129, 0.07);
+      border-style: solid;
+      border-color: rgba(16, 185, 129, 0.5);
+    }
+    body[data-theme="light"] details.st-hint-expander {
+      background: #f0fdf4;
+      border: 1px dashed #a7f3d0;
+    }
+    body[data-theme="light"] details.st-hint-expander[open] {
+      background: #ecfdf5;
+      border-style: solid;
+      border-color: #10b981;
+    }
+    summary.st-hint-summary {
+      padding: 8px 14px;
+      font-size: 0.86rem;
+      font-weight: 600;
+      color: #10b981;
+      cursor: pointer;
+      user-select: none;
+      outline: none;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    body[data-theme="light"] summary.st-hint-summary {
+      color: #047857;
+    }
+    summary.st-hint-summary:hover {
+      background: rgba(16, 185, 129, 0.1);
+      color: #34d399;
+    }
+    body[data-theme="light"] summary.st-hint-summary:hover {
+      background: rgba(16, 185, 129, 0.12);
+      color: #065f46;
+    }
+    details.st-hint-expander[open] summary.st-hint-summary {
+      border-bottom: 1px dashed rgba(16, 185, 129, 0.25);
+    }
+    .st-hint-content {
+      padding: 10px 15px;
+      font-size: 0.88rem;
+      line-height: 1.7;
+      color: var(--text-main);
+    }
+    body[data-theme="light"] .st-hint-content {
+      color: #064e3b;
+    }
+    .st-hint-content p {
+      margin: 0.35rem 0 !important;
+    }
+    .st-hint-content p:first-child {
+      margin-top: 0 !important;
+    }
+    .st-hint-content p:last-child {
+      margin-bottom: 0 !important;
+    }
+
+    /* 输入区域与浮层工具栏 */
+    .input-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+    .input-area-label {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+    .tool-popover-group {
+      display: flex;
+      gap: 6px;
+      position: relative;
+    }
+    .popover-icon-btn {
+      width: 32px;
+      height: 28px;
+      border-radius: 6px;
+      background: var(--card-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 1rem;
+      font-weight: 600;
+      transition: all 0.15s ease;
+    }
+    .popover-icon-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--tab-hover);
+    }
+
+    /* 键盘浮层与拍照浮层 */
+    .popover-modal-box {
+      display: none;
+      position: absolute;
+      right: 0;
+      bottom: 34px;
+      width: 500px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
+      padding: 14px 16px;
+      z-index: 1000;
+    }
+    .popover-modal-box.show {
+      display: block;
+    }
+
+    textarea.student-input {
+      width: 100%;
+      height: 125px;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text-main);
+      font-family: inherit;
+      font-size: 15px;
+      line-height: 1.6;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+    textarea.student-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+    textarea.student-input::placeholder {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    /* 实时公式预览卡片 */
+    .latex-preview-card {
+      margin: 6px 0 2px 0;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .latex-preview-title {
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 0.8rem;
+    }
+    .latex-preview-body {
+      padding: 6px 10px;
+      background: rgba(128, 128, 128, 0.05);
+      border-radius: 6px;
+      margin-top: 4px;
+      color: var(--text-main);
+    }
+
+    /* 操作按钮栏 */
+    .action-button-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 8px;
+      gap: 8px;
+    }
+    .aux-btn-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    button.btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      border: 1px solid transparent;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    button.btn-primary {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.25);
+    }
+    button.btn-primary:hover {
+      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      box-shadow: 0 6px 16px rgba(59, 130, 246, 0.4);
+      transform: translateY(-1px);
+    }
+    button.btn-secondary {
+      background: var(--card-bg);
+      border: 1px solid var(--input-border);
+      color: var(--text-main);
+    }
+    button.btn-secondary:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: var(--tab-hover);
+    }
+    button.btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+      border: 1px dashed var(--input-border);
+    }
+    .btn-spinner {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      border-radius: 50%;
+      border-top-color: currentColor;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+      margin-right: 4px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ============================================================
+       右侧看板组件 (Stepper, Dashboard Focus, Tabs, Blindspot, Matrix)
+       ============================================================ */
+    .stepper-box {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      margin-bottom: 0.8rem;
+      border-radius: 10px;
+      background: var(--stepper-bg);
+      border: 1px solid var(--stepper-border);
+    }
+    .step-node {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      z-index: 2;
+    }
+    .step-dot {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 700;
+      transition: all 0.2s ease;
+    }
+    .step-dot.done {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      border: 1.5px solid #10b981;
+    }
+    body[data-theme="light"] .step-dot.done {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .step-dot.current {
+      background: #2563eb;
+      color: #ffffff;
+      border: 1.5px solid #60a5fa;
+      box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+    }
+    .step-dot.pending {
+      background: rgba(128, 128, 128, 0.1);
+      color: var(--text-muted);
+      border: 1.5px solid rgba(128, 128, 128, 0.2);
+    }
+    .step-text {
+      color: var(--text-muted);
+      font-size: 0.78rem;
+    }
+    .step-text.active-text {
+      color: var(--primary);
+      font-weight: 600;
+    }
+    .step-connector {
+      flex: 1;
+      height: 2px;
+      margin: 0 6px;
+      margin-bottom: 18px;
+      background: rgba(128, 128, 128, 0.15);
+    }
+    .step-connector.done {
+      background: #10b981;
+    }
+
+    /* 聚焦卡片 */
+    .dashboard-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-left: 3px solid var(--primary);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 0.7rem;
+    }
+    .dashboard-goal-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .dashboard-turn-badge {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      background: rgba(128, 128, 128, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .dashboard-turn-num {
+      color: var(--primary);
+      font-weight: 700;
+    }
+    .dashboard-action-hint {
+      font-size: 0.83rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      margin-top: 4px;
+    }
+    .dashboard-action-hint strong {
+      color: var(--text-main);
+    }
+
+    /* 选项卡 (Tabs) */
+    .st-tabs-header {
+      display: flex;
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 12px;
+      gap: 16px;
+    }
+    .st-tab-button {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--text-muted);
+      padding: 8px 12px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+    .st-tab-button:hover {
+      color: var(--text-main);
+    }
+    .st-tab-button.active {
+      color: var(--primary);
+      border-bottom: 2px solid var(--primary);
+      font-weight: 700;
+    }
+
+    /* 错因透视卡片 (已解锁) */
+    .diag-card {
+      background: rgba(245, 158, 11, 0.06);
+      border: 1px solid rgba(245, 158, 11, 0.2);
+      border-left: 3px solid #f59e0b;
+      border-radius: 6px;
+      padding: 12px 14px;
+      margin-bottom: 0.6rem;
+    }
+    body[data-theme="light"] .diag-card {
+      background: #fffbeb;
+      border: 1px solid #fef3c7;
+      border-left: 3px solid #f59e0b;
+    }
+    .diag-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: #f59e0b;
+    }
+    body[data-theme="light"] .diag-title {
+      color: #b45309;
+    }
+    .diag-badge {
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      font-size: 0.74rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+    body[data-theme="light"] .diag-badge {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    .diag-item-perf, .diag-item-reason, .diag-item-break {
+      font-size: 13.5px;
+      line-height: 1.55;
+      margin-bottom: 5px;
+      color: var(--text-sub);
+    }
+    .diag-item-break {
+      color: #10b981;
+      margin-bottom: 0;
+    }
+    .diag-lbl {
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    /* 变式闯关矩阵 */
+    .variant-matrix-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-top: 6px;
+    }
+    .variant-matrix-header {
+      font-size: 0.82rem;
+      color: var(--text-sub);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .tier-row-item {
+      padding: 6px 10px;
+      margin-bottom: 4px;
+      border-radius: 4px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.84rem;
+    }
+    .tier-row-done {
+      background: rgba(16, 185, 129, 0.1);
+      color: #10b981;
+    }
+    body[data-theme="light"] .tier-row-done {
+      background: #ecfdf5;
+      color: #059669;
+    }
+    .tier-row-active {
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.35);
+      color: var(--primary);
+      font-weight: 600;
+    }
+    body[data-theme="light"] .tier-row-active {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+    }
+    .tier-row-locked {
+      opacity: 0.45;
+      color: var(--text-muted);
+    }
+
+    /* 未解锁画像卡片 */
+    .blindspot-locked-card {
+      background: rgba(128, 128, 128, 0.04);
+      border: 1px dashed var(--input-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 0.6rem;
+    }
+    .locked-title {
+      font-size: 0.86rem;
+      color: var(--text-sub);
+      font-weight: 600;
+    }
+    .locked-badge {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      background: rgba(128, 128, 128, 0.1);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px dashed var(--input-border);
+    }
+    .locked-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin: 8px 0 10px 0;
+    }
+    .locked-progress-bg {
+      background: rgba(128, 128, 128, 0.15);
+      height: 4px;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+    .locked-progress-bar {
+      background: var(--primary);
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+
+    /* 思维轨迹 (Trajectory) */
+    .trajectory-container {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+    .trajectory-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8rem;
+      padding: 6px 0;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .trajectory-item:last-child {
+      border-bottom: none;
+    }
+    .traj-turn {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+    .trajectory-tag {
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .tag-stuck {
+      background: rgba(239, 68, 68, 0.16);
+      color: #ef4444;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .tag-advance {
+      background: rgba(59, 130, 246, 0.16);
+      color: #3b82f6;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+    .tag-break {
+      background: rgba(16, 185, 129, 0.16);
+      color: #10b981;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .traj-desc {
+      color: var(--text-main);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    /* 黄金预设 2x2 矩阵 */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 10px;
+    }
+    .preset-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .preset-card:hover {
+      border-color: var(--primary);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .preset-card-title {
+      font-weight: 700;
+      font-size: 0.95rem;
+      margin-bottom: 6px;
+    }
+    .preset-card-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      line-height: 1.45;
+      margin-bottom: 10px;
+    }
+    .preset-card-btn {
+      font-size: 0.82rem;
+      color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* 符号键盘网格 */
+    .kbd-segmented-control {
+      display: flex;
+      gap: 4px;
+      background: rgba(128, 128, 128, 0.1);
+      padding: 2px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      overflow-x: auto;
+    }
+    .kbd-seg-btn {
+      padding: 4px 10px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      border: none;
+      background: transparent;
+    }
+    .kbd-seg-btn.active {
+      background: var(--card-bg);
+      color: var(--primary);
+      font-weight: 600;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .symbols-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      max-height: 220px;
+      overflow-y: auto;
+    }
+    .symbol-chip {
+      background: rgba(128, 128, 128, 0.06);
+      border: 1px solid var(--card-border);
+      border-radius: 6px;
+      padding: 6px 4px;
+      text-align: center;
+      cursor: pointer;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.86rem;
+      transition: all 0.15s ease;
+    }
+    .symbol-chip:hover {
+      background: rgba(59, 130, 246, 0.15);
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+
+    /* 闪烁光标 */
+    .typing-cursor {
+      display: inline-block;
+      width: 7px;
+      height: 14px;
+      background: var(--primary);
+      margin-left: 2px;
+      vertical-align: middle;
+      animation: blink 0.8s infinite;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body data-theme="dark">
+
+  <!-- 1. 顶部 Chrome 标签栏 (与原版完全 1:1) -->
+  <div class="chrome-tabbar-container">
+    <div class="tabs-scroll-area" id="tabsScrollArea">
+      <!-- 动态注入会话 Tab -->
+    </div>
+    <div class="add-tab-circle" id="addBtn" title="新建解题探索标签页">+</div>
+    <div class="right-controls">
+      <button class="history-archive-btn" id="historyBtn">
+        <span>📚 历史归档</span>
+        <span id="archivedBadge">0</span>
+      </button>
+      <button class="theme-toggle-btn" id="themeToggleBtn" title="切换界面色彩模式">
+        <span id="themeToggleIcon">🌙</span>
+        <span id="themeToggleText">暗色模式</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- 2. 页面主工作区 -->
+  <div class="app-main-layout">
+    
+    <!-- 历史归档抽屉 (点击顶栏「📚 历史归档」时展开) -->
+    <div class="history-drawer" id="historyDrawer">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+        <h4 style="font-size: 1rem; font-weight: 700;">📚 历史归档与收藏库</h4>
+        <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="toggleHistoryDrawer()">✕ 收起</button>
+      </div>
+      <div class="st-tabs-header">
+        <button class="st-tab-button active" onclick="switchHistoryTab('starred')">🌟 我的收藏</button>
+        <button class="st-tab-button" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
+      </div>
+      <div id="historyListContainer"></div>
+    </div>
+
+    <!-- 视图 A: 新会话开题引导区 (Onboarding View) -->
+    <div id="onboardingView" style="display: none;">
+      <div class="onboarding-hero">
+        <div class="onboarding-icon-box">🧭</div>
+        <h1 class="hero-title">CogniScaffold · 开启全新解题探索</h1>
+        <div class="hero-sub">打破“假装看懂”，拒绝直接灌输标准答案</div>
+        <div class="hero-desc">依托苏格拉底思维脚手架，陪伴你一步步洞察解题暗坑并自主破局</div>
+        <div class="hero-badge-row">
+          <span class="hero-badge-blue">🎯 逐步提问 · 阶梯引导</span>
+          <span class="hero-badge-indigo">⚡ 反例诱导 · 暴露盲区</span>
+          <span class="hero-badge-emerald">💡 自主发现 · 深度迁移</span>
+        </div>
+      </div>
+
+      <div class="onboarding-card">
+        <div class="st-tabs-header">
+          <button class="st-tab-button active" onclick="switchOnboardTab('text')">✍️ 文字录入新题</button>
+          <button class="st-tab-button" onclick="switchOnboardTab('photo')">📸 拍照 / 图片上传</button>
+          <button class="st-tab-button" onclick="switchOnboardTab('preset')">💡 经典思维陷阱题 (一键体验)</button>
+        </div>
+
+        <!-- 子面板 1: 文字录入 -->
+        <div id="onboardTabText">
+          <p id="onboardLabelText" style="font-size: 0.92rem; font-weight: 600; margin-bottom: 8px;">
+            ✍️ 请输入题目内容（完整支持 LaTeX 公式排版，如 <span id="onboardSampleMath"></span>）：
+          </p>
+          <textarea id="onboardTextInput" class="student-input" style="height: 110px;" placeholder="在此输入或粘贴题目完整内容，支持直接使用 LaTeX 科学公式排版..."></textarea>
+          
+          <div class="latex-preview-card" id="onboardPreviewBox" style="display: none;">
+            <span class="latex-preview-title">👁️ 题目公式实时排版预览：</span>
+            <div class="latex-preview-body" id="onboardPreviewContent"></div>
+          </div>
+
+          <details class="st-expander" style="margin-top: 10px;">
+            <summary>🔣 全学科 LaTeX 符号键盘（高中数理化技双层预设）</summary>
+            <div class="expander-content">
+              <div class="kbd-segmented-control" id="onboardKbdTier1"></div>
+              <div class="kbd-segmented-control" id="onboardKbdTier2" style="margin-top: 4px;"></div>
+              <div class="symbols-grid" id="onboardSymbolsGrid" style="margin-top: 8px;"></div>
+            </div>
+          </details>
+
+          <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
+            <button class="btn btn-primary" onclick="submitOnboardText()">🚀 开启思维引导</button>
+          </div>
+        </div>
+
+        <!-- 子面板 2: 拍照/传图 -->
+        <div id="onboardTabPhoto" style="display: none;">
+          <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 12px;">上传试卷、练习册照片，系统将智能识别文字与数学公式：</p>
+          <div style="border: 2px dashed var(--input-border); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer;" onclick="document.getElementById('fileUploadInput').click()">
+            <div style="font-size: 32px; margin-bottom: 8px;">📷</div>
+            <div style="font-size: 0.9rem; font-weight: 600;">点击上传照片或从手机拍照上传</div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">支持 PNG, JPG, JPEG 格式</div>
+            <input type="file" id="fileUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'question')">
+          </div>
+        </div>
+
+        <!-- 子面板 3: 黄金案例 -->
+        <div id="onboardTabPreset" style="display: none;">
+          <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 8px;">挑选经过认知心理学验证的高中数理化技经典思维暗坑，即刻感受深度启发推导：</p>
+          <div class="preset-grid">
+            <div class="preset-card" onclick="loadPreset('math_derivative')">
+              <div class="preset-card-title">📐 高中数学 · 导数分类讨论</div>
+              <div class="preset-card-desc">暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类缺失。</div>
+              <div class="preset-card-btn">载入导数案例 ➔</div>
+            </div>
+            <div class="preset-card" onclick="loadPreset('physics_momentum')">
+              <div class="preset-card-title">⚖️ 高中物理 · 系统动量守恒</div>
+              <div class="preset-card-desc">暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。</div>
+              <div class="preset-card-btn">载入动量案例 ➔</div>
+            </div>
+            <div class="preset-card" onclick="loadPreset('chemistry_equilibrium')">
+              <div class="preset-card-title">🧪 高中化学 · 水解与电荷守恒</div>
+              <div class="preset-card-desc">暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。</div>
+              <div class="preset-card-btn">载入化学案例 ➔</div>
+            </div>
+            <div class="preset-card" onclick="loadPreset('tech_logic_control')">
+              <div class="preset-card-title">💻 高中技术 · 比较器门限电平</div>
+              <div class="preset-card-desc">暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。</div>
+              <div class="preset-card-btn">载入技术案例 ➔</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 视图 B: 主双栏解题工作区 (Main Workspace) -->
+    <div id="workspaceView" style="display: none;">
+      <div class="st-columns">
+        
+        <!-- 左侧：交互陪练流 -->
+        <div class="col-left">
+          <h3 class="column-title">💬 启发式交互陪练</h3>
+
+          <!-- 当前题目折叠框 -->
+          <details class="st-expander" id="questionExpander">
+            <summary id="questionSummaryText">📌 当前题目：正在载入...</summary>
+            <div class="expander-content" id="questionFullContent"></div>
+          </details>
+
+          <!-- 聊天内容窗口 (410px 独立滚动) -->
+          <div class="chat-box" id="chatBox">
+            <div id="messagesContainer"></div>
+            <div id="latest-msg-top-anchor" style="height: 1px;"></div>
+          </div>
+
+          <!-- 输入区 -->
+          <div class="input-header-row">
+            <div class="input-area-label">✍️ 你的推导与疑问：</div>
+            <div class="tool-popover-group">
+              <button class="popover-icon-btn" id="latexKbdToggleBtn" title="全学科 LaTeX 符号键盘">𝛴</button>
+              <button class="popover-icon-btn" id="photoDraftToggleBtn" title="拍照上传手写草稿识别">📷</button>
+
+              <!-- LaTeX 符号键盘浮层 -->
+              <div class="popover-modal-box" id="latexPopoverBox">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 0.88rem; font-weight: 700;">📐 全学科 LaTeX 符号预设库</span>
+                  <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
+                </div>
+                <div class="kbd-segmented-control" id="chatKbdTier1"></div>
+                <div class="kbd-segmented-control" id="chatKbdTier2" style="margin-top: 4px;"></div>
+                <div class="symbols-grid" id="chatSymbolsGrid" style="margin-top: 8px;"></div>
+              </div>
+
+              <!-- 草稿上传浮层 -->
+              <div class="popover-modal-box" id="draftPopoverBox" style="width: 320px;">
+                <div style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px;">📝 手写草稿智能提取</div>
+                <div style="border: 1px dashed var(--input-border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;" onclick="document.getElementById('draftUploadInput').click()">
+                  <div style="font-size: 24px;">📸</div>
+                  <div style="font-size: 0.82rem; margin-top: 4px;">拍照或上传草稿照片</div>
+                  <input type="file" id="draftUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'draft')">
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <textarea id="studentThoughtInput" class="student-input" placeholder="输入你的思考或公式推导过程（支持 LaTeX 语法，如 $F=ma$）..."></textarea>
+
+          <!-- 实时 LaTeX 公式排版预览 -->
+          <div class="latex-preview-card" id="chatPreviewBox" style="display: none;">
+            <span class="latex-preview-title">👁️ 实时公式排版预览：</span>
+            <div class="latex-preview-body" id="chatPreviewContent"></div>
+          </div>
+
+          <!-- 底部操作按钮 -->
+          <div class="action-button-row">
+            <div class="aux-btn-group">
+              <button class="btn btn-secondary" id="verifyBtn" onclick="handleVerifyClick()">🎯 请求突破校验</button>
+              <button class="btn btn-secondary" id="hintBtn" onclick="handleHintClick()">💡 换个角度</button>
+            </div>
+            <button class="btn btn-primary" id="submitBtn" onclick="handleSubmitThought()">🚀 提交思路</button>
+          </div>
+        </div>
+
+        <!-- 右侧：学情认知看板 -->
+        <div class="col-right">
+          <h3 class="column-title">📊 学情认知看板</h3>
+
+          <!-- 1. 阶段进度 Stepper -->
+          <div class="stepper-box" id="stepperContainer">
+            <!-- 动态生成 4 阶节点 -->
+          </div>
+
+          <!-- 2. 当前核心目标卡片 -->
+          <div class="dashboard-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+              <span class="dashboard-goal-title" id="stageGoalTitle">🎯 当前目标：审清关键约束与物理边界</span>
+              <span class="dashboard-turn-badge">
+                交互：第 <strong class="dashboard-turn-num" id="stageTurnNum">0</strong> 轮
+              </span>
+            </div>
+            <div class="dashboard-action-hint">👉 <strong>行动提示</strong>：<span id="stageActionHint">请在左侧回答你对本题条件与已知规律的第一直觉。</span></div>
+          </div>
+
+          <!-- 3. 看板 Tabs (盲区透视 / 思维轨迹) -->
+          <div class="st-tabs-header">
+            <button class="st-tab-button active" id="tabReportBtn" onclick="switchDashboardTab('report')">⚠️ 盲区透视</button>
+            <button class="st-tab-button" id="tabTrajBtn" onclick="switchDashboardTab('traj')">📈 思维轨迹</button>
+          </div>
+
+          <!-- 选项卡 1: 盲区画像与变式矩阵 -->
+          <div id="dashboardTabReport">
+            <div id="blindspotCardArea"></div>
+            <div id="variantMatrixArea"></div>
+          </div>
+
+          <!-- 选项卡 2: 思维轨迹 -->
+          <div id="dashboardTabTraj" style="display: none;">
+            <div class="trajectory-container" id="trajectoryList"></div>
+          </div>
+
+          <!-- 4. 核心靶点与教学策略折叠框 -->
+          <details class="st-expander" style="margin-top: 12px;">
+            <summary>🏷️ 查看核心靶点与教学策略</summary>
+            <div class="expander-content">
+              <div style="margin-bottom: 8px;">
+                <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">🎯 核心认知靶点：</div>
+                <div id="cognitiveTagsContainer"></div>
+              </div>
+              <div style="font-size: 0.8rem; line-height: 1.6; border-top: 1px solid var(--card-border); padding-top: 8px; color: var(--text-muted);">
+                • <strong>苏格拉底产婆术</strong>：绝不直接给答案，通过提问将思维焦点导向关键矛盾。<br/>
+                • <strong>微图景引导</strong>：构造极端情境或特例反例，迫使逻辑漏洞自然暴露。<br/>
+                • <strong>防偷跑机制</strong>：须经过真实思考推导（至少 3 轮交互）方可触发终审校验。
+              </div>
+            </div>
+          </details>
+
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 前端核心控制逻辑 (纯原生无第三方重型框架，脱机毫秒级响应) -->
+  <script>
+    const BASE_PATH = window.location.pathname.startsWith('/cogni-scaffold') ? '/cogni-scaffold' : '';
+    function apiFetch(path, options) {
+      const fullPath = path.startsWith('/') ? (BASE_PATH + path) : (BASE_PATH + '/' + path);
+      return fetch(fullPath, options);
+    }
+    let appState = null;
+    let latexTree = null;
+    let activeKbdT1 = null;
+    let activeKbdT2 = null;
+    let isStreaming = false;
+
+    // 格式化对话 Markdown 并规范化 LaTeX 公式，预渲染 KaTeX 防 Markdown 解析破坏
+    function formatMarkdown(text) {
+      if (!text) return "";
+      let t = text;
+
+      // 0. 修复反斜杠丢失导致被误转为换行符的合法 LaTeX 指令（如 \neq 被误解析为 \n + eq）
+      t = t.replace(/\n(eq|nabla|notin|nu|ne\b|natural|nparallel|neg|normalsize|nolimits)/g, '\\n$1');
+
+      // 0.1 解码字面量转义换行 \n（保留 \neq, \nabla 等合法 LaTeX 指令）
+      t = t.replace(/\\r\\n/g, '\n').replace(/\\n/g, (match, offset, full) => {
+        const nextChar = full[offset + 2];
+        if (nextChar && /[a-zA-Z]/.test(nextChar)) {
+          const cmdMatch = full.slice(offset).match(/^\\([a-zA-Z]+)/);
+          if (cmdMatch) {
+            const cmd = cmdMatch[1];
+            const latexNCmds = ['neq', 'nabla', 'notin', 'nu', 'ne', 'natural', 'nparallel', 'neg', 'normalsize', 'newcommand', 'nolimits'];
+            if (latexNCmds.includes(cmd)) {
+              return match;
+            }
+          }
+        }
+        return '\n';
+      });
+
+      // 0.2 将“考查要点与暗坑提示”转换为默认折叠交互组件 <details>
+      t = t.replace(/(?:^|\n)>\s*💡\s*(?:\*\*)?(?:考查要点与暗坑提示|考查要点|暗坑提示)(?:\*\*)?[：:]\s*([\s\S]*?)(?=\n\s*\n\s*\*\*请在下方|\n\s*\n\s*请在下方|$)/g, (match, hintBody) => {
+        const cleanHint = hintBody.replace(/^\s*>\s?/gm, '').trim();
+        return `\n\n<details class="st-hint-expander"><summary class="st-hint-summary">💡 考查要点与暗坑提示 (点击展开)</summary><div class="st-hint-content">\n\n${cleanHint}\n\n</div></details>\n\n`;
+      });
+
+      // 0.3 针对题干小题序号 (1), (2), (3), (4), （1）, ① 前强制插入独立段落换行，保障数学试卷级专业排版
+      t = t.replace(/([。；：\n])\s*([（(](?:\d{1,2}|[一二三四五六七八九十])[）)]|[①②③④⑤⑥⑦⑧⑨⑩])/g, '$1\n\n$2');
+
+      // 1. 规范化各类转义数学界定符（无论是单反斜杠还是双反斜杠）
+      t = t.replace(/\\\\\[([\s\S]*?)\\\\\]/g, (m, c) => `$$${c.trim()}$$`);
+      t = t.replace(/\\\[([\s\S]*?)\\\]/g, (m, c) => `$$${c.trim()}$$`);
+      t = t.replace(/\\\\\(([\s\S]*?)\\\\\)/g, (m, c) => `$${c.trim()}$`);
+      t = t.replace(/\\\(([\s\S]*?)\\\)/g, (m, c) => `$${c.trim()}$`);
+
+      // 2. 提取成对的 $$...$$ 块级公式并预渲染
+      const mathPlaceholders = [];
+      t = t.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
+        try {
+          const rendered = katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
+          const placeholder = `%%MATH_BLOCK_${mathPlaceholders.length}%%`;
+          mathPlaceholders.push({ placeholder, rendered });
+          return placeholder;
+        } catch(e) {
+          return match;
+        }
+      });
+
+      // 3. 提取成对的 $...$ 行内公式并预渲染
+      t = t.replace(/\$([^\$\n]+?)\$/g, (match, formula) => {
+        try {
+          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+          const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
+          mathPlaceholders.push({ placeholder, rendered });
+          return placeholder;
+        } catch(e) {
+          return match;
+        }
+      });
+
+      // 4. 对未包裹 $ 的孤立常见数学公式（此时已在 mathPlaceholders 之外，绝无破坏成对公式的风险）进行安全识别与渲染
+      t = t.replace(/(\\frac\{[^{}]+\}\{[^{}]+\})/g, (match, formula) => {
+        try {
+          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+          const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
+          mathPlaceholders.push({ placeholder, rendered });
+          return placeholder;
+        } catch(e) {
+          return match;
+        }
+      });
+      t = t.replace(/(\\sqrt\{[^{}]+\})/g, (match, formula) => {
+        try {
+          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+          const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
+          mathPlaceholders.push({ placeholder, rendered });
+          return placeholder;
+        } catch(e) {
+          return match;
+        }
+      });
+
+      // 清理独立标题 #
+      t = t.split("\n").map(line => {
+        const s = line.trim();
+        if (s.startsWith("#")) {
+          return `**${s.replace(/^#+\s*/, '')}**`;
+        }
+        return line;
+      }).join("\n");
+
+      let html = "";
+      try {
+        html = marked.parse(t);
+      } catch(e) {
+        html = t;
+      }
+
+      // 将预渲染的 KaTeX HTML 完美复原，彻底避免 Markdown 逃逸与格式破损
+      mathPlaceholders.forEach(({ placeholder, rendered }) => {
+        html = html.replaceAll(placeholder, rendered);
+      });
+
+      return html;
+    }
+
+    // 标签页标题 LaTeX 清洗，确保选项卡纯文本优雅显示
+    function cleanTitleForDisplay(title) {
+      if (!title) return "探索会话";
+      let t = title.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2');
+      t = t.replace(/\\sqrt\{([^{}]+)\}/g, '√$1');
+      t = t.replace(/\\times/g, '×').replace(/\\div/g, '÷').replace(/\\pm/g, '±').replace(/\\infty/g, '∞');
+      t = t.replace(/\\(ln|log|sin|cos|tan)\b/g, '$1');
+      t = t.replace(/\\[a-zA-Z]+/g, '');
+      t = t.replace(/[\$\{\}]/g, '');
+      return t.replace(/\s+/g, ' ').trim();
+    }
+
+    // 智能截断题目概要，避免从数学公式中间腰斩导致未闭合
+    function getTruncatedSummary(text, maxLen = 60) {
+      if (!text) return "";
+      const cleaned = text.trim();
+      if (cleaned.length <= maxLen) return cleaned;
+      let truncated = cleaned.slice(0, maxLen);
+      const dollarMatches = truncated.match(/\$/g) || [];
+      if (dollarMatches.length % 2 !== 0) {
+        const lastDollar = truncated.lastIndexOf('$');
+        if (lastDollar > 0) {
+          truncated = truncated.slice(0, lastDollar).trim();
+        } else {
+          truncated += "$";
+        }
+      }
+      return truncated + "...";
+    }
+
+    // 中文数字转换，统一关卡编号表达
+    function toChineseNum(n) {
+      const digits = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"];
+      if (n >= 0 && n < digits.length) return digits[n];
+      return String(n);
+    }
+
+    // 规范化变式关卡标题，统一步调为【第X关：名称】
+    function normalizeTierTitle(title, tierNum) {
+      const cNum = toChineseNum(tierNum);
+      if (!title) return `第${cNum}关：变式综合拓展`;
+      const clean = title.replace(/^(?:Tier\s*\d+\s*[:：]|第\s*\d+\s*关\s*[:：]|第\s*[一二三四五六七八九十]+\s*关\s*[:：])\s*/i, '');
+      return `第${cNum}关：${clean}`;
+    }
+
+    // 渲染 KaTeX
+    function renderLatex(container) {
+      if (window.renderMathInElement) {
+        renderMathInElement(container, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '\\[', right: '\\]', display: true}
+          ],
+          throwOnError: false
+        });
+      }
+    }
+
+    // 初始化载入
+    async function initApp() {
+      try {
+        const res = await apiFetch('/api/bootstrap');
+        const data = await res.json();
+        appState = data.store;
+        latexTree = data.latex_presets_tree;
+        applyTheme(appState.theme_mode || 'dark');
+        renderTabs();
+        renderCurrentSessionView();
+        setupLatexKeyboard();
+
+        // 渲染开题示例公式与预设卡片公式
+        const sampleMathEl = document.getElementById('onboardSampleMath');
+        if (sampleMathEl) {
+          sampleMathEl.innerHTML = katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false });
+        }
+        document.querySelectorAll('.preset-card-desc').forEach(el => {
+          el.innerHTML = formatMarkdown(el.textContent);
+        });
+
+        renderLatex(document.body);
+      } catch (err) {
+        console.error("Bootstrap error:", err);
+      }
+    }
+
+    // 主题切换
+    function applyTheme(theme) {
+      document.body.setAttribute('data-theme', theme);
+      const optLight = document.getElementById('optLight');
+      const optDark = document.getElementById('optDark');
+      const isLight = (theme === 'light');
+      const tIcon = document.getElementById('themeToggleIcon');
+      const tText = document.getElementById('themeToggleText');
+      if (tIcon && tText) {
+        tIcon.innerText = isLight ? '☀️' : '🌙';
+        tText.innerText = isLight ? '亮色模式' : '暗色模式';
+      }
+    }
+
+    async function toggleTheme(theme) {
+      applyTheme(theme);
+      await apiFetch('/api/theme', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({theme: theme})
+      });
+      if (appState) appState.theme_mode = theme;
+    }
+
+    const themeToggleBtn = document.getElementById('themeToggleBtn');
+    if (themeToggleBtn) {
+      themeToggleBtn.onclick = () => {
+        const cur = document.body.getAttribute('data-theme');
+        toggleTheme(cur === 'light' ? 'dark' : 'light');
+      };
+    }
+
+    // 渲染顶部 Chrome Tabs
+    function renderTabs() {
+      const scrollArea = document.getElementById('tabsScrollArea');
+      scrollArea.innerHTML = "";
+      const activeDict = appState.active_sessions || {};
+      const currentId = appState.current_session_id;
+
+      Object.keys(activeDict).forEach(id => {
+        const sess = activeDict[id];
+        const isActive = id === currentId;
+        const tabEl = document.createElement('div');
+        tabEl.className = 'chrome-tab' + (isActive ? ' active' : '');
+        tabEl.onclick = () => switchTab(id);
+
+        let title = (sess.title || "探索会话").trim();
+        const displayTitle = cleanTitleForDisplay(title);
+        let icon = "🧭";
+        if (title.includes("物理") || title.includes("动量")) icon = "⚖️";
+        else if (title.includes("数学") || title.includes("导数")) icon = "📐";
+        else if (title.includes("化学")) icon = "🧪";
+        else if (title.includes("技术")) icon = "💻";
+
+        tabEl.innerHTML = `
+          <span class="tab-icon">${icon}</span>
+          <span class="tab-title-text" title="${displayTitle}">${displayTitle}</span>
+          <div class="tab-action-group">
+            <span class="star-toggle-btn ${sess.is_starred ? 'is-starred' : ''}" onclick="event.stopPropagation(); toggleStar('${id}')" title="${sess.is_starred ? '取消收藏' : '收藏'}">${sess.is_starred ? '★' : '☆'}</span>
+            <span class="close-tab-cross" onclick="event.stopPropagation(); closeTab('${id}')" title="关闭并归档">×</span>
+          </div>
+          <div class="vertical-divider"></div>
+        `;
+        scrollArea.appendChild(tabEl);
+      });
+
+      const archivedCount = Object.keys(appState.archived_sessions || {}).length;
+      document.getElementById('archivedBadge').innerText = archivedCount;
+    }
+
+    async function switchTab(id) {
+      if (appState.current_session_id === id) return;
+      const res = await apiFetch('/api/sessions/switch', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: id})
+      });
+      const data = await res.json();
+      appState = data.store;
+      renderTabs();
+      renderCurrentSessionView();
+    }
+
+    async function closeTab(id) {
+      const res = await apiFetch('/api/sessions/close', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: id})
+      });
+      const data = await res.json();
+      appState = data.store;
+      renderTabs();
+      renderCurrentSessionView();
+    }
+
+    async function toggleStar(id) {
+      const res = await apiFetch('/api/sessions/toggle_star', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: id})
+      });
+      const data = await res.json();
+      const sess = (appState.active_sessions || {})[id] || (appState.archived_sessions || {})[id];
+      if (sess) sess.is_starred = data.is_starred;
+      renderTabs();
+    }
+
+    document.getElementById('addBtn').onclick = async () => {
+      const res = await apiFetch('/api/sessions/create', {method: 'POST'});
+      const data = await res.json();
+      appState = data.store;
+      renderTabs();
+      renderCurrentSessionView();
+    };
+
+    // 历史归档抽屉
+    document.getElementById('historyBtn').onclick = () => toggleHistoryDrawer();
+    function toggleHistoryDrawer() {
+      const drawer = document.getElementById('historyDrawer');
+      drawer.classList.toggle('show');
+      if (drawer.classList.contains('show')) {
+        renderHistoryList('starred');
+      }
+    }
+
+    let activeHistoryTab = 'starred';
+    function switchHistoryTab(tab) {
+      activeHistoryTab = tab;
+      renderHistoryList(tab);
+    }
+
+    function renderHistoryList(tab) {
+      const container = document.getElementById('historyListContainer');
+      container.innerHTML = "";
+      const activeList = Object.values(appState.active_sessions || {});
+      const archList = Object.values(appState.archived_sessions || {});
+      
+      let list = [];
+      if (tab === 'starred') {
+        list = [...activeList, ...archList].filter(s => s.is_starred);
+      } else {
+        list = archList;
+      }
+
+      if (list.length === 0) {
+        container.innerHTML = `<div style="font-size: 0.88rem; color: var(--text-muted); padding: 12px 0;">暂无记录。</div>`;
+        return;
+      }
+
+      list.forEach(item => {
+        const row = document.createElement('div');
+        row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--card-border); font-size: 0.86rem;";
+        row.innerHTML = `
+          <div>
+            <strong>${item.title || '会话'}</strong>
+            <div style="font-size: 0.78rem; color: var(--text-muted);">${(item.question || '').slice(0, 45)}...</div>
+          </div>
+          <div style="display: flex; gap: 6px;">
+            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="restoreSession('${item.id}')">恢复</button>
+            ${tab === 'archived' ? `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="deleteArchived('${item.id}')">🗑️</button>` : ''}
+          </div>
+        `;
+        container.appendChild(row);
+      });
+    }
+
+    async function restoreSession(id) {
+      const res = await apiFetch('/api/sessions/restore', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: id})
+      });
+      const data = await res.json();
+      appState = data.store;
+      renderTabs();
+      renderCurrentSessionView();
+      toggleHistoryDrawer();
+    }
+
+    async function deleteArchived(id) {
+      const res = await apiFetch('/api/sessions/delete_archived', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: id})
+      });
+      const data = await res.json();
+      appState = data.store;
+      renderTabs();
+      renderHistoryList(activeHistoryTab);
+    }
+
+    // 渲染主解题视图或引导视图
+    function renderCurrentSessionView() {
+      const curId = appState.current_session_id;
+      const curSession = (appState.active_sessions || {})[curId];
+      const onboardingView = document.getElementById('onboardingView');
+      const workspaceView = document.getElementById('workspaceView');
+
+      if (!curSession || !curSession.is_initialized || !curSession.question || !curSession.question.trim()) {
+        onboardingView.style.display = 'block';
+        workspaceView.style.display = 'none';
+        renderLatex(onboardingView);
+        return;
+      }
+
+      onboardingView.style.display = 'none';
+      workspaceView.style.display = 'block';
+
+      // 1. 题目折叠卡片
+      const qText = curSession.question.trim();
+      const qSummary = getTruncatedSummary(qText, 60);
+      const summaryMathHtml = formatMarkdown(qSummary).replace(/^<p>/, '').replace(/<\/p>\s*$/, '');
+      const qSummaryEl = document.getElementById('questionSummaryText');
+      qSummaryEl.innerHTML = `📌 当前题目：${summaryMathHtml}`;
+      renderLatex(qSummaryEl);
+      const qContent = document.getElementById('questionFullContent');
+      qContent.innerHTML = formatMarkdown(qText);
+      renderLatex(qContent);
+
+      // 2. 聊天消息
+      renderChatMessages(curSession.dialogue_history || []);
+
+      // 3. 右侧学情 Stepper
+      renderStepper(curSession.current_stage || 1);
+
+      // 4. 聚焦目标与行动提示
+      renderDashboardFocus(curSession);
+
+      // 5. 盲区透视与变式矩阵
+      renderBlindspotAndMatrix(curSession);
+
+      // 6. 思维轨迹
+      renderTrajectory(curSession);
+
+      // 7. 靶点标签
+      renderCognitiveTags(curSession);
+    }
+
+    // 渲染聊天记录
+    function renderChatMessages(history) {
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = "";
+
+      history.forEach((msg, idx) => {
+        if (msg.role === 'divider') {
+          const divEl = document.createElement('div');
+          divEl.className = 'variant-divider-card';
+          divEl.innerHTML = `
+            <div class="variant-divider-title">${msg.content}</div>
+            <div class="variant-divider-sub">⚠️ 杜绝死记硬背 · 循序渐进闯关 · 深度认知迁移</div>
+          `;
+          container.appendChild(divEl);
+          return;
+        }
+
+        const msgEl = document.createElement('div');
+        let avatar = "🧭";
+        let cls = "tutor-message";
+
+        if (msg.role === 'user') {
+          avatar = "🧑‍🎓";
+          cls = "user-message";
+        } else if (msg.role === 'assistant_variant') {
+          avatar = "🎯";
+          cls = "variant-message";
+        }
+
+        msgEl.className = `st-chat-message ${cls}`;
+        msgEl.innerHTML = `
+          <div class="st-chat-avatar">${avatar}</div>
+          <div class="st-chat-content">${formatMarkdown(msg.content)}</div>
+        `;
+        renderLatex(msgEl.querySelector('.st-chat-content'));
+        container.appendChild(msgEl);
+      });
+
+      scrollChatToBottom();
+    }
+
+    function scrollChatToBottom() {
+      const box = document.getElementById('chatBox');
+      box.scrollTop = box.scrollHeight;
+    }
+
+    // 渲染 Stepper
+    function renderStepper(currStage) {
+      const container = document.getElementById('stepperContainer');
+      const steps = [
+        [1, "审题门禁"],
+        [2, "梯度启发"],
+        [3, "盲区透视"],
+        [4, "变式迁移"]
+      ];
+      let html = "";
+      steps.forEach(([num, name], idx) => {
+        let dotCls = "pending";
+        let dotContent = num;
+        let textCls = "";
+        if (num < currStage) {
+          dotCls = "done";
+          dotContent = "✓";
+        } else if (num === currStage) {
+          dotCls = "current";
+          textCls = "active-text";
+        }
+
+        html += `
+          <div class="step-node">
+            <div class="step-dot ${dotCls}">${dotContent}</div>
+            <div class="step-text ${textCls}">${name}</div>
+          </div>
+        `;
+        if (idx < steps.length - 1) {
+          html += `<div class="step-connector ${num < currStage ? 'done' : ''}"></div>`;
+        }
+      });
+      container.innerHTML = html;
+    }
+
+    // 渲染聚焦看板
+    function renderDashboardFocus(session) {
+      const currStage = session.current_stage || 1;
+      const currTurns = session.tutor_turns || 0;
+      const diag = session.diagnostic_result || {};
+      const definedTiers = Object.keys(diag).filter(k => k.startsWith('tier') && k.endsWith('_variant')).map(k => parseInt(k.replace('tier', '').replace('_variant', '')));
+      const maxTier = Math.max(...(definedTiers.length ? definedTiers : [3]));
+      const currTier = session.current_variant_tier || 1;
+      const allDone = (currStage >= 4 && currTier > maxTier);
+
+      const stageGoals = {
+        1: ["审清关键约束与物理边界", "请在左侧回答你对本题条件与已知规律的第一直觉。"],
+        2: ["暴露推导瓶颈与潜在断点", "针对导师提出的反例或极端情景，继续推演卡点所在。"],
+        3: ["查收思维盲区透视分析", "点击下方选项卡查看错因归因，准备开启变式通关。"],
+        4: ["完成高阶对抗变式闯关", "请在左侧输入框完成变式题推导，严防机械套用。"]
+      };
+
+      let [gTitle, gHint] = stageGoals[currStage] || ["跟随导师引导逐步推导", "在左侧输入你的推导过程。"];
+      if (allDone) {
+        gTitle = `已通关全部 ${toChineseNum(maxTier)} 关变式挑战`;
+        gHint = `点击下方【🔥 再来一题 (第${toChineseNum(maxTier + 1)}关)】可开启更高难度挑战！`;
+      }
+
+      document.getElementById('stageGoalTitle').innerText = `🎯 当前目标：${gTitle}`;
+      document.getElementById('stageTurnNum').innerText = currTurns;
+      document.getElementById('stageActionHint').innerText = gHint;
+
+      // 校验按钮状态控制
+      const verifyBtn = document.getElementById('verifyBtn');
+      if (currStage < 3 && currTurns >= 3) {
+        verifyBtn.disabled = false;
+        verifyBtn.innerText = "🎯 请求突破校验";
+        verifyBtn.className = "btn btn-primary";
+      } else if (allDone) {
+        verifyBtn.disabled = false;
+        verifyBtn.innerText = `🔥 再来一题 (第${toChineseNum(maxTier + 1)}关)`;
+        verifyBtn.className = "btn btn-primary";
+      } else if (currStage >= 3) {
+        verifyBtn.disabled = true;
+        verifyBtn.innerText = "✅ 认知画像已解锁";
+        verifyBtn.className = "btn btn-secondary";
+      } else {
+        verifyBtn.disabled = true;
+        verifyBtn.innerText = `🔒 突破校验 (需思考${3 - currTurns}轮)`;
+        verifyBtn.className = "btn btn-secondary";
+      }
+    }
+
+    // 渲染错因画像与变式矩阵
+    function renderBlindspotAndMatrix(session) {
+      const diagArea = document.getElementById('blindspotCardArea');
+      const matrixArea = document.getElementById('variantMatrixArea');
+      const diag = session.diagnostic_result;
+      const turns = session.tutor_turns || 0;
+
+      if (!diag) {
+        const remaining = Math.max(1, 3 - turns);
+        const pct = Math.min(100, Math.round((turns / 3.0) * 100));
+        diagArea.innerHTML = `
+          <div class="blindspot-locked-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span class="locked-title">🔒 盲区画像透视（待解锁）</span>
+              <span class="locked-badge">需再深度思考 ${remaining} 轮</span>
+            </div>
+            <div class="locked-desc">正在探测你的第一直觉卡点与隐含逻辑断点，完成 3 轮推导后在此解锁认知归因报告与变式挑战。</div>
+            <div class="locked-progress-bg">
+              <div class="locked-progress-bar" style="width: ${pct}%;"></div>
+            </div>
+          </div>
+        `;
+        matrixArea.innerHTML = "";
+        return;
+      }
+
+      // 已解锁错因画像
+      const bType = diag.blindspot_type || "边界遗漏型";
+      const bDetail = diag.blindspot_detail || "直觉倾向于机械套用已知公式或结论";
+      const bBreak = diag.key_breakthrough || "通过反例诱发矛盾，实现自主逻辑重构";
+      const conf = diag.confidence || "95%";
+
+      diagArea.innerHTML = `
+        <div class="diag-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span class="diag-title">错因定性：#${bType}</span>
+            <span class="diag-badge">置信度 ${conf}</span>
+          </div>
+          <div class="diag-item-perf"><span class="diag-lbl">• 诊断：</span>${bDetail}</div>
+          <div class="diag-item-break"><span class="diag-lbl">• 突破点：</span>${bBreak}</div>
+        </div>
+      `;
+
+      // 变式矩阵
+      const definedTiers = Object.keys(diag).filter(k => k.startsWith('tier') && k.endsWith('_variant')).map(k => parseInt(k.replace('tier', '').replace('_variant', ''))).sort((a,b)=>a-b);
+      const tiers = definedTiers.length ? definedTiers : [1, 2, 3];
+      const maxTier = Math.max(...tiers);
+      const currTier = session.current_variant_tier || 1;
+      const allDone = (currTier > maxTier);
+
+      const defaultTitles = {
+        1: "维度与参数拓展",
+        2: "逆向条件反转辨析",
+        3: "跨界深层综合应用",
+        4: "多体耦合与隐式极值论证"
+      };
+
+      let rowsHtml = "";
+      tiers.forEach(tNum => {
+        const tData = diag[`tier${tNum}_variant`] || {};
+        const title = normalizeTierTitle(tData.title || defaultTitles[tNum], tNum);
+        const stars = "⭐".repeat(Math.min(tNum, 4));
+
+        if (currTier > tNum) {
+          rowsHtml += `<div class="tier-row-item tier-row-done"><span>${stars} <strong>${title}</strong></span><span>✅ 已通关</span></div>`;
+        } else if (currTier === tNum) {
+          rowsHtml += `<div class="tier-row-item tier-row-active"><span>${stars} <strong>${title}</strong></span><span>🔥 挑战中</span></div>`;
+        } else {
+          rowsHtml += `<div class="tier-row-item tier-row-locked"><span>★ ${title}</span><span>🔒 待解锁</span></div>`;
+        }
+      });
+
+      matrixArea.innerHTML = `
+        <div class="variant-matrix-card">
+          <div class="variant-matrix-header">🎯 对抗变式闯关进度：</div>
+          ${rowsHtml}
+          ${allDone ? `<div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-top: 8px;">🏆 当前全部 ${toChineseNum(maxTier)} 关变式挑战均已通关！</div>` : `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">👉 正在进行第${toChineseNum(currTier)}关挑战，请在左侧作答。</div>`}
+        </div>
+      `;
+    }
+
+    // 渲染思维轨迹
+    function renderTrajectory(session) {
+      const container = document.getElementById('trajectoryList');
+      const turns = session.tutor_turns || 0;
+      const diag = session.diagnostic_result;
+      let nodes = [];
+
+      if (turns >= 1) nodes.push(["第 1 轮", "卡住", "基于直觉提出初步推导，受制于机械套用", "tag-stuck"]);
+      if (turns >= 2) nodes.push(["第 2 轮", "推进", "在微图景反例启发下重新审视受力与边界", "tag-advance"]);
+      if (turns >= 3) nodes.push(["第 3 轮", diag ? "顿悟" : "推进", diag ? "识破核心暗坑，完成推导闭环" : "突破逻辑陷阱，准备终审校验", diag ? "tag-break" : "tag-advance"]);
+      if (turns >= 4) nodes.push([`第 ${turns} 轮`, "顿悟", "同构迁移推导，检验迁移能力", "tag-break"]);
+
+      if (nodes.length === 0) {
+        container.innerHTML = `<div style="font-size: 0.8rem; color: var(--text-muted);">暂无推导记录，开始第一轮交互后生成轨迹。</div>`;
+        return;
+      }
+
+      container.innerHTML = nodes.map(([turn, tag, desc, tagCls]) => `
+        <div class="trajectory-item">
+          <span class="traj-turn">${turn}</span>
+          <span class="trajectory-tag ${tagCls}">${tag}</span>
+          <span class="traj-desc">${desc}</span>
+        </div>
+      `).join('');
+    }
+
+    // 渲染认知靶点
+    function renderCognitiveTags(session) {
+      const container = document.getElementById('cognitiveTagsContainer');
+      const q = session.question || "";
+      let tags = [];
+      if (q.includes("动量")) {
+        tags = ["#矢量方向性守恒", "#支持力与重力非平衡", "#竖直方向加速度 a_y"];
+      } else if (q.includes("导数")) {
+        tags = ["#对数定义域 x>0", "#参数 a 变号极值讨论", "#导数零点隐式存在"];
+      } else {
+        tags = ["#隐含物理/数学边界", "#极端特例反例校验", "#逻辑推导闭环"];
+      }
+      container.innerHTML = tags.map(t => `<span class="trajectory-tag tag-advance" style="margin-right: 4px; display: inline-block;">${t}</span>`).join('');
+    }
+
+    // 看板 Tab 切换
+    function switchDashboardTab(tab) {
+      const btnReport = document.getElementById('tabReportBtn');
+      const btnTraj = document.getElementById('tabTrajBtn');
+      const pReport = document.getElementById('dashboardTabReport');
+      const pTraj = document.getElementById('dashboardTabTraj');
+
+      if (tab === 'report') {
+        btnReport.classList.add('active');
+        btnTraj.classList.remove('active');
+        pReport.style.display = 'block';
+        pTraj.style.display = 'none';
+      } else {
+        btnReport.classList.remove('active');
+        btnTraj.classList.add('active');
+        pReport.style.display = 'none';
+        pTraj.style.display = 'block';
+      }
+    }
+
+    // 实时公式预览监听
+    const chatInput = document.getElementById('studentThoughtInput');
+    const chatPreviewBox = document.getElementById('chatPreviewBox');
+    const chatPreviewContent = document.getElementById('chatPreviewContent');
+
+    chatInput.addEventListener('input', () => {
+      const val = chatInput.value.trim();
+      if (!val || (!val.includes('$') && !val.includes('\\'))) {
+        chatPreviewBox.style.display = 'none';
+        return;
+      }
+      chatPreviewBox.style.display = 'block';
+      chatPreviewContent.innerHTML = formatMarkdown(val);
+      renderLatex(chatPreviewContent);
+    });
+
+    // 实时开题公式预览监听
+    const onboardInput = document.getElementById('onboardTextInput');
+    const onboardPreviewBox = document.getElementById('onboardPreviewBox');
+    const onboardPreviewContent = document.getElementById('onboardPreviewContent');
+
+    onboardInput.addEventListener('input', () => {
+      const val = onboardInput.value.trim();
+      if (!val || (!val.includes('$') && !val.includes('\\'))) {
+        onboardPreviewBox.style.display = 'none';
+        return;
+      }
+      onboardPreviewBox.style.display = 'block';
+      onboardPreviewContent.innerHTML = formatMarkdown(val);
+      renderLatex(onboardPreviewContent);
+    });
+
+    // 开题子 Tab 切换
+    function switchOnboardTab(tab) {
+      document.querySelectorAll('#onboardingView .st-tab-button').forEach((b, i) => {
+        b.classList.toggle('active', (tab === 'text' && i === 0) || (tab === 'photo' && i === 1) || (tab === 'preset' && i === 2));
+      });
+      document.getElementById('onboardTabText').style.display = tab === 'text' ? 'block' : 'none';
+      document.getElementById('onboardTabPhoto').style.display = tab === 'photo' ? 'block' : 'none';
+      document.getElementById('onboardTabPreset').style.display = tab === 'preset' ? 'block' : 'none';
+      renderLatex(document.getElementById('onboardingView'));
+    }
+
+    // 载入预设
+    async function loadPreset(key) {
+      const curId = appState.current_session_id;
+      const res = await apiFetch('/api/sessions/init_question', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: curId, preset_key: key})
+      });
+      const data = await res.json();
+      appState = data.store;
+      renderTabs();
+      renderCurrentSessionView();
+    }
+
+    // 提交文字开题
+    async function submitOnboardText() {
+      const text = onboardInput.value.trim();
+      if (!text) return alert("请先输入题目内容！");
+      const curId = appState.current_session_id;
+      const res = await apiFetch('/api/sessions/init_question', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_id: curId, question: text})
+      });
+      const data = await res.json();
+      appState = data.store;
+      onboardInput.value = "";
+      renderTabs();
+      renderCurrentSessionView();
+    }
+
+    // 提交思维回复 (核心 SSE 极速打字机推流)
+    async function handleSubmitThought() {
+      if (isStreaming) return;
+      const text = chatInput.value.trim();
+      if (!text) return;
+
+      const curId = appState.current_session_id;
+      const submitBtn = document.getElementById('submitBtn');
+      chatInput.value = "";
+      chatPreviewBox.style.display = 'none';
+
+      // 立即追加学生发言
+      const container = document.getElementById('messagesContainer');
+      const userMsgEl = document.createElement('div');
+      userMsgEl.className = 'st-chat-message user-message';
+      userMsgEl.innerHTML = `
+        <div class="st-chat-avatar">🧑‍🎓</div>
+        <div class="st-chat-content">${formatMarkdown(text)}</div>
+      `;
+      renderLatex(userMsgEl.querySelector('.st-chat-content'));
+      container.appendChild(userMsgEl);
+
+      // 创建导师占位发言卡片
+      const curSession = (appState.active_sessions || {})[curId];
+      const isVariant = (curSession && curSession.current_stage >= 4);
+      const tutorMsgEl = document.createElement('div');
+      tutorMsgEl.className = `st-chat-message ${isVariant ? 'variant-message' : 'tutor-message'}`;
+      tutorMsgEl.innerHTML = `
+        <div class="st-chat-avatar">${isVariant ? '🎯' : '🧭'}</div>
+        <div class="st-chat-content"><span class="typing-cursor"></span></div>
+      `;
+      container.appendChild(tutorMsgEl);
+      scrollChatToBottom();
+
+      isStreaming = true;
+      submitBtn.disabled = true;
+
+      const contentBox = tutorMsgEl.querySelector('.st-chat-content');
+      let streamedText = "";
+
+      try {
+        const response = await apiFetch(`/api/sessions/${curId}/chat/stream?student_text=${encodeURIComponent(text)}`);
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            if (line.startsWith("data: ")) {
+              const data = JSON.parse(line.slice(6));
+              if (data.type === 'chunk') {
+                streamedText += data.content;
+                contentBox.innerHTML = formatMarkdown(streamedText) + `<span class="typing-cursor"></span>`;
+                renderLatex(contentBox);
+                scrollChatToBottom();
+              } else if (data.type === 'done') {
+                contentBox.innerHTML = formatMarkdown(streamedText);
+                renderLatex(contentBox);
+                appState = data.store;
+                renderTabs();
+                renderCurrentSessionView();
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Stream error:", err);
+        contentBox.innerHTML += `<div style="color: #ef4444; font-size: 0.8rem; margin-top: 4px;">连接中断，请重试。</div>`;
+      } finally {
+        isStreaming = false;
+        submitBtn.disabled = false;
+      }
+    }
+
+    // 突破校验 / 再来一题 按钮点击（严格防重防抖，禁止并发跳关）
+    let isVerifying = false;
+
+    async function handleVerifyClick() {
+      if (isVerifying) return; // 严格防快速连续点击
+      const curId = appState.current_session_id;
+      const curSession = (appState.active_sessions || {})[curId];
+      if (!curSession) return;
+
+      const diag = curSession ? curSession.diagnostic_result : null;
+      const definedTiers = Object.keys(diag || {}).filter(k => k.startsWith('tier') && k.endsWith('_variant'));
+      const maxTier = Math.max(...(definedTiers.map(k => parseInt(k.replace('tier', '').replace('_variant', '')))), 3);
+      const allDone = (curSession && curSession.current_stage >= 4 && curSession.current_variant_tier > maxTier);
+
+      const verifyBtn = document.getElementById('verifyBtn');
+      const submitBtn = document.getElementById('submitBtn');
+      const hintBtn = document.getElementById('hintBtn');
+
+      isVerifying = true;
+      if (verifyBtn) {
+        verifyBtn.disabled = true;
+        verifyBtn.style.pointerEvents = 'none';
+        if (allDone) {
+          verifyBtn.innerHTML = `<span class="btn-spinner"></span> 正在出题 (第${toChineseNum(maxTier + 1)}关)...`;
+        } else {
+          verifyBtn.innerHTML = `<span class="btn-spinner"></span> 正在校验中...`;
+        }
+      }
+      if (submitBtn) submitBtn.disabled = true;
+      if (hintBtn) hintBtn.disabled = true;
+
+      // 聊天区动态插入等待提示气泡，提供实时出题反馈
+      const chatMessages = document.getElementById('chatMessages');
+      const loadingDiv = document.createElement('div');
+      loadingDiv.className = 'chat-message-row assistant';
+      loadingDiv.id = 'tierLoadingPlaceholder';
+      loadingDiv.innerHTML = `
+        <div class="chat-avatar assistant">🧭</div>
+        <div class="chat-bubble assistant" style="background: var(--card-bg); border: 1px dashed var(--primary); padding: 10px 16px;">
+          <div style="display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 0.88rem;">
+            <span class="btn-spinner" style="border-top-color: var(--primary); width: 16px; height: 16px;"></span>
+            <span>${allDone ? `导师正在基于你的认知轨迹构建第${toChineseNum(maxTier + 1)}关变式挑战，请稍候...` : '导师正在分析你的认知画像与思维断点，请稍候...'}</span>
+          </div>
+        </div>
+      `;
+      chatMessages.appendChild(loadingDiv);
+      scrollChatToBottom();
+
+      try {
+        if (allDone) {
+          // 再来一题
+          const res = await apiFetch('/api/sessions/next_tier', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: curId})
+          });
+          const data = await res.json();
+          appState = data.store;
+          renderTabs();
+          renderCurrentSessionView();
+        } else {
+          // 请求突破校验
+          const res = await apiFetch('/api/sessions/verify', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: curId})
+          });
+          const data = await res.json();
+          appState = data.store;
+          renderTabs();
+          renderCurrentSessionView();
+        }
+      } catch (err) {
+        console.error("Verify / Next Tier error:", err);
+      } finally {
+        const placeholder = document.getElementById('tierLoadingPlaceholder');
+        if (placeholder) placeholder.remove();
+        isVerifying = false;
+        if (verifyBtn) {
+          verifyBtn.style.pointerEvents = '';
+        }
+        if (submitBtn) submitBtn.disabled = false;
+        if (hintBtn) hintBtn.disabled = false;
+        const updatedSession = (appState.active_sessions || {})[curId] || curSession;
+        renderDashboardFocus(updatedSession);
+      }
+    }
+
+    // 隐喻提示按钮点击
+    function handleHintClick() {
+      chatInput.value = "这步有点抽象，能从最简单的特例或几何图景给我一个隐喻线索吗？";
+      chatInput.dispatchEvent(new Event('input'));
+      chatInput.focus();
+    }
+
+    // 处理图片上传
+    async function handleImageUpload(e, mode) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const formData = new FormData();
+      formData.append('image', file);
+      formData.append('mode', mode);
+      
+      const curSession = (appState.active_sessions || {})[appState.current_session_id];
+      formData.append('question_context', curSession ? (curSession.question || '') : '');
+
+      const res = await apiFetch('/api/sessions/upload_image', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await res.json();
+
+      if (mode === 'question') {
+        onboardInput.value = data.text;
+        onboardInput.dispatchEvent(new Event('input'));
+        switchOnboardTab('text');
+      } else {
+        chatInput.value = data.text;
+        chatInput.dispatchEvent(new Event('input'));
+        document.getElementById('draftPopoverBox').classList.remove('show');
+      }
+    }
+
+    // 符号键盘浮层展开与切换
+    document.getElementById('latexKbdToggleBtn').onclick = (e) => {
+      e.stopPropagation();
+      document.getElementById('latexPopoverBox').classList.toggle('show');
+      document.getElementById('draftPopoverBox').classList.remove('show');
+    };
+    document.getElementById('photoDraftToggleBtn').onclick = (e) => {
+      e.stopPropagation();
+      document.getElementById('draftPopoverBox').classList.toggle('show');
+      document.getElementById('latexPopoverBox').classList.remove('show');
+    };
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#latexPopoverBox') && !e.target.closest('#latexKbdToggleBtn')) {
+        document.getElementById('latexPopoverBox').classList.remove('show');
+      }
+      if (!e.target.closest('#draftPopoverBox') && !e.target.closest('#photoDraftToggleBtn')) {
+        document.getElementById('draftPopoverBox').classList.remove('show');
+      }
+    });
+
+    // 键盘符号双层预设
+    function setupLatexKeyboard() {
+      if (!latexTree) return;
+      const t1Keys = Object.keys(latexTree);
+      activeKbdT1 = t1Keys[0];
+      const t2Keys = Object.keys(latexTree[activeKbdT1] || {});
+      activeKbdT2 = t2Keys[0];
+
+      renderKbdTabs('chat');
+      renderKbdTabs('onboard');
+    }
+
+    function renderKbdTabs(prefix) {
+      const t1Box = document.getElementById(`${prefix}KbdTier1`);
+      const t2Box = document.getElementById(`${prefix}KbdTier2`);
+      const gridBox = document.getElementById(`${prefix}SymbolsGrid`);
+      if (!t1Box || !t2Box || !gridBox || !latexTree) return;
+
+      // Tier 1
+      t1Box.innerHTML = Object.keys(latexTree).map(cat => `
+        <button class="kbd-seg-btn ${cat === activeKbdT1 ? 'active' : ''}" onclick="selectKbdT1('${cat}', '${prefix}')">${cat}</button>
+      `).join('');
+
+      // Tier 2
+      const subTree = latexTree[activeKbdT1] || {};
+      const subKeys = Object.keys(subTree);
+      if (!subTree[activeKbdT2]) activeKbdT2 = subKeys[0];
+
+      t2Box.innerHTML = subKeys.map(sub => `
+        <button class="kbd-seg-btn ${sub === activeKbdT2 ? 'active' : ''}" onclick="selectKbdT2('${sub}', '${prefix}')">${sub}</button>
+      `).join('');
+
+      // Symbols Grid - 高精度 KaTeX 符号渲染与纯净内存索引传参
+      const symbols = subTree[activeKbdT2] || [];
+      gridBox.innerHTML = symbols.map((s, idx) => {
+        let labelHtml = s.label;
+        if (labelHtml.startsWith('$') && labelHtml.endsWith('$')) {
+          try {
+            labelHtml = katex.renderToString(labelHtml.slice(1, -1), { displayMode: false, throwOnError: false });
+          } catch(e) {
+            labelHtml = s.label;
+          }
+        }
+        return `
+          <div class="symbol-chip" data-idx="${idx}" title="${s.desc || s.label}">
+            ${labelHtml}
+          </div>
+        `;
+      }).join('');
+
+      // 点击事件代理，直接从符号对象数组安全提取原生代码，杜绝 HTML 引号与反斜杠逃逸
+      gridBox.onclick = (e) => {
+        const chip = e.target.closest('.symbol-chip');
+        if (!chip) return;
+        const idx = parseInt(chip.getAttribute('data-idx'));
+        const sym = symbols[idx];
+        if (sym && sym.code) {
+          insertSymbol(sym.code, prefix);
+        }
+      };
+    }
+
+    function selectKbdT1(cat, prefix) {
+      activeKbdT1 = cat;
+      const subKeys = Object.keys(latexTree[cat] || {});
+      activeKbdT2 = subKeys[0];
+      renderKbdTabs('chat');
+      renderKbdTabs('onboard');
+    }
+
+    function selectKbdT2(sub, prefix) {
+      activeKbdT2 = sub;
+      renderKbdTabs('chat');
+      renderKbdTabs('onboard');
+    }
+
+    function insertSymbol(code, prefix) {
+      const targetInput = prefix === 'onboard' ? onboardInput : chatInput;
+      const cur = targetInput.value;
+      const dollarCount = (cur.match(/\$/g) || []).length;
+      let toInsert = code;
+      if (dollarCount % 2 === 0 && !code.startsWith('$')) {
+        toInsert = `$${code}$`;
+      }
+      targetInput.value = (cur && !cur.endsWith(' ') && !cur.endsWith('\n')) ? `${cur} ${toInsert} ` : `${cur}${toInsert} `;
+      targetInput.dispatchEvent(new Event('input'));
+      targetInput.focus();
+    }
+
+    // 页面启动
+    initApp();
+  </script>
+</body>
+</html>

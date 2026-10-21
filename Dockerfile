@@ -14,17 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source code
 COPY . .
 
-# Expose port
+# Expose port (8501 to match existing Nginx upstream configuration)
 EXPOSE 8501
 
 # Healthcheck
-HEALTHCHECK CMD curl --fail http://localhost:8501/cogni-scaffold/_stcore/health || exit 1
+HEALTHCHECK CMD curl --fail http://localhost:8501/api/bootstrap || exit 1
 
-# Launch Streamlit
-CMD ["streamlit", "run", "app.py", \
-     "--server.port=8501", \
-     "--server.address=0.0.0.0", \
-     "--server.baseUrlPath=/cogni-scaffold", \
-     "--server.enableCORS=false", \
-     "--server.enableXsrfProtection=false", \
-     "--browser.gatherUsageStats=false"]
+# Launch FastAPI with uvicorn
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8501", "--workers", "1"]

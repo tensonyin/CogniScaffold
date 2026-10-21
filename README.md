@@ -2,7 +2,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Python-3.11+-blue.svg" alt="Python 3.11+" />
-  <img src="https://img.shields.io/badge/Streamlit-1.35+-FF4B4B.svg" alt="Streamlit" />
+  <img src="https://img.shields.io/badge/FastAPI-0.110+-009688.svg" alt="FastAPI" />
   <img src="https://img.shields.io/badge/LLM-OpenAI%20%2F%20DeepSeek-green.svg" alt="LLM Compatible" />
   <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License MIT" />
   <img src="https://img.shields.io/badge/Live%20Demo-Online-brightgreen.svg" alt="Live Demo" />
@@ -44,14 +44,18 @@
 ### 4. 演示安全仓（Offline Demo Mode）
 - 内置离线拟真剧本与黄金交互流，即使在无外部网络或 API 限流场景下，亦能 100% 稳定进行学术汇报与教学路演演示。
 
+### 5. 现代化工作台与全景色彩模式（Light / Dark Mode）
+- **像素级 Chrome 标签栏**：支持多会话并行探索、一键新建、星标收藏、优雅历史归档与会话持久化存储。
+- **亮色 / 暗色模式双向无缝切换**：深度适配日间学习与夜间沉浸推导环境，高质感教育工作台色彩方案，在顶部标签栏控制区或归档抽屉中一键即时切换。
+
 ---
 
 ## 🚀 快速启动
 
 ### 1. 克隆代码与依赖准备
 ```bash
-git clone https://github.com/tensonyin/CogniScaffold.git
-cd CogniScaffold
+git clone https://github.com/YOUR_USERNAME/cogni-scaffold.git
+cd cogni-scaffold
 
 # 创建并激活 Python 3.11+ 虚拟环境
 python -m venv .venv
@@ -78,9 +82,14 @@ MODEL_NAME=deepseek-chat
 
 ### 3. 运行本地开发服务
 ```bash
-streamlit run app.py
+# Windows
+run.bat
+# 或使用 PowerShell
+.\run.ps1
+# 或直接启动 uvicorn
+uvicorn server:app --host 0.0.0.0 --port 8000
 ```
-在浏览器打开 `http://localhost:8501` 即可体验。
+在浏览器打开 `http://localhost:8000` 即可体验。
 
 ---
 
@@ -100,7 +109,7 @@ docker run -d --name cogni-scaffold \
   cogni-scaffold-app:latest
 ```
 
-如需配置 Nginx / OpenResty 反向代理（支持子路径与 WebSocket 穿透），可参考项目中的 `buildfuture.tech.conf` 模板。
+如需配置 Nginx / OpenResty 反向代理（支持子路径与 SSE 流式穿透），可参考项目中的 `buildfuture.tech.conf` 模板。
 
 ---
 
@@ -108,14 +117,18 @@ docker run -d --name cogni-scaffold \
 
 ```text
 cogni-scaffold/
-├── app.py                  # Streamlit 主交互页面与前端逻辑
+├── server.py               # 高性能 FastAPI 服务与 SSE 流式驱动
+├── static/
+│   ├── index.html          # 纯前端现代化工作台（支持暗亮模式/全学科/变式闯关）
+│   └── vendor/             # 离线 KaTeX 与 Marked.js 静态引擎资源
 ├── core/
 │   ├── engine.py           # 双智能体逻辑、流式生成与状态机调度
 │   ├── prompts.py          # 导师宪法、解题底座与认知诊断提示词工程
-│   └── presets.py          # 多学科黄金案例库与离线拟真剧本
-├── components/             # 前端定制 UI 组件库
+│   ├── presets.py          # 多学科黄金案例库与离线拟真剧本
+│   ├── latex_presets.py    # 常用数理化 LaTeX 符号分类体系
+│   └── storage.py          # 多会话持久化存储与归档管理
 ├── data/                   # 本地持久化题库与学生会话历史记录
-├── Dockerfile              # 生产级多阶段 Docker 镜像构建清单
+├── Dockerfile              # 生产级 Docker 镜像构建清单
 ├── requirements.txt        # Python 核心依赖清单
 ├── .env.example            # 环境变量模板
 └── README.md               # 项目主说明文档

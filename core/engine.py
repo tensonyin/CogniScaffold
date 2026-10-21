@@ -6,9 +6,11 @@ CogniScaffold 运行时引擎
 import json
 import time
 import base64
-from typing import Generator, Dict, Any, List
+import re
+from typing import Generator, Dict, Any, List, Tuple
 from openai import OpenAI
 
+from core.storage import to_chinese_num
 from core.prompts import (
     SOLVER_SYSTEM_PROMPT,
     TUTOR_SYSTEM_PROMPT,
@@ -17,10 +19,19 @@ from core.prompts import (
     NEXT_TIER_PROMPT
 )
 
+_CLIENT_CACHE: Dict[Tuple[str, str], OpenAI] = {}
 
 def get_openai_client(api_key: str, base_url: str) -> OpenAI:
-    """初始化 OpenAI 兼容客户端"""
-    return OpenAI(api_key=api_key or "sk-dummy", base_url=base_url)
+    """初始化并缓存 OpenAI 客户端单例，复用底层 HTTP Keep-Alive 连接池，大幅消除网络握手延迟"""
+    key = (api_key or "sk-dummy", base_url or "")
+    if key not in _CLIENT_CACHE:
+        _CLIENT_CACHE[key] = OpenAI(
+            api_key=key[0],
+            base_url=key[1] if key[1] else None,
+            timeout=45.0,
+            max_retries=2
+        )
+    return _CLIENT_CACHE[key]
 
 
 def generate_solver_blueprint(question: str, api_config: Dict[str, Any]) -> str:
@@ -141,22 +152,58 @@ def evaluate_transfer_answer(
 ) -> str:
     """
     Transfer Evaluator: 变式题智能评判
-    【核心特性】：落实自信豁免机制。如果学生表明懂了/太简单，或结论正确，直接判定为满分通关，绝不进行诛心式恶意揣测！
+    【核心特性】：
+    1. 识别学生求助/线索请求：若学生主动请求几何图景、隐喻线索或表示卡壳，绝不敷衍报错或误判通关，而是调用大模型给出富有教育温度的启发引导。
+    2. 自信豁免机制：学生明确表达秒杀、太简单或给出正确结论，判定通关。
+    3. 严谨避免单字词（如“简单”、“容易”）误伤求助句式。
     """
     ans_clean = student_answer.strip().lower()
     
-    # 🌟 自信豁免法则：学生明确表示已掌握或太简单，或给出明确的正确结论
-    confident_keywords = ["懂了", "太简单", "简单", "会了", "完全明白", "显然", "毫无压力", "容易", "一眼"]
-    is_confident = any(k in ans_clean for k in confident_keywords)
+    # 0. 优先检测学生是否在请求提示、线索或表达卡点
+    hint_request_keywords = [
+        "线索", "提示", "特例", "几何图景", "隐喻", "抽象", "换个角度", 
+        "卡住", "卡壳", "不会", "不懂", "怎么做", "求指点", "没思路", "不理解", "讲讲", "指引"
+    ]
+    is_asking_hint = any(hk in ans_clean for hk in hint_request_keywords)
+    
+    if is_asking_hint:
+        # 学生主动索要启发/隐喻，生成启发引导，保留关卡未通关状态
+        client = get_openai_client(api_config["api_key"], api_config["base_url"])
+        hint_prompt = f"""你是一位富有启发性的苏格拉底数理导师。
+学生在面对当前的变式挑战时感到抽象，并提出了疑问/请求线索：
+【当前挑战题目】：{variant_question}
+【题目核心要点】：{variant_hint}
+【学生疑问/求助】：{student_answer}
+
+请遵循以下原则提供启发引导：
+1. 肯定学生主动从极端特例/几何图景切入的敏锐直觉（这是顶级学霸的解题习惯）。
+2. 用 1~2 个最简特例数值或直观生活/几何图景隐喻搭桥，指明核心矛盾与约束条件。
+3. 严禁直接给出最终答案或算式数值，引导学生在启发下自己动手写出下一步。
+4. 全文控制在 120 字左右，严禁包含“✅ 成功通关”或“⚠️ 需再审视条件”字样。"""
+        try:
+            response = client.chat.completions.create(
+                model=api_config["model"],
+                messages=[{"role": "user", "content": hint_prompt}],
+                temperature=0.3,
+                max_tokens=220
+            )
+            return "💡 **导师启发指引**\n\n" + response.choices[0].message.content.strip()
+        except Exception:
+            return f"💡 **导师启发指引**\n\n面对这个抽象条件，尝试从极端边界切入：{variant_hint}。想一想如果取最简单的边界特例，核心变量会发生怎样的极端约束？"
+
+    # 1. 🌟 自信豁免法则：精准词组匹配，排除否定修饰
+    has_negation = any(neg in ans_clean for neg in ["不", "没", "难", "未", "假", "否", "哪有"])
+    confident_phrases = ["太简单了", "太简单", "秒杀", "小菜一碟", "已经搞定", "完全懂了", "完全明白", "都懂了", "毫无压力", "一眼看出", "一眼丁真", "看透了"]
+    is_confident = (not has_negation) and any(cp in ans_clean for cp in confident_phrases)
     
     # 正向命中动量或导数的核心结论
-    momentum_correct = ("水平守恒" in ans_clean and "竖直不守恒" in ans_clean)
+    momentum_correct = ("水平守恒" in ans_clean and ("竖直不守恒" in ans_clean or "竖直合力不为零" in ans_clean))
     derivative_correct = ("定义域" in ans_clean and "分类" in ans_clean)
     
     if is_confident or momentum_correct or derivative_correct:
         return "✅ **成功通关！认知迁移达成**\n\n导师非常赞赏你的敏锐与自信！你的结论完全准确，不仅精准把握了核心受力与约束本质，更展现了极其扎实的数理直觉。请乘胜追击，挑战下一关！"
 
-    # 若未触发硬编码豁免，交由高情商大模型评判
+    # 2. 常规答题交由大模型终审评判
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     prompt = TRANSFER_EVAL_PROMPT.format(
         variant_question=variant_question,
@@ -174,7 +221,37 @@ def evaluate_transfer_answer(
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"✅ **成功通关！** 导师认可你的推导逻辑，认知迁移有效率 100%。（在线评语服务降级: {str(e)}）"
+        return f"⚠️ 评判服务暂不可用：{str(e)}，请稍后重试。"
+
+
+def is_transfer_eval_passed(eval_text: str) -> bool:
+    """
+    精确判断变式评判是否真正通关，严禁将「暂不能通关」「未通关」「不能通关」等否定表述误判为通关！
+    """
+    if not eval_text:
+        return False
+    
+    first_line = eval_text.strip().split("\n")[0]
+    
+    # 明确失败标识：首行带有 ⚠️、需再审视、审视条件
+    if "⚠️" in first_line or "需再审视" in first_line or "审视条件" in first_line:
+        return False
+        
+    # 明确通关标识：首行带有 ✅ 或 成功通关
+    if "✅" in first_line or "成功通关" in first_line:
+        # 双重防御：检查首行是否包含否定前缀
+        neg_prefixes = ["未", "不能", "暂不能", "无法", "没", "不予", "不得"]
+        if any(f"{p}成功通关" in first_line or f"{p}通关" in first_line for p in neg_prefixes):
+            return False
+        return True
+
+    # 兜底容错逻辑（防止大模型漏写 Emoji）
+    neg_phrases = ["不能通关", "暂不能通关", "未通关", "无法通关", "未达成", "未能通过", "再审视", "需要审视", "并未正确", "结论有误"]
+    if any(phrase in eval_text for phrase in neg_phrases):
+        return False
+        
+    pos_phrases = ["成功通关", "通过本关", "恭喜通关", "达成认知迁移", "判定通过", "完全正确", "顺利过关"]
+    return any(phrase in eval_text for phrase in pos_phrases)
 
 
 def analyze_image_input(
@@ -246,8 +323,9 @@ def generate_next_tier_variant(
     
     # 优先尝试大模型动态生成更高难度变式
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
+    c_tier = to_chinese_num(next_tier)
     prompt = NEXT_TIER_PROMPT.format(
-        next_tier=next_tier,
+        next_tier=c_tier,
         question=question,
         blindspot_detail=blindspot_detail,
         existing_variants_summary=existing_str
@@ -269,7 +347,14 @@ def generate_next_tier_variant(
                 raw_content = raw_content.rsplit("\n", 1)[0]
         data = json.loads(raw_content)
         if "title" in data and "question" in data:
-            data["title"] = data["title"].lstrip("#").strip()
+            raw_title = data["title"].lstrip("#").strip()
+            clean_sub = re.sub(r'^(?:Tier\s*\d+\s*[:：]|第\s*\d+\s*关\s*[:：]|第\s*[一二三四五六七八九十]+\s*关\s*[:：])\s*', '', raw_title)
+            data["title"] = f"第{c_tier}关：{clean_sub}"
+            # 规范化转义换行符，防止大模型将换行双重转义为字面量 \n
+            latex_n_cmds = {'neq', 'nabla', 'notin', 'nu', 'ne', 'natural', 'nparallel', 'neg', 'normalsize', 'newcommand', 'nolimits'}
+            for field in ["question", "hint"]:
+                if field in data and isinstance(data[field], str):
+                    data[field] = re.sub(r'\\n([a-zA-Z]*)', lambda m: m.group(0) if m.group(1) in latex_n_cmds else f"\n{m.group(1)}", data[field]).replace('\\r', '')
             return data
     except Exception:
         pass
@@ -284,7 +369,7 @@ def generate_next_tier_variant(
             }
         else:
             return {
-                "title": f"第 {next_tier} 关：变曲率约束与复合场广义动力学迁移",
+                "title": f"第{c_tier}关：变曲率约束与复合场广义动力学迁移",
                 "question": f"考虑轨道变曲率滑块模型，质量为 $M$ 的轨道可在光滑水平面上自由滑动。质量为 $m$ 的带电小滑块（电量 $+q$）沿轨道由静止滑下，空间存在匀强磁场 $B$。试分析滑块与轨道系统的水平方向动量守恒条件是否依然成立，并给出极端条件下的速度极值论证。",
                 "hint": "考查洛伦兹力作为外力对动量守恒条件的破坏或修正，综合考查电磁场与力学模型的跨学科高阶迁移。"
             }
@@ -297,14 +382,14 @@ def generate_next_tier_variant(
             }
         else:
             return {
-                "title": f"第 {next_tier} 关：极值点偏移对偶论证与高阶放缩",
+                "title": f"第{c_tier}关：极值点偏移对偶论证与高阶放缩",
                 "question": f"设函数 $g(x) = \\frac{{\\ln x}}{{x}} - ax$。（1）讨论 $g(x)$ 的零点个数；（2）若 $x_1, x_2$ 为 $g(x)$ 的两个不同零点，证明：$x_1 x_2 > e^2$，且 $x_1 + x_2 > 2e$。",
                 "hint": "对偶对称变换或极值点偏移常用构造方法：令 $t = \\frac{{x_1}}{{x_2}}$ 转化为单变量对数均值不等式。"
             }
     else:
         return {
-            "title": f"第 {next_tier} 关：高维复合约束与逆向极限反推挑战",
-            "question": f"在原模型基础上，引入第 {next_tier} 维度的逆向动态边界与外力扰动。试建立系统的状态方程，推导临界突变点，并证明系统在边界条件下的守恒或单调闭环。",
+            "title": f"第{c_tier}关：高维复合约束与逆向极限反推挑战",
+            "question": f"在原模型基础上，引入第{c_tier}维度的逆向动态边界与外力扰动。试建立系统的状态方程，推导临界突变点，并证明系统在边界条件下的守恒或单调闭环。",
             "hint": "综合运用极端值假设、量纲分析与守恒闭环论证高阶数理推导。"
         }
 
