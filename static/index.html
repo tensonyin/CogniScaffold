@@ -435,6 +435,17 @@
       min-width: 0;
       position: sticky;
       top: 56px;
+      max-height: calc(100vh - 72px);
+      overflow-y: auto;
+      scrollbar-width: thin;
+      padding-right: 4px;
+    }
+    .col-right::-webkit-scrollbar {
+      width: 5px;
+    }
+    .col-right::-webkit-scrollbar-thumb {
+      background: rgba(128, 128, 128, 0.2);
+      border-radius: 3px;
     }
     @media (max-width: 900px) {
       .st-columns {
@@ -1331,9 +1342,9 @@
         <h4 style="font-size: 1rem; font-weight: 700;">📚 历史归档与收藏库</h4>
         <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="toggleHistoryDrawer()">✕ 收起</button>
       </div>
-      <div class="st-tabs-header">
-        <button class="st-tab-button active" onclick="switchHistoryTab('starred')">🌟 我的收藏</button>
-        <button class="st-tab-button" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
+      <div class="st-tabs-header" id="historyTabsHeader">
+        <button class="st-tab-button active" id="historyTabStarredBtn" onclick="switchHistoryTab('starred')">🌟 我的收藏</button>
+        <button class="st-tab-button" id="historyTabArchivedBtn" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
       </div>
       <div id="historyListContainer"></div>
     </div>
@@ -1883,13 +1894,19 @@
       const drawer = document.getElementById('historyDrawer');
       drawer.classList.toggle('show');
       if (drawer.classList.contains('show')) {
-        renderHistoryList('starred');
+        switchHistoryTab('starred');
       }
     }
 
     let activeHistoryTab = 'starred';
     function switchHistoryTab(tab) {
       activeHistoryTab = tab;
+      const btnStarred = document.getElementById('historyTabStarredBtn');
+      const btnArchived = document.getElementById('historyTabArchivedBtn');
+      if (btnStarred && btnArchived) {
+        btnStarred.classList.toggle('active', tab === 'starred');
+        btnArchived.classList.toggle('active', tab === 'archived');
+      }
       renderHistoryList(tab);
     }
 
