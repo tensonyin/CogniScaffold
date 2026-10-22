@@ -305,9 +305,10 @@
 
     /* 主容器 */
     .app-main-layout {
+      position: relative;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 1.2rem 1.8rem 2.5rem 1.8rem;
+      padding: 1.2rem 1.8rem 1.5rem 1.8rem;
     }
 
     /* 历史归档抽屉 */
@@ -425,10 +426,12 @@
       display: flex;
       gap: 2rem;
       align-items: flex-start;
+      position: relative;
     }
     .col-left {
       flex: 1.5;
       min-width: 0;
+      position: relative;
     }
     .col-right {
       flex: 1.0;
@@ -510,8 +513,10 @@
 
     /* 聊天视窗容器 (410px 高度独立滚动) */
     .chat-box {
+      position: relative;
       height: 410px;
       overflow-y: auto;
+      overflow-x: hidden;
       border: 1px solid var(--card-border);
       border-radius: 12px;
       background: var(--card-bg);
@@ -528,6 +533,7 @@
     }
 
     .st-chat-message {
+      position: relative;
       display: flex;
       margin-bottom: 12px;
       gap: 10px;
@@ -545,12 +551,25 @@
       flex-shrink: 0;
     }
     .st-chat-content {
+      position: relative;
       max-width: 88%;
       padding: 13px 18px;
       font-size: 0.94rem;
       line-height: 1.75;
       word-break: break-word;
       letter-spacing: 0.2px;
+    }
+    /* 彻底杜绝 KaTeX 绝对定位 MathML 溢出造成页面底部无限延展空白 */
+    .katex-mathml {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      clip: rect(1px, 1px, 1px, 1px) !important;
+      padding: 0 !important;
+      border: 0 !important;
+      height: 1px !important;
+      width: 1px !important;
+      overflow: hidden !important;
     }
     .st-chat-content p {
       margin: 0.65rem 0;
