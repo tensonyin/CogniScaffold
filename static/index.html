@@ -2457,21 +2457,23 @@
       if (hintBtn) hintBtn.disabled = true;
 
       // 聊天区动态插入等待提示气泡，提供实时出题反馈
-      const chatMessages = document.getElementById('chatMessages');
+      const chatContainer = document.getElementById('messagesContainer');
       const loadingDiv = document.createElement('div');
-      loadingDiv.className = 'chat-message-row assistant';
+      loadingDiv.className = 'st-chat-message tutor-message';
       loadingDiv.id = 'tierLoadingPlaceholder';
       loadingDiv.innerHTML = `
-        <div class="chat-avatar assistant">🧭</div>
-        <div class="chat-bubble assistant" style="background: var(--card-bg); border: 1px dashed var(--primary); padding: 10px 16px;">
+        <div class="st-chat-avatar">🧭</div>
+        <div class="st-chat-content" style="background: var(--card-bg); border: 1px dashed var(--primary); padding: 10px 16px;">
           <div style="display: flex; align-items: center; gap: 8px; color: var(--text-main); font-size: 0.88rem;">
             <span class="btn-spinner" style="border-top-color: var(--primary); width: 16px; height: 16px;"></span>
             <span>${allDone ? `导师正在基于你的认知轨迹构建第${toChineseNum(maxTier + 1)}关变式挑战，请稍候...` : '导师正在分析你的认知画像与思维断点，请稍候...'}</span>
           </div>
         </div>
       `;
-      chatMessages.appendChild(loadingDiv);
-      scrollChatToBottom();
+      if (chatContainer) {
+        chatContainer.appendChild(loadingDiv);
+        scrollChatToBottom();
+      }
 
       try {
         if (allDone) {
