@@ -779,22 +779,99 @@
       background: var(--tab-hover);
     }
 
-    /* 键盘浮层与拍照浮层 */
+    /* 键盘浮层与拍照浮层 (完全不透明实色背景与高反差阴影) */
     .popover-modal-box {
       display: none;
       position: absolute;
       right: 0;
       bottom: 34px;
       width: 500px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
       border-radius: 12px;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.35);
       padding: 14px 16px;
       z-index: 1000;
+      opacity: 1 !important;
+      backdrop-filter: none !important;
+    }
+    body[data-theme="dark"] .popover-modal-box {
+      background-color: #161b22 !important;
+      border: 1px solid rgba(255, 255, 255, 0.18) !important;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+      color: #f0f6fc;
+    }
+    body[data-theme="light"] .popover-modal-box {
+      background-color: #ffffff !important;
+      border: 1px solid #d0d7de !important;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.18), 0 0 0 1px rgba(0, 0, 0, 0.06) !important;
+      color: #1f2328;
     }
     .popover-modal-box.show {
       display: block;
+    }
+
+    body[data-theme="dark"] .popover-modal-box .kbd-segmented-control {
+      background: #0d1117;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    body[data-theme="dark"] .popover-modal-box .kbd-seg-btn {
+      color: #8b949e;
+    }
+    body[data-theme="dark"] .popover-modal-box .kbd-seg-btn.active {
+      background: #21262d;
+      color: #58a6ff;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      font-weight: 600;
+    }
+    body[data-theme="dark"] .popover-modal-box .symbol-chip {
+      background: #21262d;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #f0f6fc;
+    }
+    body[data-theme="dark"] .popover-modal-box .symbol-chip:hover {
+      background: rgba(59, 130, 246, 0.25);
+      border-color: #58a6ff;
+      color: #58a6ff;
+    }
+
+    body[data-theme="light"] .popover-modal-box .kbd-segmented-control {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+    }
+    body[data-theme="light"] .popover-modal-box .kbd-seg-btn {
+      color: #656d76;
+    }
+    body[data-theme="light"] .popover-modal-box .kbd-seg-btn.active {
+      background: #ffffff;
+      color: #0969da;
+      border: 1px solid #d0d7de;
+      font-weight: 600;
+    }
+    body[data-theme="light"] .popover-modal-box .symbol-chip {
+      background: #f6f8fa;
+      border: 1px solid #d0d7de;
+      color: #1f2328;
+    }
+    body[data-theme="light"] .popover-modal-box .symbol-chip:hover {
+      background: #eff6ff;
+      border-color: #0969da;
+      color: #0969da;
+    }
+
+    /* 拍照草稿上传区实色样式 */
+    body[data-theme="dark"] .popover-modal-box .draft-upload-dropzone {
+      background: #0d1117;
+      border-color: rgba(255, 255, 255, 0.16) !important;
+    }
+    body[data-theme="dark"] .popover-modal-box .draft-upload-dropzone:hover {
+      border-color: #58a6ff !important;
+      background: #13171f;
+    }
+    body[data-theme="light"] .popover-modal-box .draft-upload-dropzone {
+      background: #f6f8fa;
+      border-color: #d0d7de !important;
+    }
+    body[data-theme="light"] .popover-modal-box .draft-upload-dropzone:hover {
+      border-color: #0969da !important;
+      background: #f0f6fc;
     }
 
     textarea.student-input {
@@ -1496,7 +1573,7 @@
               <!-- 草稿上传浮层 -->
               <div class="popover-modal-box" id="draftPopoverBox" style="width: 320px;">
                 <div style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px;">📝 手写草稿智能提取</div>
-                <div style="border: 1px dashed var(--input-border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;" onclick="document.getElementById('draftUploadInput').click()">
+                <div class="draft-upload-dropzone" style="border: 1px dashed var(--input-border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;" onclick="document.getElementById('draftUploadInput').click()">
                   <div style="font-size: 24px;">📸</div>
                   <div style="font-size: 0.82rem; margin-top: 4px;">拍照或上传草稿照片</div>
                   <input type="file" id="draftUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'draft')">
@@ -2587,23 +2664,44 @@
       }
     }
 
-    // 符号键盘浮层展开与切换
+    // 符号键盘浮层与草稿拍照浮层展开/切换控制
+    const latexPopoverBox = document.getElementById('latexPopoverBox');
+    const draftPopoverBox = document.getElementById('draftPopoverBox');
+
+    // 内部点击事件阻断冒泡：点击浮层内部菜单、分类按钮、留白处时绝不误关
+    if (latexPopoverBox) {
+      latexPopoverBox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+    if (draftPopoverBox) {
+      draftPopoverBox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+
     document.getElementById('latexKbdToggleBtn').onclick = (e) => {
       e.stopPropagation();
-      document.getElementById('latexPopoverBox').classList.toggle('show');
-      document.getElementById('draftPopoverBox').classList.remove('show');
+      latexPopoverBox.classList.toggle('show');
+      draftPopoverBox.classList.remove('show');
     };
     document.getElementById('photoDraftToggleBtn').onclick = (e) => {
       e.stopPropagation();
-      document.getElementById('draftPopoverBox').classList.toggle('show');
-      document.getElementById('latexPopoverBox').classList.remove('show');
+      draftPopoverBox.classList.toggle('show');
+      latexPopoverBox.classList.remove('show');
     };
+
+    // 仅在明确点击浮层外部时自动收起浮层（支持 e.composedPath 防 DOM 刷新元素脱落判断失效）
     document.addEventListener('click', (e) => {
-      if (!e.target.closest('#latexPopoverBox') && !e.target.closest('#latexKbdToggleBtn')) {
-        document.getElementById('latexPopoverBox').classList.remove('show');
+      const path = e.composedPath ? e.composedPath() : [];
+      const isInsideLatex = path.some(el => el && (el.id === 'latexPopoverBox' || el.id === 'latexKbdToggleBtn'));
+      const isInsideDraft = path.some(el => el && (el.id === 'draftPopoverBox' || el.id === 'photoDraftToggleBtn'));
+
+      if (!isInsideLatex && !e.target.closest('#latexPopoverBox') && !e.target.closest('#latexKbdToggleBtn')) {
+        latexPopoverBox.classList.remove('show');
       }
-      if (!e.target.closest('#draftPopoverBox') && !e.target.closest('#photoDraftToggleBtn')) {
-        document.getElementById('draftPopoverBox').classList.remove('show');
+      if (!isInsideDraft && !e.target.closest('#draftPopoverBox') && !e.target.closest('#photoDraftToggleBtn')) {
+        draftPopoverBox.classList.remove('show');
       }
     });
 
@@ -2625,18 +2723,18 @@
       const gridBox = document.getElementById(`${prefix}SymbolsGrid`);
       if (!t1Box || !t2Box || !gridBox || !latexTree) return;
 
-      // Tier 1
+      // Tier 1 菜单
       t1Box.innerHTML = Object.keys(latexTree).map(cat => `
-        <button class="kbd-seg-btn ${cat === activeKbdT1 ? 'active' : ''}" onclick="selectKbdT1('${cat}', '${prefix}')">${cat}</button>
+        <button class="kbd-seg-btn ${cat === activeKbdT1 ? 'active' : ''}" onclick="selectKbdT1('${cat}', '${prefix}', event)">${cat}</button>
       `).join('');
 
-      // Tier 2
+      // Tier 2 菜单
       const subTree = latexTree[activeKbdT1] || {};
       const subKeys = Object.keys(subTree);
       if (!subTree[activeKbdT2]) activeKbdT2 = subKeys[0];
 
       t2Box.innerHTML = subKeys.map(sub => `
-        <button class="kbd-seg-btn ${sub === activeKbdT2 ? 'active' : ''}" onclick="selectKbdT2('${sub}', '${prefix}')">${sub}</button>
+        <button class="kbd-seg-btn ${sub === activeKbdT2 ? 'active' : ''}" onclick="selectKbdT2('${sub}', '${prefix}', event)">${sub}</button>
       `).join('');
 
       // Symbols Grid - 高精度 KaTeX 符号渲染与纯净内存索引传参
@@ -2657,7 +2755,7 @@
         `;
       }).join('');
 
-      // 点击事件代理，直接从符号对象数组安全提取原生代码，杜绝 HTML 引号与反斜杠逃逸
+      // 点击事件代理：直接从符号对象数组提取原生代码，点击具体公式后插入并自动收起浮层
       gridBox.onclick = (e) => {
         const chip = e.target.closest('.symbol-chip');
         if (!chip) return;
@@ -2669,7 +2767,11 @@
       };
     }
 
-    function selectKbdT1(cat, prefix) {
+    function selectKbdT1(cat, prefix, e) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
       activeKbdT1 = cat;
       const subKeys = Object.keys(latexTree[cat] || {});
       activeKbdT2 = subKeys[0];
@@ -2677,7 +2779,11 @@
       renderKbdTabs('onboard');
     }
 
-    function selectKbdT2(sub, prefix) {
+    function selectKbdT2(sub, prefix, e) {
+      if (e) {
+        e.stopPropagation();
+        e.preventDefault();
+      }
       activeKbdT2 = sub;
       renderKbdTabs('chat');
       renderKbdTabs('onboard');
@@ -2694,6 +2800,12 @@
       targetInput.value = (cur && !cur.endsWith(' ') && !cur.endsWith('\n')) ? `${cur} ${toInsert} ` : `${cur}${toInsert} `;
       targetInput.dispatchEvent(new Event('input'));
       targetInput.focus();
+
+      // 点击具体的公式再关：仅当在聊天浮层输入时自动收起，开题折叠区保持展开
+      if (prefix === 'chat') {
+        const box = document.getElementById('latexPopoverBox');
+        if (box) box.classList.remove('show');
+      }
     }
 
     // 页面启动
