@@ -472,9 +472,19 @@
       user-select: none;
       outline: none;
       color: var(--text-main);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
+      display: block;
+      line-height: 1.6;
+    }
+    details.st-expander summary .katex {
+      font-size: 1em;
+      line-height: 1;
+      vertical-align: 0;
+    }
+    details.st-expander summary .katex-html {
+      vertical-align: 0;
+    }
+    details.st-expander summary .katex .vlist-t {
+      vertical-align: 0;
     }
     details.st-expander summary:hover {
       background: rgba(128, 128, 128, 0.06);
