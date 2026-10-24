@@ -31,6 +31,8 @@ from core.engine import (
     simulate_offline_stream
 )
 from core.latex_presets import LATEX_PRESETS_TREE
+from core.guardrails import check_input_guardrail, check_output_refusal
+from core.intent import classify_user_intent
 
 app = FastAPI(title="CogniScaffold API")
 
@@ -472,6 +474,37 @@ async def chat_stream(session_id: str, student_text: str):
             # 1. 记录学生输入
             sess["dialogue_history"].append({"role": "user", "content": student_text})
 
+            # 【断路器 1：前置安全与合规检测 (Fast Circuit Breaker)】
+            is_blocked, refusal_text = check_input_guardrail(student_text)
+            if is_blocked:
+                # 触发断路硬熔断：直接返回标准拒答，绝不调用大模型，绝不推进状态机，绝不出题！
+                chunk_size = 12
+                for i in range(0, len(refusal_text), chunk_size):
+                    chunk = refusal_text[i:i+chunk_size]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
+
+                sess["dialogue_history"].append({"role": "assistant", "content": refusal_text})
+                # 状态原地锁定，不推进任何关卡或轮次
+                save_all_data(store)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                return
+
+            # 【意图与脱轨检测 (Intent & Off-Topic Classification)】
+            intent_type, intent_guidance = classify_user_intent(student_text, sess.get("question", ""))
+            if intent_type == "OFF_TOPIC":
+                # 优雅拉回：输出温和聚焦提示，状态原地锁定，不推进关卡
+                chunk_size = 12
+                for i in range(0, len(intent_guidance), chunk_size):
+                    chunk = intent_guidance[i:i+chunk_size]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
+
+                sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
+                save_all_data(store)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                return
+
             # 判断是否处于变式闯关阶段 (Stage >= 4)
             if sess.get("current_stage", 1) >= 4:
                 diag = sess.get("diagnostic_result") or {}
@@ -568,7 +601,19 @@ async def chat_stream(session_id: str, student_text: str):
                     sess["title"] = new_title
                     sess["title_stage"] = 1
 
-                if "[TRIGGER_DIAGNOSIS]" in full_response:
+                # 【断路器 2：后置大模型拒答熔断检查】
+                is_refusal = check_output_refusal(clean_full)
+
+                # 【状态机解耦：前提条件严格校验】
+                # 只有在：1. 未被后置熔断 2. 非低信息量输入 3. 轮次>=2 4. 模型带有突破标识 时才允许触发诊断出题
+                can_trigger_diagnosis = (
+                    not is_refusal
+                    and intent_type not in ["LOW_INFO", "DEMAND_ANSWER"]
+                    and sess.get("tutor_turns", 0) >= 2
+                    and "[TRIGGER_DIAGNOSIS]" in full_response
+                )
+
+                if can_trigger_diagnosis:
                     trigger_diagnosis_for_session(sess, offline_mode=False)
 
                 save_all_data(store)

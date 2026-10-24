@@ -159,27 +159,28 @@ def evaluate_transfer_answer(
     """
     ans_clean = student_answer.strip().lower()
     
-    # 0. 优先检测学生是否在请求提示、线索或表达卡点
+    # 0. 优先检测学生是否在请求提示、线索、表达卡点，或对变式题目提出困惑质疑
     hint_request_keywords = [
         "线索", "提示", "特例", "几何图景", "隐喻", "抽象", "换个角度", 
-        "卡住", "卡壳", "不会", "不懂", "怎么做", "求指点", "没思路", "不理解", "讲讲", "指引"
+        "卡住", "卡壳", "不会", "不懂", "怎么做", "求指点", "没思路", "不理解", "讲讲", "指引",
+        "有关系吗", "有关吗", "题目有关吗", "什么意思", "这是什么题", "搞不懂"
     ]
-    is_asking_hint = any(hk in ans_clean for hk in hint_request_keywords)
+    is_asking_hint = any(hk in ans_clean for hk in hint_request_keywords) or re.fullmatch(r"[\?\？\.\。\…\！\!]+", ans_clean)
     
     if is_asking_hint:
-        # 学生主动索要启发/隐喻，生成启发引导，保留关卡未通关状态
+        # 学生主动索要启发/隐喻或质疑关联，生成针对性的认知搭桥引导，保留关卡未通关状态
         client = get_openai_client(api_config["api_key"], api_config["base_url"])
-        hint_prompt = f"""你是一位富有启发性的苏格拉底数理导师。
-学生在面对当前的变式挑战时感到抽象，并提出了疑问/请求线索：
+        hint_prompt = f"""你是一位富有同理心与启发性的苏格拉底数理导师。
+学生在面对当前的变式挑战时感到困惑、抽象或质疑这道题与前序知识的关联：
 【当前挑战题目】：{variant_question}
-【题目核心要点】：{variant_hint}
-【学生疑问/求助】：{student_answer}
+【题目考查核心】：{variant_hint}
+【学生的发言/疑问】：{student_answer}
 
-请遵循以下原则提供启发引导：
-1. 肯定学生主动从极端特例/几何图景切入的敏锐直觉（这是顶级学霸的解题习惯）。
-2. 用 1~2 个最简特例数值或直观生活/几何图景隐喻搭桥，指明核心矛盾与约束条件。
-3. 严禁直接给出最终答案或算式数值，引导学生在启发下自己动手写出下一步。
-4. 全文控制在 120 字左右，严禁包含“✅ 成功通关”或“⚠️ 需再审视条件”字样。"""
+请遵循以下原则提供温和引导：
+1. 若学生提出“这和题目有关吗”等困惑，首先用 1 句话温和说明本变式题正是为了检验相同底层数理规律在更广情境下的迁移。
+2. 肯定学生敏锐的质疑直觉，用 1~2 个最简特例数值或直观几何/物理图景搭桥，指明核心矛盾与约束条件。
+3. 严禁直接给出最终完整答案或数值计算结果，引导学生在启发下尝试动手写出第一步推导。
+4. 全文控制在 120 字左右，严禁输出任何带有“⚠️ 需再审视条件”或“✅ 成功通关”这种机械生硬的评判帽子！"""
         try:
             response = client.chat.completions.create(
                 model=api_config["model"],
@@ -189,7 +190,7 @@ def evaluate_transfer_answer(
             )
             return "💡 **导师启发指引**\n\n" + response.choices[0].message.content.strip()
         except Exception:
-            return f"💡 **导师启发指引**\n\n面对这个抽象条件，尝试从极端边界切入：{variant_hint}。想一想如果取最简单的边界特例，核心变量会发生怎样的极端约束？"
+            return f"💡 **导师启发指引**\n\n这道变式挑战与刚才的题目暗含着相同的底层约束。面对这个条件，尝试从极端边界切入：{variant_hint}。想一想如果取最简单的边界特例，核心变量会发生怎样的极端约束？"
 
     # 1. 🌟 自信豁免法则：精准词组匹配，排除否定修饰
     has_negation = any(neg in ans_clean for neg in ["不", "没", "难", "未", "假", "否", "哪有"])

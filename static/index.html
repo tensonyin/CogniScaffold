@@ -436,26 +436,13 @@
     .col-right {
       flex: 1.0;
       min-width: 0;
-      position: sticky;
-      top: 56px;
-      max-height: calc(100vh - 72px);
-      overflow-y: auto;
-      scrollbar-width: thin;
       padding-right: 4px;
-    }
-    .col-right::-webkit-scrollbar {
-      width: 5px;
-    }
-    .col-right::-webkit-scrollbar-thumb {
-      background: rgba(128, 128, 128, 0.2);
-      border-radius: 3px;
     }
     @media (max-width: 900px) {
       .st-columns {
         flex-direction: column;
       }
       .col-right {
-        position: static;
         width: 100%;
       }
     }
@@ -1637,21 +1624,7 @@
             <div class="trajectory-container" id="trajectoryList"></div>
           </div>
 
-          <!-- 4. 核心靶点与教学策略折叠框 -->
-          <details class="st-expander" style="margin-top: 12px;">
-            <summary>🏷️ 查看核心靶点与教学策略</summary>
-            <div class="expander-content">
-              <div style="margin-bottom: 8px;">
-                <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px;">🎯 核心认知靶点：</div>
-                <div id="cognitiveTagsContainer"></div>
-              </div>
-              <div style="font-size: 0.8rem; line-height: 1.6; border-top: 1px solid var(--card-border); padding-top: 8px; color: var(--text-muted);">
-                • <strong>苏格拉底产婆术</strong>：绝不直接给答案，通过提问将思维焦点导向关键矛盾。<br/>
-                • <strong>微图景引导</strong>：构造极端情境或特例反例，迫使逻辑漏洞自然暴露。<br/>
-                • <strong>防偷跑机制</strong>：须经过真实思考推导（至少 3 轮交互）方可触发终审校验。
-              </div>
-            </div>
-          </details>
+
 
         </div>
       </div>
@@ -1917,15 +1890,24 @@
 
         let title = (sess.title || "探索会话").trim();
         const displayTitle = cleanTitleForDisplay(title);
+        
+        // 智能提取标题中的已有 Emoji，确保标签栏严格仅保留 1 个 Emoji
+        const emojiMatch = displayTitle.match(/^[\p{Extended_Pictographic}\u2600-\u27BF\uFE0F]+/u);
         let icon = "🧭";
-        if (title.includes("物理") || title.includes("动量")) icon = "⚖️";
-        else if (title.includes("数学") || title.includes("导数")) icon = "📐";
-        else if (title.includes("化学")) icon = "🧪";
-        else if (title.includes("技术")) icon = "💻";
+        let pureTitle = displayTitle;
+        if (emojiMatch) {
+          icon = emojiMatch[0];
+          pureTitle = displayTitle.slice(icon.length).trim();
+        } else {
+          if (title.includes("物理") || title.includes("动量")) icon = "⚖️";
+          else if (title.includes("数学") || title.includes("导数")) icon = "📐";
+          else if (title.includes("化学")) icon = "🧪";
+          else if (title.includes("技术")) icon = "💻";
+        }
 
         tabEl.innerHTML = `
           <span class="tab-icon">${icon}</span>
-          <span class="tab-title-text" title="${displayTitle}">${displayTitle}</span>
+          <span class="tab-title-text" title="${displayTitle}">${pureTitle || displayTitle}</span>
           <div class="tab-action-group">
             <span class="star-toggle-btn ${sess.is_starred ? 'is-starred' : ''}" onclick="event.stopPropagation(); toggleStar('${id}')" title="${sess.is_starred ? '取消收藏' : '收藏'}">${sess.is_starred ? '★' : '☆'}</span>
             <span class="close-tab-cross" onclick="event.stopPropagation(); closeTab('${id}')" title="关闭并归档">×</span>
@@ -2278,7 +2260,6 @@
         <div class="diag-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span class="diag-title">错因定性：#${bType}</span>
-            <span class="diag-badge">置信度 ${conf}</span>
           </div>
           <div class="diag-item-perf"><span class="diag-lbl">• 诊断：</span>${bDetail}</div>
           <div class="diag-item-break"><span class="diag-lbl">• 突破点：</span>${bBreak}</div>
@@ -2352,6 +2333,7 @@
     // 渲染认知靶点
     function renderCognitiveTags(session) {
       const container = document.getElementById('cognitiveTagsContainer');
+      if (!container) return;
       const q = session.question || "";
       let tags = [];
       if (q.includes("动量")) {
@@ -2741,11 +2723,21 @@
       const symbols = subTree[activeKbdT2] || [];
       gridBox.innerHTML = symbols.map((s, idx) => {
         let labelHtml = s.label;
-        if (labelHtml.startsWith('$') && labelHtml.endsWith('$')) {
+        // 如果包含 $...$，对内嵌数学公式进行局部 KaTeX 渲染（如 $\\alpha$ 粒子、图 $G(V,E)$）
+        if (labelHtml.includes('$')) {
+          labelHtml = labelHtml.replace(/\$([^\$]+)\$/g, (m, f) => {
+            try {
+              return katex.renderToString(f, { displayMode: false, throwOnError: false });
+            } catch(e) {
+              return m;
+            }
+          });
+        } else if (labelHtml.includes('\\') || labelHtml.includes('^') || labelHtml.includes('_')) {
+          // 纯 LaTeX 命令（如 \\overgroup{AB}）
           try {
-            labelHtml = katex.renderToString(labelHtml.slice(1, -1), { displayMode: false, throwOnError: false });
+            labelHtml = katex.renderToString(labelHtml, { displayMode: false, throwOnError: false });
           } catch(e) {
-            labelHtml = s.label;
+            // 保留原文字
           }
         }
         return `

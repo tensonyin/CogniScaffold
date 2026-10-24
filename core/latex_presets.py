@@ -56,7 +56,7 @@ LATEX_PRESETS_TREE = {
             {"label": r"$\sim$", "code": r"\sim", "desc": "几何相似"},
             {"label": r"$\cong$", "code": r"\cong", "desc": "几何全等"},
             {"label": r"$\odot O$", "code": r"\odot O", "desc": "圆 O"},
-            {"label": r"$\wideparen{AB}$", "code": r"\wideparen{AB}", "desc": "圆弧 AB"},
+            {"label": r"$\overgroup{AB}$", "code": r"\overgroup{AB}", "desc": "圆弧 AB"},
             {"label": r"$\alpha \perp \beta$", "code": r"\alpha \perp \beta", "desc": "面面垂直"},
             {"label": r"$l \parallel \alpha$", "code": r"l \parallel \alpha", "desc": "线面平行"},
         ],
@@ -206,7 +206,7 @@ LATEX_PRESETS_TREE = {
             {"label": r"$O(n\log n)$", "code": r"O(n\log n)", "desc": "线性对数阶复杂度"},
             {"label": r"$O(n^2)$", "code": r"O(n^2)", "desc": "平方阶复杂度"},
             {"label": r"$\log_2 n$", "code": r"\log_2 n", "desc": "以2为底对数"},
-            {"label": r"树高", "code": r"h = \lfloor \log_2 n \rfloor + 1", "desc": "完全二叉树高度公式"},
+            {"label": r"二叉树高", "code": r"h = \lfloor \log_2 n \rfloor + 1", "desc": "完全二叉树高度公式"},
             {"label": r"图 $G(V,E)$", "code": r"G = (V, E)", "desc": "图数据结构定义"},
         ],
         "电子控制技术": [
