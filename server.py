@@ -49,7 +49,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/cogni-scaffold/static", StaticFiles(directory="static"), name="static_subpath")
 
 api_config = {
-    "api_key": os.getenv("OPENAI_API_KEY", "sk-00dd7d26d38f4eb285d020a79ec72364"),
+    "api_key": os.getenv("OPENAI_API_KEY", ""),
     "base_url": os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com"),
     "model": os.getenv("MODEL_NAME", "deepseek-chat"),
     "temperature": 0.3
