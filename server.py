@@ -216,9 +216,19 @@ async def close_session(data: dict):
     archived = store.setdefault("archived_sessions", {})
     if s_id in active:
         closed = active.pop(s_id)
-        archived[s_id] = closed
-        if store.get("current_session_id") == s_id:
-            store["current_session_id"] = list(active.keys())[0] if active else None
+        # 仅在已有实质内容（已初始化或有提问）时才存入历史归档，未输入的新会话直接废弃
+        has_content = closed.get("is_initialized", False) or bool(closed.get("question", "").strip())
+        if has_content:
+            archived[s_id] = closed
+
+        # 若删除后 active 为空，自动新建一个全新会话，避免标签栏出现空的情况
+        if not active:
+            new_s = create_new_session_data(is_initialized=False, store=store)
+            active[new_s["id"]] = new_s
+            store["current_session_id"] = new_s["id"]
+        elif store.get("current_session_id") == s_id:
+            store["current_session_id"] = list(active.keys())[0]
+
         save_all_data(store)
         return {"status": "ok", "store": store, "closed_title": closed.get("title")}
     raise HTTPException(status_code=404, detail="Session not found")
@@ -244,10 +254,21 @@ async def toggle_star(data: dict):
 async def restore_session(data: dict):
     s_id = data.get("session_id")
     store = get_store()
-    archived = store.get("archived_sessions", {})
     active = store.setdefault("active_sessions", {})
+    archived = store.get("archived_sessions", {})
+
+    # 若已经在活跃标签页中打开，直接激活并切换到它，绝不重复插入，避免标签页混乱
+    if s_id in active:
+        # 移至末尾
+        sess = active.pop(s_id)
+        active[s_id] = sess
+        store["current_session_id"] = s_id
+        save_all_data(store)
+        return {"status": "ok", "store": store, "already_opened": True}
+
     if s_id in archived:
         sess = archived.pop(s_id)
+        # 严格插入到末尾
         active[s_id] = sess
         store["current_session_id"] = s_id
         save_all_data(store)

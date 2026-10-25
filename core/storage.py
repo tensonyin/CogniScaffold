@@ -55,13 +55,7 @@ def create_new_session_data(title: str = None, question: str = "", is_initialize
     - 若未指定 title，则根据递增计数器分配明确的标题（如 💡 探索 #1）
     - is_initialized=False 表示这是一个新对话，主界面将展示优雅的“录入新题目”开题页
     """
-    counter = 1
-    if store is not None:
-        c = store.get("session_counter", 0) + 1
-        store["session_counter"] = c
-        counter = c
-
-    default_title = title if title else f"💡 探索 #{counter}"
+    default_title = title if title else "💡 新建探索"
 
     return {
         "id": str(uuid.uuid4())[:8],

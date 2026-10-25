@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>知阶 CogniScaffold | 高中数理思维脚手架</title>
+  <title>知阶 · 不给答案，只给台阶</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
   
   <!-- 本地 KaTeX 科学公式与 Marked 渲染引擎（完全脱机支持内网极速加载） -->
@@ -122,7 +122,8 @@
       overflow-y: hidden;
       scrollbar-width: none;
       gap: 2px;
-      flex: 1;
+      flex: 0 1 auto;
+      max-width: calc(100% - 240px);
     }
     .tabs-scroll-area::-webkit-scrollbar {
       display: none;
@@ -1429,6 +1430,9 @@
         <button class="st-tab-button active" id="historyTabStarredBtn" onclick="switchHistoryTab('starred')">🌟 我的收藏</button>
         <button class="st-tab-button" id="historyTabArchivedBtn" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
       </div>
+      <div style="margin: 8px 0 12px 0;">
+        <input type="text" id="historySearchInput" class="student-input" style="padding: 6px 12px; font-size: 0.85rem;" placeholder="🔍 搜索学科、题目关键词或题型..." oninput="handleHistorySearch(this.value)">
+      </div>
       <div id="historyListContainer"></div>
     </div>
 
@@ -1436,8 +1440,8 @@
     <div id="onboardingView" style="display: none;">
       <div class="onboarding-hero">
         <div class="onboarding-icon-box">🧭</div>
-        <h1 class="hero-title">知阶 CogniScaffold · 开启全新解题探索</h1>
-        <div class="hero-sub">打破“假装看懂”，拒绝直接灌输标准答案</div>
+        <h1 class="hero-title">知阶 CogniScaffold</h1>
+        <div class="hero-sub">不给答案，只给台阶。</div>
         <div class="hero-desc">依托苏格拉底思维脚手架，陪伴你一步步洞察解题暗坑并自主破局</div>
         <div class="hero-badge-row">
           <span class="hero-badge-blue">🎯 逐步提问 · 阶梯引导</span>
@@ -1466,7 +1470,7 @@
           </div>
 
           <details class="st-expander" style="margin-top: 10px;">
-            <summary>🔣 全学科 LaTeX 符号键盘（高中数理化技双层预设）</summary>
+            <summary>🔣 全学科 LaTeX 符号键盘</summary>
             <div class="expander-content">
               <div class="kbd-segmented-control" id="onboardKbdTier1"></div>
               <div class="kbd-segmented-control" id="onboardKbdTier2" style="margin-top: 4px;"></div>
@@ -1909,8 +1913,10 @@
           <span class="tab-icon">${icon}</span>
           <span class="tab-title-text" title="${displayTitle}">${pureTitle || displayTitle}</span>
           <div class="tab-action-group">
-            <span class="star-toggle-btn ${sess.is_starred ? 'is-starred' : ''}" onclick="event.stopPropagation(); toggleStar('${id}')" title="${sess.is_starred ? '取消收藏' : '收藏'}">${sess.is_starred ? '★' : '☆'}</span>
-            <span class="close-tab-cross" onclick="event.stopPropagation(); closeTab('${id}')" title="关闭并归档">×</span>
+            ${(sess.is_initialized || (sess.title_stage && sess.title_stage >= 1)) ? `
+              <span class="star-toggle-btn ${sess.is_starred ? 'is-starred' : ''}" onclick="event.stopPropagation(); toggleStar('${id}')" title="${sess.is_starred ? '取消收藏' : '收藏'}">${sess.is_starred ? '★' : '☆'}</span>
+            ` : ''}
+            <span class="close-tab-cross" onclick="event.stopPropagation(); closeTab('${id}')" title="关闭">×</span>
           </div>
           <div class="vertical-divider"></div>
         `;
@@ -1977,6 +1983,13 @@
     }
 
     let activeHistoryTab = 'starred';
+    let historySearchQuery = '';
+
+    function handleHistorySearch(val) {
+      historySearchQuery = (val || '').trim().toLowerCase();
+      renderHistoryList(activeHistoryTab);
+    }
+
     function switchHistoryTab(tab) {
       activeHistoryTab = tab;
       const btnStarred = document.getElementById('historyTabStarredBtn');
@@ -1988,10 +2001,38 @@
       renderHistoryList(tab);
     }
 
+    // 学科分类归类判定器 (Emoji + 名称全覆盖分类)
+    function categorizeSession(sess) {
+      const t = (sess.title || "") + " " + (sess.question || "");
+      if (t.includes("📐") || t.includes("数学") || t.includes("导数") || t.includes("函数") || t.includes("几何") || t.includes("数列")) {
+        return { key: "math", label: "📐 高中数学", order: 1 };
+      }
+      if (t.includes("⚖️") || t.includes("物理") || t.includes("动量") || t.includes("力学") || t.includes("电磁") || t.includes("天体")) {
+        return { key: "physics", label: "⚖️ 高中物理", order: 2 };
+      }
+      if (t.includes("🧪") || t.includes("化学") || t.includes("离子") || t.includes("平衡") || t.includes("电解") || t.includes("有机")) {
+        return { key: "chemistry", label: "🧪 高中化学", order: 3 };
+      }
+      if (t.includes("🧬") || t.includes("生物") || t.includes("遗传") || t.includes("细胞") || t.includes("光合") || t.includes("神经")) {
+        return { key: "biology", label: "🧬 高中生物", order: 4 };
+      }
+      if (t.includes("🌍") || t.includes("地理") || t.includes("等高线") || t.includes("气候") || t.includes("洋流") || t.includes("区位")) {
+        return { key: "geography", label: "🌍 高中地理", order: 5 };
+      }
+      if (t.includes("🏛️") || t.includes("历史") || t.includes("政治") || t.includes("哲学") || t.includes("经济") || t.includes("制度")) {
+        return { key: "humanities", label: "🏛️ 历史与政治", order: 6 };
+      }
+      if (t.includes("💻") || t.includes("技术") || t.includes("信息") || t.includes("算法") || t.includes("电路") || t.includes("逻辑门")) {
+        return { key: "technology", label: "💻 通用与信息技术", order: 7 };
+      }
+      return { key: "other", label: "💡 综合与思维探索", order: 8 };
+    }
+
     function renderHistoryList(tab) {
       const container = document.getElementById('historyListContainer');
       container.innerHTML = "";
-      const activeList = Object.values(appState.active_sessions || {});
+      const activeDict = appState.active_sessions || {};
+      const activeList = Object.values(activeDict);
       const archList = Object.values(appState.archived_sessions || {});
       
       let list = [];
@@ -2001,26 +2042,72 @@
         list = archList;
       }
 
+      // 实时搜索过滤
+      if (historySearchQuery) {
+        list = list.filter(item => {
+          const title = (item.title || "").toLowerCase();
+          const question = (item.question || "").toLowerCase();
+          return title.includes(historySearchQuery) || question.includes(historySearchQuery);
+        });
+      }
+
       if (list.length === 0) {
-        container.innerHTML = `<div style="font-size: 0.88rem; color: var(--text-muted); padding: 12px 0;">暂无记录。</div>`;
+        container.innerHTML = `<div style="font-size: 0.88rem; color: var(--text-muted); padding: 16px 0; text-align: center;">${historySearchQuery ? '没有找到匹配的记录。' : '暂无记录。'}</div>`;
         return;
       }
 
+      // 按学科分组归类
+      const groups = {};
       list.forEach(item => {
-        const row = document.createElement('div');
-        row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--card-border); font-size: 0.86rem;";
-        row.innerHTML = `
-          <div>
-            <strong>${item.title || '会话'}</strong>
-            <div style="font-size: 0.78rem; color: var(--text-muted);">${(item.question || '').slice(0, 45)}...</div>
-          </div>
-          <div style="display: flex; gap: 6px;">
-            <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="restoreSession('${item.id}')">恢复</button>
-            ${tab === 'archived' ? `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="deleteArchived('${item.id}')">🗑️</button>` : ''}
-          </div>
-        `;
-        container.appendChild(row);
+        const cat = categorizeSession(item);
+        if (!groups[cat.key]) {
+          groups[cat.key] = { label: cat.label, order: cat.order, items: [] };
+        }
+        groups[cat.key].items.push(item);
       });
+
+      const sortedGroupKeys = Object.keys(groups).sort((a, b) => groups[a].order - groups[b].order);
+
+      sortedGroupKeys.forEach(gKey => {
+        const group = groups[gKey];
+        const groupEl = document.createElement('div');
+        groupEl.style.cssText = "margin-bottom: 14px;";
+
+        const groupHeader = document.createElement('div');
+        groupHeader.style.cssText = "font-size: 0.84rem; font-weight: 700; color: var(--primary); padding: 4px 6px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;";
+        groupHeader.innerHTML = `<span>${group.label}</span><span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
+        groupEl.appendChild(groupHeader);
+
+        group.items.forEach(item => {
+          const isAlreadyOpened = Boolean(activeDict[item.id]);
+          const row = document.createElement('div');
+          row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; border-bottom: 1px solid var(--card-border); font-size: 0.86rem; gap: 8px;";
+          
+          // 对灰色小字（题目）进行 LaTeX 渲染
+          const rawQ = (item.question || '暂无题目内容').slice(0, 50);
+          const qHtml = formatMarkdown(rawQ).replace(/^<p>/, '').replace(/<\/p>\s*$/, '');
+
+          row.innerHTML = `
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.title || '会话'}</strong>
+                ${isAlreadyOpened ? `<span style="font-size: 0.72rem; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">已在标签页打开</span>` : ''}
+              </div>
+              <div class="history-item-math-q" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${qHtml}</div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="restoreSession('${item.id}')">${isAlreadyOpened ? '切换至' : '恢复'}</button>
+              ${tab === 'archived' ? `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="deleteArchived('${item.id}')" title="彻底删除">🗑️</button>` : ''}
+            </div>
+          `;
+          groupEl.appendChild(row);
+        });
+
+        container.appendChild(groupEl);
+      });
+
+      // 对生成的题目 KaTeX 进行批量排版
+      renderLatex(container);
     }
 
     async function restoreSession(id) {
@@ -2296,11 +2383,16 @@
       });
 
       matrixArea.innerHTML = `
-        <div class="variant-matrix-card">
-          <div class="variant-matrix-header">🎯 对抗变式闯关进度：</div>
-          ${rowsHtml}
-          ${allDone ? `<div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-top: 8px;">🏆 当前全部 ${toChineseNum(maxTier)} 关变式挑战均已通关！</div>` : `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">👉 正在进行第${toChineseNum(currTier)}关挑战，请在左侧作答。</div>`}
-        </div>
+        <details class="st-expander variant-matrix-expander" open style="margin-top: 8px;">
+          <summary style="font-size: 0.84rem; font-weight: 600; cursor: pointer; padding: 6px 10px; background: var(--card-bg); border-radius: 6px; border: 1px solid var(--card-border); list-style: none; display: flex; justify-content: space-between; align-items: center;">
+            <span>🎯 对抗变式闯关进度</span>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">点击折叠/展开 ▾</span>
+          </summary>
+          <div class="variant-matrix-card" style="margin-top: 4px; border-top: none;">
+            ${rowsHtml}
+            ${allDone ? `<div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-top: 8px;">🏆 当前全部 ${toChineseNum(maxTier)} 关变式挑战均已通关！</div>` : `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">👉 正在进行第${toChineseNum(currTier)}关挑战，请在左侧作答。</div>`}
+          </div>
+        </details>
       `;
     }
 
