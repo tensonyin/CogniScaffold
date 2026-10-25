@@ -22,14 +22,18 @@
       padding: 0;
     }
 
-    body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    html, body {
+      height: 100%;
       margin: 0;
       padding: 0;
-      min-height: 100vh;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
       transition: background-color 0.2s ease, color 0.2s ease;
       overflow-x: hidden;
+      overflow-y: auto;
     }
 
     /* ============================================================
@@ -150,6 +154,23 @@
       background: var(--tab-hover);
       color: var(--text-main);
     }
+    
+    /* Chrome Tab 拖拽悬停与视觉位移 */
+    .chrome-tab[draggable="true"] {
+      user-select: none;
+      -webkit-user-drag: element;
+    }
+    .chrome-tab.dragging {
+      opacity: 0.45;
+      transform: scale(0.96);
+    }
+    .chrome-tab.drag-over-left {
+      border-left: 2px solid var(--primary) !important;
+    }
+    .chrome-tab.drag-over-right {
+      border-right: 2px solid var(--primary) !important;
+    }
+
     .chrome-tab.active {
       background: var(--tab-active);
       color: var(--tab-active-text);
@@ -232,7 +253,7 @@
       opacity: 0;
     }
     .add-tab-circle {
-      display: flex;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
       width: 28px;
@@ -240,12 +261,13 @@
       border-radius: 6px;
       margin-left: 6px;
       margin-bottom: 4px;
+      align-self: center;
       color: var(--tab-text);
       cursor: pointer;
-      font-size: 19px;
+      font-size: 20px;
       font-weight: 300;
-      line-height: 26px;
-      padding-top: 1px;
+      line-height: 1;
+      text-align: center;
       transition: background 0.15s, color 0.15s, transform 0.1s;
       flex-shrink: 0;
     }
@@ -461,8 +483,9 @@
       position: relative;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 1rem 1.8rem 2.5rem 1.8rem;
+      padding: 0.5rem 1.8rem 1.2rem 1.8rem;
       min-height: calc(100vh - 44px);
+      box-sizing: border-box;
       display: flex;
       flex-direction: column;
     }
@@ -476,7 +499,7 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      padding: 0.5rem 0 1.5rem 0;
+      padding: 0.2rem 0 0.8rem 0;
     }
 
     /* 历史归档抽屉 */
@@ -575,7 +598,7 @@
       border: none !important;
       border-bottom: 1.5px solid var(--tabbar-border) !important;
       border-radius: 0 !important;
-      padding: 8px 30px 8px 4px !important;
+      padding: 8px 12px 8px 28px !important;
       font-size: 0.88rem !important;
       color: var(--text-main) !important;
       outline: none !important;
@@ -591,9 +614,9 @@
       opacity: 0.75;
       font-size: 0.84rem;
     }
-    .history-search-icon {
+    .history-search-icon-left {
       position: absolute;
-      right: 6px;
+      left: 4px;
       font-size: 0.85rem;
       color: var(--text-muted);
       pointer-events: none;
@@ -1754,8 +1777,8 @@
         <button class="st-tab-button" id="historyTabArchivedBtn" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
       </div>
       <div class="history-search-wrapper">
+        <span class="history-search-icon-left">🔍</span>
         <input type="text" id="historySearchInput" class="history-search-line" placeholder="搜索学科、题目关键词或题型..." oninput="handleHistorySearch(this.value)">
-        <span class="history-search-icon">🔍</span>
       </div>
       <div class="history-cat-tabs" id="historyCatTabs">
         <!-- 动态注入学科分类切换 tab -->
@@ -2297,6 +2320,8 @@
     }
 
     // 渲染顶部 Chrome Tabs
+    let draggedTabId = null;
+
     function renderTabs() {
       const scrollArea = document.getElementById('tabsScrollArea');
       scrollArea.innerHTML = "";
@@ -2308,7 +2333,78 @@
         const isActive = id === currentId;
         const tabEl = document.createElement('div');
         tabEl.className = 'chrome-tab' + (isActive ? ' active' : '');
+        tabEl.setAttribute('draggable', 'true');
+        tabEl.setAttribute('data-session-id', id);
         tabEl.onclick = () => switchTab(id);
+
+        // HTML5 原生拖拽排序事件 (与 Chrome 标签页体验完全一致)
+        tabEl.addEventListener('dragstart', (e) => {
+          draggedTabId = id;
+          tabEl.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', id);
+        });
+
+        tabEl.addEventListener('dragend', () => {
+          draggedTabId = null;
+          tabEl.classList.remove('dragging');
+          document.querySelectorAll('.chrome-tab').forEach(el => {
+            el.classList.remove('drag-over-left', 'drag-over-right');
+          });
+        });
+
+        tabEl.addEventListener('dragover', (e) => {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          if (!draggedTabId || draggedTabId === id) return;
+          const rect = tabEl.getBoundingClientRect();
+          const midX = rect.left + rect.width / 2;
+          if (e.clientX < midX) {
+            tabEl.classList.add('drag-over-left');
+            tabEl.classList.remove('drag-over-right');
+          } else {
+            tabEl.classList.add('drag-over-right');
+            tabEl.classList.remove('drag-over-left');
+          }
+        });
+
+        tabEl.addEventListener('dragleave', () => {
+          tabEl.classList.remove('drag-over-left', 'drag-over-right');
+        });
+
+        tabEl.addEventListener('drop', async (e) => {
+          e.preventDefault();
+          tabEl.classList.remove('drag-over-left', 'drag-over-right');
+          const sourceId = draggedTabId || e.dataTransfer.getData('text/plain');
+          if (!sourceId || sourceId === id) return;
+
+          const rect = tabEl.getBoundingClientRect();
+          const placeBefore = (e.clientX < (rect.left + rect.width / 2));
+          const currentKeys = Object.keys(appState.active_sessions || {});
+          const fromIndex = currentKeys.indexOf(sourceId);
+          if (fromIndex === -1) return;
+
+          // 重新排列顺序
+          currentKeys.splice(fromIndex, 1);
+          let toIndex = currentKeys.indexOf(id);
+          if (!placeBefore) toIndex += 1;
+          currentKeys.splice(toIndex, 0, sourceId);
+
+          // 立即更新前端状态与 DOM
+          const reorderedDict = {};
+          currentKeys.forEach(k => {
+            reorderedDict[k] = appState.active_sessions[k];
+          });
+          appState.active_sessions = reorderedDict;
+          renderTabs();
+
+          // 同步后端持久化
+          await apiFetch('/api/sessions/reorder', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({order: currentKeys})
+          });
+        });
 
         let title = (sess.title || "探索会话").trim();
         const displayTitle = cleanTitleForDisplay(title);

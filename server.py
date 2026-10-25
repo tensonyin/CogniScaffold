@@ -216,6 +216,28 @@ async def switch_session(data: dict):
     raise HTTPException(status_code=404, detail="Session not found")
 
 
+
+@app.post("/api/sessions/reorder")
+@app.post("/cogni-scaffold/api/sessions/reorder")
+async def reorder_sessions(data: dict):
+    new_order = data.get("order", [])
+    store = get_store()
+    active = store.get("active_sessions", {})
+    if new_order and isinstance(new_order, list):
+        reordered = {}
+        # 先按指定的新顺序插入
+        for s_id in new_order:
+            if s_id in active:
+                reordered[s_id] = active[s_id]
+        # 补全可能遗漏的其他活动标签
+        for s_id, s in active.items():
+            if s_id not in reordered:
+                reordered[s_id] = s
+        store["active_sessions"] = reordered
+        save_all_data(store)
+        return {"status": "ok", "store": store}
+    return {"status": "ok", "store": store}
+
 @app.post("/api/sessions/close")
 @app.post("/cogni-scaffold/api/sessions/close")
 async def close_session(data: dict):
