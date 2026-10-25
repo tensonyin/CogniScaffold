@@ -215,19 +215,31 @@ async def close_session(data: dict):
     active = store.get("active_sessions", {})
     archived = store.setdefault("archived_sessions", {})
     if s_id in active:
+        # 1. 记录关闭前的有序 Tab 键列表及其当前索引
+        active_keys = list(active.keys())
+        closed_idx = active_keys.index(s_id) if s_id in active_keys else -1
+
         closed = active.pop(s_id)
         # 仅在已有实质内容（已初始化或有提问）时才存入历史归档，未输入的新会话直接废弃
         has_content = closed.get("is_initialized", False) or bool(closed.get("question", "").strip())
         if has_content:
             archived[s_id] = closed
 
-        # 若删除后 active 为空，自动新建一个全新会话，避免标签栏出现空的情况
-        if not active:
+        # 2. 浏览器级 Tab 关闭回退算法 (Chrome Tab 行为完全对齐)
+        remaining_keys = list(active.keys())
+        if not remaining_keys:
+            # 若删除后 active 为空，自动新建一个全新会话
             new_s = create_new_session_data(is_initialized=False, store=store)
             active[new_s["id"]] = new_s
             store["current_session_id"] = new_s["id"]
         elif store.get("current_session_id") == s_id:
-            store["current_session_id"] = list(active.keys())[0]
+            # 若删除的是当前活动标签：
+            # 如果关闭的是非最后一个标签（右侧还有标签），自动切换到右侧相邻标签（即此时索引相同的标签）
+            # 如果关闭的是最后一个标签，自动切换到左侧相邻标签（即 remaining_keys 的最后一个）
+            if closed_idx < len(remaining_keys):
+                store["current_session_id"] = remaining_keys[closed_idx]
+            else:
+                store["current_session_id"] = remaining_keys[-1]
 
         save_all_data(store)
         return {"status": "ok", "store": store, "closed_title": closed.get("title")}

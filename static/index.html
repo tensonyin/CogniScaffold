@@ -305,6 +305,147 @@
     }
 
     /* 主容器 */
+    
+    /* 顶栏最左侧品牌标识 */
+    .brand-header-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px 4px 4px;
+      margin-right: 10px;
+      cursor: pointer;
+      user-select: none;
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      flex-shrink: 0;
+    }
+    .brand-header-badge:hover {
+      opacity: 0.9;
+      transform: scale(1.02);
+    }
+    .brand-logo-icon {
+      font-size: 19px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .brand-title-name {
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      color: var(--text-main);
+    }
+
+    /* 圆形主题切换图标按钮 */
+    .theme-toggle-icon-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--tab-hover);
+      border: 1px solid var(--tabbar-border);
+      color: var(--text-main);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 15px;
+      line-height: 1;
+    }
+    .theme-toggle-icon-btn:hover {
+      border-color: var(--primary);
+      transform: rotate(20deg) scale(1.08);
+      background: rgba(59, 130, 246, 0.12);
+    }
+
+    /* 开题引导区垂直居中流 */
+    .onboarding-vertical-center {
+      min-height: calc(100vh - 135px);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 1rem 0 2rem 0;
+    }
+    @media (max-height: 760px), (max-width: 800px) {
+      .onboarding-vertical-center {
+        min-height: auto;
+        padding-top: 1rem;
+      }
+    }
+
+    /* 开题特性标签去按钮化（纯文字与微光图标） */
+    .hero-badge-clean {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      font-size: 0.84rem;
+      font-weight: 500;
+      color: var(--text-muted);
+      border-radius: 6px;
+      background: transparent;
+      border: none;
+    }
+
+    /* 开题输入框与内嵌小 Σ 按钮 */
+    .onboard-textarea-wrapper {
+      position: relative;
+      width: 100%;
+    }
+    .onboard-kbd-toggle-trigger {
+      position: absolute;
+      right: 10px;
+      bottom: 12px;
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      background: rgba(128, 128, 128, 0.12);
+      border: 1px solid var(--input-border);
+      color: var(--text-muted);
+      font-weight: 700;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      z-index: 5;
+    }
+    .onboard-kbd-toggle-trigger:hover {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      transform: scale(1.05);
+    }
+
+    /* 页面底栏辅助信息 (Footer) */
+    .site-footer {
+      max-width: 900px;
+      margin: 40px auto 20px auto;
+      padding-top: 16px;
+      border-top: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+    .footer-links-group {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+    }
+    .footer-link-item {
+      color: var(--text-muted);
+      text-decoration: none;
+      cursor: pointer;
+      transition: color 0.15s ease;
+    }
+    .footer-link-item:hover {
+      color: var(--primary);
+    }
+
     .app-main-layout {
       position: relative;
       max-width: 1400px;
@@ -1479,20 +1620,23 @@
 </head>
 <body data-theme="dark">
 
-  <!-- 1. 顶部 Chrome 标签栏 (与原版完全 1:1) -->
+  <!-- 1. 顶部 Chrome 标签栏 (品牌标识 + 标签流 + 靠右操作) -->
   <div class="chrome-tabbar-container">
+    <div class="brand-header-badge" onclick="navigateToHome()" title="知阶 · 点击新建/回到探索首页">
+      <span class="brand-logo-icon">🧭</span>
+      <span class="brand-title-name">知阶</span>
+    </div>
     <div class="tabs-scroll-area" id="tabsScrollArea">
       <!-- 动态注入会话 Tab -->
     </div>
     <div class="add-tab-circle" id="addBtn" title="新建解题探索标签页">+</div>
     <div class="right-controls">
-      <button class="history-archive-btn" id="historyBtn">
+      <button class="history-archive-btn" id="historyBtn" title="查看收藏与历史归档">
         <span>📚 历史归档</span>
         <span id="archivedBadge">0</span>
       </button>
-      <button class="theme-toggle-btn" id="themeToggleBtn" title="切换界面色彩模式">
+      <button class="theme-toggle-icon-btn" id="themeToggleBtn" title="切换暗色/亮色模式">
         <span id="themeToggleIcon">🌙</span>
-        <span id="themeToggleText">暗色模式</span>
       </button>
     </div>
   </div>
@@ -1520,87 +1664,101 @@
       <div id="historyListContainer"></div>
     </div>
 
-    <!-- 视图 A: 新会话开题引导区 (Onboarding View) -->
+    <!-- 视图 A: 新会话开题引导区 (Onboarding View - 弹性垂直居中) -->
     <div id="onboardingView" style="display: none;">
-      <div class="onboarding-hero">
-        <div class="onboarding-icon-box">🧭</div>
-        <h1 class="hero-title">知阶 CogniScaffold</h1>
-        <div class="hero-sub">不给答案，只给台阶。</div>
-        <div class="hero-desc">依托苏格拉底思维脚手架，陪伴你一步步洞察解题暗坑并自主破局</div>
-        <div class="hero-badge-row">
-          <span class="hero-badge-blue">🎯 逐步提问 · 阶梯引导</span>
-          <span class="hero-badge-indigo">⚡ 反例诱导 · 暴露盲区</span>
-          <span class="hero-badge-emerald">💡 自主发现 · 深度迁移</span>
-        </div>
-      </div>
-
-      <div class="onboarding-card">
-        <div class="st-tabs-header">
-          <button class="st-tab-button active" onclick="switchOnboardTab('text')">✍️ 文字录入新题</button>
-          <button class="st-tab-button" onclick="switchOnboardTab('photo')">📸 拍照 / 图片上传</button>
-          <button class="st-tab-button" onclick="switchOnboardTab('preset')">💡 经典案例库 (精选典型例题与思维暗坑)</button>
-        </div>
-
-        <!-- 子面板 1: 文字录入 -->
-        <div id="onboardTabText">
-          <p id="onboardLabelText" style="font-size: 0.92rem; font-weight: 600; margin-bottom: 8px;">
-            ✍️ 请输入题目内容（完整支持 LaTeX 公式排版，如 <span id="onboardSampleMath"></span>）：
-          </p>
-          <textarea id="onboardTextInput" class="student-input" style="height: 110px;" placeholder="在此输入或粘贴题目完整内容，支持直接使用 LaTeX 科学公式排版..."></textarea>
-          
-          <div class="latex-preview-card" id="onboardPreviewBox" style="display: none;">
-            <span class="latex-preview-title">👁️ 题目公式实时排版预览：</span>
-            <div class="latex-preview-body" id="onboardPreviewContent"></div>
-          </div>
-
-          <details class="st-expander" style="margin-top: 10px;">
-            <summary>🔣 全学科 LaTeX 符号键盘</summary>
-            <div class="expander-content">
-              <div class="kbd-segmented-control" id="onboardKbdTier1"></div>
-              <div class="kbd-segmented-control" id="onboardKbdTier2" style="margin-top: 4px;"></div>
-              <div class="symbols-grid" id="onboardSymbolsGrid" style="margin-top: 8px;"></div>
-            </div>
-          </details>
-
-          <div style="display: flex; justify-content: flex-end; margin-top: 14px;">
-            <button class="btn btn-primary" onclick="submitOnboardText()">🚀 开启思维引导</button>
+      <div class="onboarding-vertical-center">
+        <div class="onboarding-hero">
+          <div class="onboarding-icon-box">🧭</div>
+          <h1 class="hero-title">知阶 CogniScaffold</h1>
+          <div class="hero-sub">不给答案，只给台阶。</div>
+          <div class="hero-badge-row" style="margin-top: 0.9rem;">
+            <span class="hero-badge-clean">🎯 逐步提问 · 阶梯引导</span>
+            <span style="color: var(--text-muted); opacity: 0.3;">•</span>
+            <span class="hero-badge-clean">⚡ 反例诱导 · 暴露盲区</span>
+            <span style="color: var(--text-muted); opacity: 0.3;">•</span>
+            <span class="hero-badge-clean">💡 自主发现 · 深度迁移</span>
           </div>
         </div>
 
-        <!-- 子面板 2: 拍照/传图 -->
-        <div id="onboardTabPhoto" style="display: none;">
-          <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 12px;">上传试卷、练习册照片，系统将智能识别文字与数学公式：</p>
-          <div style="border: 2px dashed var(--input-border); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer;" onclick="document.getElementById('fileUploadInput').click()">
-            <div style="font-size: 32px; margin-bottom: 8px;">📷</div>
-            <div style="font-size: 0.9rem; font-weight: 600;">点击上传照片或从手机拍照上传</div>
-            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">支持 PNG, JPG, JPEG 格式</div>
-            <input type="file" id="fileUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'question')">
+        <div class="onboarding-card">
+          <div class="st-tabs-header">
+            <button class="st-tab-button active" onclick="switchOnboardTab('text')">✍️ 文字录入新题</button>
+            <button class="st-tab-button" onclick="switchOnboardTab('photo')">📸 拍照 / 图片上传</button>
+            <button class="st-tab-button" onclick="switchOnboardTab('preset')">💡 经典案例库</button>
           </div>
-        </div>
 
-        <!-- 子面板 3: 黄金案例 -->
-        <div id="onboardTabPreset" style="display: none;">
-          <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 8px;">挑选经过认知心理学验证的高中数理化技经典思维暗坑，即刻感受深度启发推导：</p>
-          <div class="preset-grid">
-            <div class="preset-card" onclick="loadPreset('math_derivative')">
-              <div class="preset-card-title">📐 高中数学 · 导数分类讨论</div>
-              <div class="preset-card-desc">暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类缺失。</div>
-              <div class="preset-card-btn">载入导数案例 ➔</div>
+          <!-- 子面板 1: 文字录入 -->
+          <div id="onboardTabText">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <span style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">题目内容</span>
+              <span style="font-size: 0.78rem; color: var(--text-muted);">支持 LaTeX 科学公式排版</span>
             </div>
-            <div class="preset-card" onclick="loadPreset('physics_momentum')">
-              <div class="preset-card-title">⚖️ 高中物理 · 系统动量守恒</div>
-              <div class="preset-card-desc">暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。</div>
-              <div class="preset-card-btn">载入动量案例 ➔</div>
+            
+            <div class="onboard-textarea-wrapper">
+              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容，支持直接使用 LaTeX 公式，例如 $f(x) = \ln x - ax$ 或 $F=ma$..."></textarea>
+              <button class="onboard-kbd-toggle-trigger" id="onboardKbdToggleBtn" title="插入 LaTeX 科学符号与公式">Σ</button>
+
+              <!-- 悬浮 LaTeX 符号键盘浮层 -->
+              <div class="popover-modal-box" id="onboardLatexPopoverBox" style="right: 0; bottom: 38px; width: 480px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 0.86rem; font-weight: 700;">📐 全学科 LaTeX 符号键盘</span>
+                  <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
+                </div>
+                <div class="kbd-segmented-control" id="onboardKbdTier1"></div>
+                <div class="kbd-segmented-control" id="onboardKbdTier2" style="margin-top: 4px;"></div>
+                <div class="symbols-grid" id="onboardSymbolsGrid" style="margin-top: 8px;"></div>
+              </div>
             </div>
-            <div class="preset-card" onclick="loadPreset('chemistry_equilibrium')">
-              <div class="preset-card-title">🧪 高中化学 · 水解与电荷守恒</div>
-              <div class="preset-card-desc">暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。</div>
-              <div class="preset-card-btn">载入化学案例 ➔</div>
+            
+            <div class="latex-preview-card" id="onboardPreviewBox" style="display: none; margin-top: 8px;">
+              <span class="latex-preview-title">👁️ 题目公式实时排版预览：</span>
+              <div class="latex-preview-body" id="onboardPreviewContent"></div>
             </div>
-            <div class="preset-card" onclick="loadPreset('tech_logic_control')">
-              <div class="preset-card-title">💻 高中技术 · 比较器门限电平</div>
-              <div class="preset-card-desc">暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。</div>
-              <div class="preset-card-btn">载入技术案例 ➔</div>
+
+            <!-- 主按钮与输入框等宽居中构图 -->
+            <div style="margin-top: 14px;">
+              <button class="btn btn-primary" style="width: 100%; height: 42px; font-size: 0.95rem; font-weight: 600;" onclick="submitOnboardText()">🚀 开启思维引导</button>
+              <div style="text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">
+                ⏱️ 约 3–5 轮苏格拉底递进启发，系统不会直接给出最终答案
+              </div>
+            </div>
+          </div>
+
+          <!-- 子面板 2: 拍照/传图 -->
+          <div id="onboardTabPhoto" style="display: none;">
+            <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 12px;">上传试卷、练习册照片，系统将智能识别文字与数学公式：</p>
+            <div style="border: 2px dashed var(--input-border); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer;" onclick="document.getElementById('fileUploadInput').click()">
+              <div style="font-size: 32px; margin-bottom: 8px;">📷</div>
+              <div style="font-size: 0.9rem; font-weight: 600;">点击上传照片或从手机拍照上传</div>
+              <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">支持 PNG, JPG, JPEG 格式</div>
+              <input type="file" id="fileUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'question')">
+            </div>
+          </div>
+
+          <!-- 子面板 3: 黄金案例 (带不可变 data-raw 属性，保证公式绝对不损坏) -->
+          <div id="onboardTabPreset" style="display: none;">
+            <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 8px;">挑选经过认知心理学验证的高中数理化技经典思维暗坑，即刻感受深度启发推导：</p>
+            <div class="preset-grid">
+              <div class="preset-card" onclick="loadPreset('math_derivative')">
+                <div class="preset-card-title">📐 高中数学 · 导数分类讨论</div>
+                <div class="preset-card-desc" data-raw="暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类缺失。"></div>
+                <div class="preset-card-btn">载入导数案例 ➔</div>
+              </div>
+              <div class="preset-card" onclick="loadPreset('physics_momentum')">
+                <div class="preset-card-title">⚖️ 高中物理 · 系统动量守恒</div>
+                <div class="preset-card-desc" data-raw="暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。"></div>
+                <div class="preset-card-btn">载入动量案例 ➔</div>
+              </div>
+              <div class="preset-card" onclick="loadPreset('chemistry_equilibrium')">
+                <div class="preset-card-title">🧪 高中化学 · 水解与电荷守恒</div>
+                <div class="preset-card-desc" data-raw="暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。"></div>
+                <div class="preset-card-btn">载入化学案例 ➔</div>
+              </div>
+              <div class="preset-card" onclick="loadPreset('tech_logic_control')">
+                <div class="preset-card-title">💻 高中技术 · 比较器门限电平</div>
+                <div class="preset-card-desc" data-raw="暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。"></div>
+                <div class="preset-card-btn">载入技术案例 ➔</div>
+              </div>
             </div>
           </div>
         </div>
@@ -1717,6 +1875,20 @@
         </div>
       </div>
     </div>
+
+    <!-- 3. 全局页面底部辅助信息 -->
+    <footer class="site-footer">
+      <div>
+        <strong>知阶 CogniScaffold</strong> · 基于苏格拉底式对话脚手架的高中拔尖数理自适应训练系统
+      </div>
+      <div class="footer-links-group">
+        <a class="footer-link-item" onclick="alert('【知阶使用指引】\n1. 在开题页输入你的数理难题或从经典案例开始。\n2. 导师会循序渐进搭建思维台阶，通过反问与极端特例反思引导你自己解题。\n3. 突破卡点后将为你生成错因画像与变式挑战闯关。')">使用指引</a>
+        <a class="footer-link-item" onclick="alert('【教育理念与脚手架理论】\n知阶源自维果茨基最近发展区（ZPD）理论与苏格拉底产婆术。\n我们坚信：机械灌输标准答案只能带来虚假的理解感，唯有在矛盾反例中自主重构认知，才能形成真正牢固的数理直觉。')">教育理念</a>
+        <a class="footer-link-item" onclick="alert('【隐私与安全承诺】\n系统采用会话隔离存储，题目与推导过程仅在你的专属沙箱中运算，严格遵循隐私合规标准。')">隐私安全</a>
+        <a class="footer-link-item" onclick="alert('【问题与建议反馈】\n欢迎提供宝贵的教学反馈与学科题库扩充建议！\n联系邮箱：support@cogniscaffold.edu')">反馈入口</a>
+        <span style="opacity: 0.5;">v2.6.0</span>
+      </div>
+    </footer>
 
   </div>
 
@@ -1921,7 +2093,9 @@
           sampleMathEl.innerHTML = katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false });
         }
         document.querySelectorAll('.preset-card-desc').forEach(el => {
-          el.innerHTML = formatMarkdown(el.textContent);
+          const raw = el.getAttribute('data-raw') || el.textContent.trim();
+          el.setAttribute('data-raw', raw);
+          el.innerHTML = formatMarkdown(raw);
         });
 
         renderLatex(document.body);
@@ -1931,6 +2105,17 @@
     }
 
     // 主题切换
+        function navigateToHome() {
+      // 寻找是否存在未初始化的空白开题会话
+      const activeDict = appState.active_sessions || {};
+      const emptySessId = Object.keys(activeDict).find(id => !activeDict[id].is_initialized && !activeDict[id].question);
+      if (emptySessId) {
+        switchTab(emptySessId);
+      } else {
+        document.getElementById('addBtn').click();
+      }
+    }
+
     function applyTheme(theme) {
       document.body.setAttribute('data-theme', theme);
       const optLight = document.getElementById('optLight');
@@ -2640,12 +2825,13 @@
 
       if (tab === 'preset') {
         document.querySelectorAll('.preset-card-desc').forEach(el => {
-          if (!el.getAttribute('data-raw')) {
-            el.setAttribute('data-raw', el.textContent.trim());
+          const raw = el.getAttribute('data-raw');
+          if (raw) {
+            el.innerHTML = formatMarkdown(raw);
           }
-          el.innerHTML = formatMarkdown(el.getAttribute('data-raw'));
         });
       }
+      renderLatex(document.getElementById('onboardTabPreset'));
       renderLatex(document.getElementById('onboardingView'));
     }
 
@@ -2902,6 +3088,19 @@
       });
     }
 
+    const onboardLatexPopoverBox = document.getElementById('onboardLatexPopoverBox');
+    if (onboardLatexPopoverBox) {
+      onboardLatexPopoverBox.addEventListener('click', (e) => e.stopPropagation());
+    }
+
+    const onboardKbdToggleBtn = document.getElementById('onboardKbdToggleBtn');
+    if (onboardKbdToggleBtn) {
+      onboardKbdToggleBtn.onclick = (e) => {
+        e.stopPropagation();
+        onboardLatexPopoverBox.classList.toggle('show');
+      };
+    }
+
     document.getElementById('latexKbdToggleBtn').onclick = (e) => {
       e.stopPropagation();
       latexPopoverBox.classList.toggle('show');
@@ -2921,6 +3120,9 @@
 
       if (!isInsideLatex && !e.target.closest('#latexPopoverBox') && !e.target.closest('#latexKbdToggleBtn')) {
         latexPopoverBox.classList.remove('show');
+      }
+      if (onboardLatexPopoverBox && !path.some(el => el && (el.id === 'onboardLatexPopoverBox' || el.id === 'onboardKbdToggleBtn'))) {
+        onboardLatexPopoverBox.classList.remove('show');
       }
       if (!isInsideDraft && !e.target.closest('#draftPopoverBox') && !e.target.closest('#photoDraftToggleBtn')) {
         draftPopoverBox.classList.remove('show');
@@ -3033,9 +3235,12 @@
       targetInput.dispatchEvent(new Event('input'));
       targetInput.focus();
 
-      // 点击具体的公式再关：仅当在聊天浮层输入时自动收起，开题折叠区保持展开
+      // 点击具体的公式再关：自动收起对应浮层
       if (prefix === 'chat') {
         const box = document.getElementById('latexPopoverBox');
+        if (box) box.classList.remove('show');
+      } else if (prefix === 'onboard') {
+        const box = document.getElementById('onboardLatexPopoverBox');
         if (box) box.classList.remove('show');
       }
     }
