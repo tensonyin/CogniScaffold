@@ -239,12 +239,13 @@
       height: 28px;
       border-radius: 6px;
       margin-left: 6px;
-      margin-bottom: 2px;
+      margin-bottom: 4px;
       color: var(--tab-text);
       cursor: pointer;
-      font-size: 18px;
+      font-size: 19px;
       font-weight: 300;
-      line-height: 1;
+      line-height: 26px;
+      padding-top: 1px;
       transition: background 0.15s, color 0.15s, transform 0.1s;
       flex-shrink: 0;
     }
@@ -310,13 +311,15 @@
     .brand-header-badge {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 10px 4px 4px;
-      margin-right: 10px;
+      gap: 7px;
+      padding: 4px 14px 4px 6px;
+      margin-right: 12px;
       cursor: pointer;
       user-select: none;
       transition: opacity 0.15s ease, transform 0.15s ease;
       flex-shrink: 0;
+      border-right: 1px solid var(--tabbar-border);
+      height: 26px;
     }
     .brand-header-badge:hover {
       opacity: 0.9;
@@ -377,13 +380,18 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 4px 10px;
       font-size: 0.84rem;
       font-weight: 500;
       color: var(--text-muted);
-      border-radius: 6px;
-      background: transparent;
-      border: none;
+      line-height: 1;
+    }
+    .hero-badge-dot {
+      color: var(--text-muted);
+      opacity: 0.4;
+      font-size: 0.8rem;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
     }
 
     /* 开题输入框与内嵌小 Σ 按钮 */
@@ -420,8 +428,10 @@
     /* 页面底栏辅助信息 (Footer) */
     .site-footer {
       max-width: 900px;
-      margin: 40px auto 20px auto;
-      padding-top: 16px;
+      width: 100%;
+      margin: 24px auto 0 auto;
+      padding-top: 14px;
+      padding-bottom: 6px;
       border-top: 1px solid var(--card-border);
       display: flex;
       justify-content: space-between;
@@ -430,6 +440,7 @@
       gap: 12px;
       font-size: 0.78rem;
       color: var(--text-muted);
+      flex-shrink: 0;
     }
     .footer-links-group {
       display: flex;
@@ -450,7 +461,22 @@
       position: relative;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 1.2rem 1.8rem 1.5rem 1.8rem;
+      padding: 1rem 1.8rem 2.5rem 1.8rem;
+      min-height: calc(100vh - 44px);
+      display: flex;
+      flex-direction: column;
+    }
+    #onboardingView {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .onboarding-vertical-center {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 0.5rem 0 1.5rem 0;
     }
 
     /* 历史归档抽屉 */
@@ -465,6 +491,78 @@
     }
     
     /* 历史归档极简长横线搜索栏 */
+    
+    /* 原生主题模态弹窗 (Custom Web Modal) */
+    .theme-modal-backdrop {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .theme-modal-backdrop.show {
+      display: flex;
+    }
+    .theme-modal-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 12px 36px rgba(0, 0, 0, 0.35);
+      animation: modalFadeIn 0.2s ease-out;
+      overflow: hidden;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.95) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    .theme-modal-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--card-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .theme-modal-title {
+      font-size: 0.96rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+    .theme-modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.1rem;
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+      border-radius: 4px;
+      transition: all 0.15s;
+    }
+    .theme-modal-close-btn:hover {
+      color: var(--text-main);
+      background: var(--tab-hover);
+    }
+    .theme-modal-body {
+      padding: 16px 18px;
+      font-size: 0.88rem;
+      line-height: 1.65;
+      color: var(--text-sub);
+    }
+    .theme-modal-footer {
+      padding: 10px 18px 14px 18px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
     .history-search-wrapper {
       position: relative;
       margin: 10px 0 14px 0;
@@ -629,12 +727,13 @@
     }
 
     .onboarding-card {
-      max-width: 820px;
+      max-width: 660px;
+      width: 100%;
       margin: 0 auto;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
       border-radius: 12px;
-      padding: 20px 24px;
+      padding: 22px 26px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
     }
 
@@ -1671,11 +1770,11 @@
           <div class="onboarding-icon-box">🧭</div>
           <h1 class="hero-title">知阶 CogniScaffold</h1>
           <div class="hero-sub">不给答案，只给台阶。</div>
-          <div class="hero-badge-row" style="margin-top: 0.9rem;">
+          <div class="hero-badge-row" style="margin-top: 0.9rem; align-items: center; gap: 8px;">
             <span class="hero-badge-clean">🎯 逐步提问 · 阶梯引导</span>
-            <span style="color: var(--text-muted); opacity: 0.3;">•</span>
+            <span class="hero-badge-dot">•</span>
             <span class="hero-badge-clean">⚡ 反例诱导 · 暴露盲区</span>
-            <span style="color: var(--text-muted); opacity: 0.3;">•</span>
+            <span class="hero-badge-dot">•</span>
             <span class="hero-badge-clean">💡 自主发现 · 深度迁移</span>
           </div>
         </div>
@@ -1695,7 +1794,7 @@
             </div>
             
             <div class="onboard-textarea-wrapper">
-              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容，支持直接使用 LaTeX 公式，例如 $f(x) = \ln x - ax$ 或 $F=ma$..."></textarea>
+              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容，支持使用 LaTeX 科学公式，例如 $x^2 + 1 = 0$ 或 $F = ma$..."></textarea>
               <button class="onboard-kbd-toggle-trigger" id="onboardKbdToggleBtn" title="插入 LaTeX 科学符号与公式">Σ</button>
 
               <!-- 悬浮 LaTeX 符号键盘浮层 -->
@@ -1882,14 +1981,29 @@
         <strong>知阶 CogniScaffold</strong> · 基于苏格拉底式对话脚手架的高中拔尖数理自适应训练系统
       </div>
       <div class="footer-links-group">
-        <a class="footer-link-item" onclick="alert('【知阶使用指引】\n1. 在开题页输入你的数理难题或从经典案例开始。\n2. 导师会循序渐进搭建思维台阶，通过反问与极端特例反思引导你自己解题。\n3. 突破卡点后将为你生成错因画像与变式挑战闯关。')">使用指引</a>
-        <a class="footer-link-item" onclick="alert('【教育理念与脚手架理论】\n知阶源自维果茨基最近发展区（ZPD）理论与苏格拉底产婆术。\n我们坚信：机械灌输标准答案只能带来虚假的理解感，唯有在矛盾反例中自主重构认知，才能形成真正牢固的数理直觉。')">教育理念</a>
-        <a class="footer-link-item" onclick="alert('【隐私与安全承诺】\n系统采用会话隔离存储，题目与推导过程仅在你的专属沙箱中运算，严格遵循隐私合规标准。')">隐私安全</a>
-        <a class="footer-link-item" onclick="alert('【问题与建议反馈】\n欢迎提供宝贵的教学反馈与学科题库扩充建议！\n联系邮箱：support@cogniscaffold.edu')">反馈入口</a>
+        <a class="footer-link-item" onclick="openFooterModal('guide')">使用指引</a>
+        <a class="footer-link-item" onclick="openFooterModal('philosophy')">教育理念</a>
+        <a class="footer-link-item" onclick="openFooterModal('privacy')">隐私安全</a>
+        <a class="footer-link-item" onclick="openFooterModal('feedback')">反馈入口</a>
         <span style="opacity: 0.5;">v2.6.0</span>
       </div>
     </footer>
 
+  </div>
+
+  
+  <!-- 主题模态弹窗组件 (符合暗色/亮色风格) -->
+  <div class="theme-modal-backdrop" id="customThemeModal" onclick="closeThemeModal()">
+    <div class="theme-modal-card" onclick="event.stopPropagation()">
+      <div class="theme-modal-header">
+        <div class="theme-modal-title" id="customModalTitle">提示</div>
+        <button class="theme-modal-close-btn" onclick="closeThemeModal()">✕</button>
+      </div>
+      <div class="theme-modal-body" id="customModalBody"></div>
+      <div class="theme-modal-footer">
+        <button class="btn btn-primary" style="padding: 5px 16px; font-size: 0.85rem;" onclick="closeThemeModal()">我知道了</button>
+      </div>
+    </div>
   </div>
 
   <!-- 前端核心控制逻辑 (纯原生无第三方重型框架，脱机毫秒级响应) -->
@@ -2118,14 +2232,49 @@
 
     function applyTheme(theme) {
       document.body.setAttribute('data-theme', theme);
-      const optLight = document.getElementById('optLight');
-      const optDark = document.getElementById('optDark');
       const isLight = (theme === 'light');
       const tIcon = document.getElementById('themeToggleIcon');
-      const tText = document.getElementById('themeToggleText');
-      if (tIcon && tText) {
+      const tBtn = document.getElementById('themeToggleBtn');
+      if (tIcon) {
         tIcon.innerText = isLight ? '☀️' : '🌙';
-        tText.innerText = isLight ? '亮色模式' : '暗色模式';
+      }
+      if (tBtn) {
+        tBtn.title = isLight ? '当前为亮色模式，点击切换为暗色模式' : '当前为暗色模式，点击切换为亮色模式';
+      }
+    }
+
+    function openThemeModal(title, contentHtml) {
+      document.getElementById('customModalTitle').innerText = title;
+      document.getElementById('customModalBody').innerHTML = contentHtml;
+      document.getElementById('customThemeModal').classList.add('show');
+    }
+
+    function closeThemeModal() {
+      document.getElementById('customThemeModal').classList.remove('show');
+    }
+
+    function openFooterModal(type) {
+      if (type === 'guide') {
+        openThemeModal('📖 知阶使用指引', `
+          <div style="margin-bottom: 8px;"><strong>1. 提出你的难题</strong>：在开题页输入数理题目内容，或直接点击体验经典题型案例。</div>
+          <div style="margin-bottom: 8px;"><strong>2. 苏格拉底交互答疑</strong>：导师不会直接给出最终答案，而是提供微图景隐喻与极端特例反思，搭设认知台阶。</div>
+          <div><strong>3. 盲区画像与高阶变式</strong>：突破卡点后将为你生成深度错因归因画像，并解锁对抗式变式闯关挑战。</div>
+        `);
+      } else if (type === 'philosophy') {
+        openThemeModal('🌱 教育理念与脚手架理论', `
+          <div style="margin-bottom: 8px;">知阶的设计源自维果茨基<strong>最近发展区 (ZPD)</strong> 理论与苏格拉底<strong>产婆术</strong>。</div>
+          <div>我们坚信：机械灌输标准答案只能带来“看懂了”的假象，唯有在矛盾反例中自主反思与推导，才能建立起真正属于学生自己的稳固数理直觉。</div>
+        `);
+      } else if (type === 'privacy') {
+        openThemeModal('🛡️ 隐私与安全承诺', `
+          <div style="margin-bottom: 8px;">• <strong>会话沙箱隔离</strong>：题目与交互思考过程仅保存在你当前的探索会话中。</div>
+          <div>• <strong>安全合规保障</strong>：系统搭载架构级断路器，严格遵守学术与未成年人安全防护准则。</div>
+        `);
+      } else if (type === 'feedback') {
+        openThemeModal('📬 问题与建议反馈', `
+          <div style="margin-bottom: 8px;">知阶致力于打造真正陪伴高中生自主思考的优质工具。如果你发现任何推导逻辑漏洞、排版显示问题或有宝贵的新功能建议，欢迎随时联系作者：</div>
+          <div style="background: rgba(128,128,128,0.1); padding: 8px 12px; border-radius: 6px; font-family: monospace; user-select: all; color: var(--primary);">tensonyin@outlook.com</div>
+        `);
       }
     }
 
@@ -2234,6 +2383,13 @@
     }
 
     document.getElementById('addBtn').onclick = async () => {
+      // 7. 仅允许打开一个新建探索页面
+      const activeDict = appState.active_sessions || {};
+      const blankId = Object.keys(activeDict).find(id => !activeDict[id].is_initialized && !activeDict[id].question);
+      if (blankId) {
+        switchTab(blankId);
+        return;
+      }
       const res = await apiFetch('/api/sessions/create', {method: 'POST'});
       const data = await res.json();
       appState = data.store;

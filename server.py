@@ -188,6 +188,15 @@ async def get_bootstrap():
 @app.post("/cogni-scaffold/api/sessions/create")
 async def create_session():
     store = get_store()
+    active = store.setdefault("active_sessions", {})
+
+    # 7. 仅允许打开一个新建探索：如果已经存在未初始化的空白新建会话，直接切换至该会话
+    for s_id, s in active.items():
+        if not s.get("is_initialized", False) and not s.get("question", "").strip():
+            store["current_session_id"] = s_id
+            save_all_data(store)
+            return {"status": "ok", "store": store, "already_exists": True}
+
     new_s = create_new_session_data(is_initialized=False, store=store)
     store["active_sessions"][new_s["id"]] = new_s
     store["current_session_id"] = new_s["id"]
