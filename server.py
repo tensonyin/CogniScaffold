@@ -490,10 +490,37 @@ async def chat_stream(session_id: str, student_text: str):
                 yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
                 return
 
-            # 【意图与脱轨检测 (Intent & Off-Topic Classification)】
+            # 【意图与早退路由检测 (Intent & Early-Exit Routing)】
             intent_type, intent_guidance = classify_user_intent(student_text, sess.get("question", ""))
+            
+            # 1. 情绪发泄、粗俗语拦截：温和安抚并重设边界，严格不推新题
+            if intent_type == "PROFANITY":
+                chunk_size = 12
+                for i in range(0, len(intent_guidance), chunk_size):
+                    chunk = intent_guidance[i:i+chunk_size]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
+
+                sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
+                save_all_data(store)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                return
+
+            # 2. Meta 纠错 / 上下文脱节 / 题目关联质疑：暂停答疑与判题流，由导师出面解释认知同构逻辑，严禁误判
+            if intent_type == "META_QUESTION":
+                chunk_size = 12
+                for i in range(0, len(intent_guidance), chunk_size):
+                    chunk = intent_guidance[i:i+chunk_size]
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
+
+                sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
+                save_all_data(store)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                return
+
+            # 3. 显式脱轨闲聊：优雅拉回，状态原地锁定，不推进关卡
             if intent_type == "OFF_TOPIC":
-                # 优雅拉回：输出温和聚焦提示，状态原地锁定，不推进关卡
                 chunk_size = 12
                 for i in range(0, len(intent_guidance), chunk_size):
                     chunk = intent_guidance[i:i+chunk_size]
