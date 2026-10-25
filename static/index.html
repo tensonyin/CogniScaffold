@@ -254,7 +254,7 @@
       transform: scale(1.08);
     }
     .right-controls {
-      margin-left: 12px;
+      margin-left: auto;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -322,6 +322,81 @@
       margin-bottom: 1.2rem;
       box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
     }
+    
+    /* 历史归档极简长横线搜索栏 */
+    .history-search-wrapper {
+      position: relative;
+      margin: 10px 0 14px 0;
+      display: flex;
+      align-items: center;
+    }
+    .history-search-line {
+      width: 100%;
+      background: transparent !important;
+      border: none !important;
+      border-bottom: 1.5px solid var(--tabbar-border) !important;
+      border-radius: 0 !important;
+      padding: 8px 30px 8px 4px !important;
+      font-size: 0.88rem !important;
+      color: var(--text-main) !important;
+      outline: none !important;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+      box-shadow: none !important;
+    }
+    .history-search-line:focus {
+      border-bottom-color: var(--primary) !important;
+      box-shadow: 0 1px 0 var(--primary) !important;
+    }
+    .history-search-line::placeholder {
+      color: var(--text-muted);
+      opacity: 0.75;
+      font-size: 0.84rem;
+    }
+    .history-search-icon {
+      position: absolute;
+      right: 6px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+
+    /* 学科分类横向滑动胶囊 Tab */
+    .history-cat-tabs {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
+      padding-bottom: 8px;
+      margin-bottom: 10px;
+      border-bottom: 1px solid var(--card-border);
+    }
+    .history-cat-tabs::-webkit-scrollbar {
+      display: none;
+    }
+    .history-cat-pill {
+      padding: 4px 10px;
+      border-radius: 14px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      color: var(--text-sub);
+      background: rgba(128, 128, 128, 0.08);
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+      flex-shrink: 0;
+    }
+    .history-cat-pill:hover {
+      color: var(--text-main);
+      background: rgba(128, 128, 128, 0.16);
+    }
+    .history-cat-pill.active {
+      color: var(--primary);
+      background: rgba(59, 130, 246, 0.12);
+      border-color: rgba(59, 130, 246, 0.3);
+      font-weight: 600;
+    }
+
     .history-drawer.show {
       display: block;
     }
@@ -1308,6 +1383,10 @@
       padding: 14px;
       cursor: pointer;
       transition: all 0.15s ease;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-height: 140px;
     }
     .preset-card:hover {
       border-color: var(--primary);
@@ -1322,8 +1401,9 @@
     .preset-card-desc {
       font-size: 0.82rem;
       color: var(--text-muted);
-      line-height: 1.45;
+      line-height: 1.5;
       margin-bottom: 10px;
+      flex: 1;
     }
     .preset-card-btn {
       font-size: 0.82rem;
@@ -1430,8 +1510,12 @@
         <button class="st-tab-button active" id="historyTabStarredBtn" onclick="switchHistoryTab('starred')">🌟 我的收藏</button>
         <button class="st-tab-button" id="historyTabArchivedBtn" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
       </div>
-      <div style="margin: 8px 0 12px 0;">
-        <input type="text" id="historySearchInput" class="student-input" style="padding: 6px 12px; font-size: 0.85rem;" placeholder="🔍 搜索学科、题目关键词或题型..." oninput="handleHistorySearch(this.value)">
+      <div class="history-search-wrapper">
+        <input type="text" id="historySearchInput" class="history-search-line" placeholder="搜索学科、题目关键词或题型..." oninput="handleHistorySearch(this.value)">
+        <span class="history-search-icon">🔍</span>
+      </div>
+      <div class="history-cat-tabs" id="historyCatTabs">
+        <!-- 动态注入学科分类切换 tab -->
       </div>
       <div id="historyListContainer"></div>
     </div>
@@ -1454,7 +1538,7 @@
         <div class="st-tabs-header">
           <button class="st-tab-button active" onclick="switchOnboardTab('text')">✍️ 文字录入新题</button>
           <button class="st-tab-button" onclick="switchOnboardTab('photo')">📸 拍照 / 图片上传</button>
-          <button class="st-tab-button" onclick="switchOnboardTab('preset')">💡 经典思维陷阱题 (一键体验)</button>
+          <button class="st-tab-button" onclick="switchOnboardTab('preset')">💡 经典案例库 (精选典型例题与思维暗坑)</button>
         </div>
 
         <!-- 子面板 1: 文字录入 -->
@@ -1984,6 +2068,7 @@
 
     let activeHistoryTab = 'starred';
     let historySearchQuery = '';
+    let activeCatFilter = 'all';
 
     function handleHistorySearch(val) {
       historySearchQuery = (val || '').trim().toLowerCase();
@@ -1998,51 +2083,96 @@
         btnStarred.classList.toggle('active', tab === 'starred');
         btnArchived.classList.toggle('active', tab === 'archived');
       }
+      activeCatFilter = 'all';
       renderHistoryList(tab);
     }
 
+    function selectCatFilter(catKey) {
+      activeCatFilter = catKey;
+      renderHistoryList(activeHistoryTab);
+    }
+
     // 学科分类归类判定器 (Emoji + 名称全覆盖分类)
+    const ALL_CATEGORIES = [
+      { key: "math", label: "📐 数学", fullLabel: "📐 高中数学", order: 1 },
+      { key: "physics", label: "⚖️ 物理", fullLabel: "⚖️ 高中物理", order: 2 },
+      { key: "chemistry", label: "🧪 化学", fullLabel: "🧪 高中化学", order: 3 },
+      { key: "biology", label: "🧬 生物", fullLabel: "🧬 高中生物", order: 4 },
+      { key: "geography", label: "🌍 地理", fullLabel: "🌍 高中地理", order: 5 },
+      { key: "humanities", label: "🏛️ 史政", fullLabel: "🏛️ 历史与政治", order: 6 },
+      { key: "technology", label: "💻 技术", fullLabel: "💻 通用与信息技术", order: 7 },
+      { key: "other", label: "💡 综合", fullLabel: "💡 综合与思维探索", order: 8 }
+    ];
+
     function categorizeSession(sess) {
       const t = (sess.title || "") + " " + (sess.question || "");
       if (t.includes("📐") || t.includes("数学") || t.includes("导数") || t.includes("函数") || t.includes("几何") || t.includes("数列")) {
-        return { key: "math", label: "📐 高中数学", order: 1 };
+        return ALL_CATEGORIES[0];
       }
       if (t.includes("⚖️") || t.includes("物理") || t.includes("动量") || t.includes("力学") || t.includes("电磁") || t.includes("天体")) {
-        return { key: "physics", label: "⚖️ 高中物理", order: 2 };
+        return ALL_CATEGORIES[1];
       }
       if (t.includes("🧪") || t.includes("化学") || t.includes("离子") || t.includes("平衡") || t.includes("电解") || t.includes("有机")) {
-        return { key: "chemistry", label: "🧪 高中化学", order: 3 };
+        return ALL_CATEGORIES[2];
       }
       if (t.includes("🧬") || t.includes("生物") || t.includes("遗传") || t.includes("细胞") || t.includes("光合") || t.includes("神经")) {
-        return { key: "biology", label: "🧬 高中生物", order: 4 };
+        return ALL_CATEGORIES[3];
       }
       if (t.includes("🌍") || t.includes("地理") || t.includes("等高线") || t.includes("气候") || t.includes("洋流") || t.includes("区位")) {
-        return { key: "geography", label: "🌍 高中地理", order: 5 };
+        return ALL_CATEGORIES[4];
       }
       if (t.includes("🏛️") || t.includes("历史") || t.includes("政治") || t.includes("哲学") || t.includes("经济") || t.includes("制度")) {
-        return { key: "humanities", label: "🏛️ 历史与政治", order: 6 };
+        return ALL_CATEGORIES[5];
       }
       if (t.includes("💻") || t.includes("技术") || t.includes("信息") || t.includes("算法") || t.includes("电路") || t.includes("逻辑门")) {
-        return { key: "technology", label: "💻 通用与信息技术", order: 7 };
+        return ALL_CATEGORIES[6];
       }
-      return { key: "other", label: "💡 综合与思维探索", order: 8 };
+      return ALL_CATEGORIES[7];
     }
 
     function renderHistoryList(tab) {
       const container = document.getElementById('historyListContainer');
+      const catTabsContainer = document.getElementById('historyCatTabs');
       container.innerHTML = "";
+      
       const activeDict = appState.active_sessions || {};
       const activeList = Object.values(activeDict);
       const archList = Object.values(appState.archived_sessions || {});
       
-      let list = [];
+      let baseList = [];
       if (tab === 'starred') {
-        list = [...activeList, ...archList].filter(s => s.is_starred);
+        baseList = [...activeList, ...archList].filter(s => s.is_starred);
       } else {
-        list = archList;
+        baseList = archList;
       }
 
-      // 实时搜索过滤
+      // 计算每个学科分类下的会话数量
+      const catCounts = { all: baseList.length };
+      ALL_CATEGORIES.forEach(c => catCounts[c.key] = 0);
+      baseList.forEach(item => {
+        const cat = categorizeSession(item);
+        catCounts[cat.key] = (catCounts[cat.key] || 0) + 1;
+      });
+
+      // 渲染搜索框下方的分类切换 Tab
+      if (catTabsContainer) {
+        let tabsHtml = `<button class="history-cat-pill ${activeCatFilter === 'all' ? 'active' : ''}" onclick="selectCatFilter('all')">全部 (${catCounts.all})</button>`;
+        ALL_CATEGORIES.forEach(cat => {
+          const count = catCounts[cat.key] || 0;
+          if (count > 0 || activeCatFilter === cat.key) {
+            tabsHtml += `<button class="history-cat-pill ${activeCatFilter === cat.key ? 'active' : ''}" onclick="selectCatFilter('${cat.key}')">${cat.label} (${count})</button>`;
+          }
+        });
+        catTabsContainer.innerHTML = tabsHtml;
+      }
+
+      let list = baseList;
+      // 1. 分类筛选
+      if (activeCatFilter !== 'all') {
+        list = list.filter(item => categorizeSession(item).key === activeCatFilter);
+      }
+
+      // 2. 实时搜索过滤
       if (historySearchQuery) {
         list = list.filter(item => {
           const title = (item.title || "").toLowerCase();
@@ -2052,7 +2182,7 @@
       }
 
       if (list.length === 0) {
-        container.innerHTML = `<div style="font-size: 0.88rem; color: var(--text-muted); padding: 16px 0; text-align: center;">${historySearchQuery ? '没有找到匹配的记录。' : '暂无记录。'}</div>`;
+        container.innerHTML = `<div style="font-size: 0.88rem; color: var(--text-muted); padding: 16px 0; text-align: center;">${historySearchQuery ? '没有找到匹配的记录。' : '暂无该分类记录。'}</div>`;
         return;
       }
 
@@ -2061,7 +2191,7 @@
       list.forEach(item => {
         const cat = categorizeSession(item);
         if (!groups[cat.key]) {
-          groups[cat.key] = { label: cat.label, order: cat.order, items: [] };
+          groups[cat.key] = { label: cat.fullLabel, order: cat.order, items: [] };
         }
         groups[cat.key].items.push(item);
       });
@@ -2074,8 +2204,8 @@
         groupEl.style.cssText = "margin-bottom: 14px;";
 
         const groupHeader = document.createElement('div');
-        groupHeader.style.cssText = "font-size: 0.84rem; font-weight: 700; color: var(--primary); padding: 4px 6px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;";
-        groupHeader.innerHTML = `<span>${group.label}</span><span style="font-size: 0.76rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
+        groupHeader.style.cssText = "font-size: 0.82rem; font-weight: 700; color: var(--primary); padding: 3px 6px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;";
+        groupHeader.innerHTML = `<span>${group.label}</span><span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
         groupEl.appendChild(groupHeader);
 
         group.items.forEach(item => {
@@ -2111,15 +2241,24 @@
     }
 
     async function restoreSession(id) {
+      // 防御：若已经在活跃标签页中打开，直接无缝切换激活它，避免任何网络请求导致的异常重置
+      if (appState.active_sessions && appState.active_sessions[id]) {
+        switchTab(id);
+        toggleHistoryDrawer();
+        return;
+      }
+
       const res = await apiFetch('/api/sessions/restore', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({session_id: id})
       });
       const data = await res.json();
-      appState = data.store;
-      renderTabs();
-      renderCurrentSessionView();
+      if (data && data.store) {
+        appState = data.store;
+        renderTabs();
+        renderCurrentSessionView();
+      }
       toggleHistoryDrawer();
     }
 
@@ -2498,6 +2637,15 @@
       document.getElementById('onboardTabText').style.display = tab === 'text' ? 'block' : 'none';
       document.getElementById('onboardTabPhoto').style.display = tab === 'photo' ? 'block' : 'none';
       document.getElementById('onboardTabPreset').style.display = tab === 'preset' ? 'block' : 'none';
+
+      if (tab === 'preset') {
+        document.querySelectorAll('.preset-card-desc').forEach(el => {
+          if (!el.getAttribute('data-raw')) {
+            el.setAttribute('data-raw', el.textContent.trim());
+          }
+          el.innerHTML = formatMarkdown(el.getAttribute('data-raw'));
+        });
+      }
       renderLatex(document.getElementById('onboardingView'));
     }
 
