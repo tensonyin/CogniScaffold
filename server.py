@@ -131,6 +131,10 @@ def trigger_diagnosis_for_session(session: dict, offline_mode: bool = False):
             preset = GOLDEN_PRESETS.get("chemistry_equilibrium")
         elif "热敏电阻" in q_t or "比较器" in q_t or "三极管" in q_t:
             preset = GOLDEN_PRESETS.get("tech_logic_control")
+        elif "李鸿章" in q_t or "洋务" in q_t or "历史" in q_t or "官督商办" in q_t:
+            preset = GOLDEN_PRESETS.get("history_modernization")
+        elif "人工智能" in q_t or "艺术" in q_t or "痛感" in q_t or "谬误" in q_t:
+            preset = GOLDEN_PRESETS.get("chinese_logic_fallacy")
         else:
             preset = GOLDEN_PRESETS.get("math_derivative")
         session["diagnostic_result"] = preset["preset_diagnostic"]
@@ -175,6 +179,8 @@ async def get_bootstrap():
         "golden_presets": {
             k: {
                 "title": v.get("title", k),
+                "subject": v.get("subject", ""),
+                "category": v.get("category", "stem"),
                 "question": v.get("question", ""),
                 "description": v.get("solver_blueprint", "")[:120]
             } for k, v in GOLDEN_PRESETS.items()

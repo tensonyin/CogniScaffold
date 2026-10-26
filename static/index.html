@@ -1633,6 +1633,36 @@
     }
 
     /* 黄金预设 2x2 矩阵 */
+    
+    /* 案例分类筛选按钮 */
+    .preset-category-tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .preset-cat-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--tabbar-border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 5px 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .preset-cat-btn:hover {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .preset-cat-btn.active {
+      background: rgba(59, 130, 246, 0.1);
+      border-color: var(--primary);
+      color: var(--primary);
+      font-weight: 600;
+    }
+
     .preset-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -1817,7 +1847,7 @@
             </div>
             
             <div class="onboard-textarea-wrapper">
-              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容，支持使用 LaTeX 科学公式，例如 $x^2 + 1 = 0$ 或 $F = ma$..."></textarea>
+              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容与材料（覆盖浙江十门科目与通用思维拓展，理科公式支持 LaTeX 如 $x^2 + 1 = 0$ 或 $F = ma$）..."></textarea>
               <button class="onboard-kbd-toggle-trigger" id="onboardKbdToggleBtn" title="插入 LaTeX 科学符号与公式">Σ</button>
 
               <!-- 悬浮 LaTeX 符号键盘浮层 -->
@@ -1857,26 +1887,43 @@
             </div>
           </div>
 
-          <!-- 子面板 3: 黄金案例 (带不可变 data-raw 属性，保证公式绝对不损坏) -->
+          <!-- 子面板 3: 黄金案例 (涵盖浙江全学科数理推导与人文思辨，带不可变 data-raw 属性) -->
           <div id="onboardTabPreset" style="display: none;">
-            <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 8px;">挑选经过认知心理学验证的高中数理化技经典思维暗坑，即刻感受深度启发推导：</p>
+            <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 10px;">挑选经过认知心理学验证的全学科典型思维暗坑与论证误区，即刻体验苏格拉底启发推导：</p>
+            
+            <div class="preset-category-tabs">
+              <button class="preset-cat-btn active" data-cat="all" onclick="filterPresetCards('all')">🌟 推荐精选 (全部)</button>
+              <button class="preset-cat-btn" data-cat="stem" onclick="filterPresetCards('stem')">📐 数理技术轨 (数/物/化/技)</button>
+              <button class="preset-cat-btn" data-cat="humanities" onclick="filterPresetCards('humanities')">📚 人文社科轨 (史/语/政/地)</button>
+            </div>
+
             <div class="preset-grid">
-              <div class="preset-card" onclick="loadPreset('math_derivative')">
+              <div class="preset-card" data-cat="stem" onclick="loadPreset('math_derivative')">
                 <div class="preset-card-title">📐 高中数学 · 导数分类讨论</div>
-                <div class="preset-card-desc" data-raw="暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类缺失。"></div>
+                <div class="preset-card-desc" data-raw="暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类讨论缺失。"></div>
                 <div class="preset-card-btn">载入导数案例 ➔</div>
               </div>
-              <div class="preset-card" onclick="loadPreset('physics_momentum')">
+              <div class="preset-card" data-cat="stem" onclick="loadPreset('physics_momentum')">
                 <div class="preset-card-title">⚖️ 高中物理 · 系统动量守恒</div>
                 <div class="preset-card-desc" data-raw="暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。"></div>
                 <div class="preset-card-btn">载入动量案例 ➔</div>
               </div>
-              <div class="preset-card" onclick="loadPreset('chemistry_equilibrium')">
+              <div class="preset-card" data-cat="humanities" onclick="loadPreset('history_modernization')">
+                <div class="preset-card-title">📜 高中历史 · 洋务成因与制度局限</div>
+                <div class="preset-card-desc" data-raw="暗坑：将近代化失败降维归因于偶然的财政与装备短缺，忽略“中体西用”维护封建专制制度的阶级局限。"></div>
+                <div class="preset-card-btn">载入历史案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" onclick="loadPreset('chinese_logic_fallacy')">
+                <div class="preset-card-title">📖 高中语文 · 论述批判与隐性前提</div>
+                <div class="preset-card-desc" data-raw="暗坑：被动人情味修辞掩盖逻辑缺陷，混淆创作心理与美学客体范畴，陷入先验循环论证与稻草人归约。"></div>
+                <div class="preset-card-btn">载入语文案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" onclick="loadPreset('chemistry_equilibrium')">
                 <div class="preset-card-title">🧪 高中化学 · 水解与电荷守恒</div>
                 <div class="preset-card-desc" data-raw="暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。"></div>
                 <div class="preset-card-btn">载入化学案例 ➔</div>
               </div>
-              <div class="preset-card" onclick="loadPreset('tech_logic_control')">
+              <div class="preset-card" data-cat="stem" onclick="loadPreset('tech_logic_control')">
                 <div class="preset-card-title">💻 高中技术 · 比较器门限电平</div>
                 <div class="preset-card-desc" data-raw="暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。"></div>
                 <div class="preset-card-btn">载入技术案例 ➔</div>
@@ -2001,7 +2048,7 @@
     <!-- 3. 全局页面底部辅助信息 -->
     <footer class="site-footer">
       <div>
-        <strong>知阶 CogniScaffold</strong> · 基于苏格拉底式对话脚手架的高中拔尖数理自适应训练系统
+        <strong>知阶 CogniScaffold</strong> · 全学科苏格拉底式启发脚手架与思维跃迁平台
       </div>
       <div class="footer-links-group">
         <a class="footer-link-item" onclick="openFooterModal('guide')">使用指引</a>
@@ -2279,23 +2326,24 @@
     function openFooterModal(type) {
       if (type === 'guide') {
         openThemeModal('📖 知阶使用指引', `
-          <div style="margin-bottom: 8px;"><strong>1. 提出你的难题</strong>：在开题页输入数理题目内容，或直接点击体验经典题型案例。</div>
-          <div style="margin-bottom: 8px;"><strong>2. 苏格拉底交互答疑</strong>：导师不会直接给出最终答案，而是提供微图景隐喻与极端特例反思，搭设认知台阶。</div>
-          <div><strong>3. 盲区画像与高阶变式</strong>：突破卡点后将为你生成深度错因归因画像，并解锁对抗式变式闯关挑战。</div>
+          <div style="margin-bottom: 8px;"><strong>1. 提出你的探究命题</strong>：全面支持浙江新高考十门学科（语文、数学、英语、物理、化学、生物、政治、历史、地理、技术）及通用思维拓展，在此输入题目内容或一键载入经典案例。</div>
+          <div style="margin-bottom: 8px;"><strong>2. 文理双轨苏格拉底启发</strong>：拒绝直接馈赠答案或现成范文！数理技术轨注重极端特例检验与公式逻辑解构；人文社科轨注重史料实证、多维因果与反事实思辨，搭设层层递进的认知脚手架。</div>
+          <div><strong>3. 深度思维画像与三阶变式对抗</strong>：完成突破后自动生成概念盲区画像，并解锁维度拓展、逆向对抗与跨界迁移的三阶同构变式挑战。</div>
         `);
       } else if (type === 'philosophy') {
         openThemeModal('🌱 教育理念与脚手架理论', `
           <div style="margin-bottom: 8px;">知阶的设计源自维果茨基<strong>最近发展区 (ZPD)</strong> 理论与苏格拉底<strong>产婆术</strong>。</div>
-          <div>我们坚信：机械灌输标准答案只能带来“看懂了”的假象，唯有在矛盾反例中自主反思与推导，才能建立起真正属于学生自己的稳固数理直觉。</div>
+          <div style="margin-bottom: 8px;">传统搜题工具通过“直接馈赠答案或套路范文”诱发学习者的“虚假理解错觉”与认知怠惰。我们坚信：真正的认知跃迁源于思维困境中的自我质疑与反事实推演。</div>
+          <div>无论数理严密演绎还是人文批判性思辨，唯有在矛盾反例与证据链审查中自主反思，才能建立起真正属于学生自己的核心素养与高阶独立思维。</div>
         `);
       } else if (type === 'privacy') {
         openThemeModal('🛡️ 隐私与安全承诺', `
-          <div style="margin-bottom: 8px;">• <strong>会话沙箱隔离</strong>：题目与交互思考过程仅保存在你当前的探索会话中。</div>
-          <div>• <strong>安全合规保障</strong>：系统搭载架构级断路器，严格遵守学术与未成年人安全防护准则。</div>
+          <div style="margin-bottom: 8px;">• <strong>会话沙箱隔离</strong>：题目与交互思考过程仅保存在你当前的探索会话沙箱中。</div>
+          <div>• <strong>安全合规保障</strong>：系统搭载架构级断路器，严格遵守学术诚信与未成年人安全防护准则。</div>
         `);
       } else if (type === 'feedback') {
         openThemeModal('📬 问题与建议反馈', `
-          <div style="margin-bottom: 8px;">知阶致力于打造真正陪伴高中生自主思考的优质工具。如果你发现任何推导逻辑漏洞、排版显示问题或有宝贵的新功能建议，欢迎随时联系作者：</div>
+          <div style="margin-bottom: 8px;">知阶致力于打造真正陪伴高中拔尖与自主探究的启发式全学科工具。如果你发现任何推导逻辑漏洞、史料评判偏差、排版显示问题或有宝贵建议，欢迎随时联系作者：</div>
           <div style="background: rgba(128,128,128,0.1); padding: 8px 12px; border-radius: 6px; font-family: monospace; user-select: all; color: var(--primary);">tensonyin@outlook.com</div>
         `);
       }
@@ -3067,6 +3115,22 @@
     });
 
     // 开题子 Tab 切换
+    
+    // 经典案例分类筛选
+    function filterPresetCards(cat) {
+      document.querySelectorAll('.preset-cat-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-cat') === cat);
+      });
+      document.querySelectorAll('.preset-card').forEach(card => {
+        const cardCat = card.getAttribute('data-cat');
+        if (cat === 'all' || cardCat === cat) {
+          card.style.display = 'flex';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+
     function switchOnboardTab(tab) {
       document.querySelectorAll('#onboardingView .st-tab-button').forEach((b, i) => {
         b.classList.toggle('active', (tab === 'text' && i === 0) || (tab === 'photo' && i === 1) || (tab === 'preset' && i === 2));

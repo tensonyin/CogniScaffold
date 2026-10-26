@@ -11,9 +11,12 @@ from typing import Generator, Dict, Any, List, Tuple
 from openai import OpenAI
 
 from core.storage import to_chinese_num
+from core.intent import detect_subject_track
 from core.prompts import (
     SOLVER_SYSTEM_PROMPT,
     TUTOR_SYSTEM_PROMPT,
+    get_solver_prompt,
+    get_tutor_prompt,
     DIAGNOSTIC_SYSTEM_PROMPT,
     TRANSFER_EVAL_PROMPT,
     NEXT_TIER_PROMPT
@@ -44,20 +47,23 @@ def get_openai_client(api_key: str, base_url: str) -> OpenAI:
 def generate_solver_blueprint(question: str, api_config: Dict[str, Any]) -> str:
     """
     Solver Agent: 一次性生成题目的真实解题基准与思维陷阱图谱
-    供后续 Tutor Agent 作为内部知识底座参考
+    供后续 Tutor Agent 作为内部知识底座参考（支持文理双轨自动识别）
     """
     if not is_valid_api_key(api_config.get("api_key")):
         return "（未检测到有效 OPENAI_API_KEY，已自动启用认知脚手架预设解题底座）"
+    
+    track = detect_subject_track(question)
+    solver_prompt = get_solver_prompt(track)
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     try:
         response = client.chat.completions.create(
             model=api_config["model"],
             messages=[
-                {"role": "system", "content": SOLVER_SYSTEM_PROMPT},
-                {"role": "user", "content": f"请针对这道题目构建解题底座与陷阱字典：\n{question}"}
+                {"role": "system", "content": solver_prompt},
+                {"role": "user", "content": f"请针对这道题目构建解题/思辨底座与陷阱字典：\n{question}"}
             ],
             temperature=0.2,
-            max_tokens=600
+            max_tokens=650
         )
         return response.choices[0].message.content or "（未能生成解题底座）"
     except Exception as e:
@@ -71,15 +77,18 @@ def stream_tutor_response(
 ) -> Generator[str, None, None]:
     """
     Tutor Agent: 极速流式启发引导
-    将 solver_blueprint 注入系统提示词，采用 streaming 方式输出，1-2秒内吐出首字
+    将 solver_blueprint 注入系统提示词，采用 streaming 方式输出，1-2秒内吐出首字（支持文理双轨自动识别）
     """
     if not is_valid_api_key(api_config.get("api_key")):
         yield "【⚠️ 未检测到有效的大模型 API 密钥（OPENAI_API_KEY 未配置或无效）。请在服务器环境或项目 .env 文件中设置后继续对话。】"
         return
 
-    client = get_openai_client(api_config["api_key"], api_config["base_url"])
-    system_prompt = TUTOR_SYSTEM_PROMPT.format(solver_blueprint=solver_blueprint)
+    context_str = solver_blueprint + " " + " ".join([m.get("content", "") for m in dialogue_history[-4:]])
+    track = detect_subject_track(context_str)
+    tutor_prompt = get_tutor_prompt(track)
+    system_prompt = tutor_prompt.format(solver_blueprint=solver_blueprint)
     
+    client = get_openai_client(api_config["api_key"], api_config["base_url"])
     messages = [{"role": "system", "content": system_prompt}]
     for msg in dialogue_history:
         # 跳过内部阶段分割与变式提示消息
@@ -235,16 +244,18 @@ def evaluate_transfer_answer(
     confident_phrases = ["太简单了", "太简单", "秒杀", "小菜一碟", "已经搞定", "完全懂了", "完全明白", "都懂了", "毫无压力", "一眼看出", "一眼丁真", "看透了"]
     is_confident = (not has_negation) and any(cp in ans_clean for cp in confident_phrases)
     
-    # 正向命中动量或导数的核心结论
+    # 正向命中核心结论
     momentum_correct = ("水平守恒" in ans_clean and ("竖直不守恒" in ans_clean or "竖直合力不为零" in ans_clean))
     derivative_correct = ("定义域" in ans_clean and "分类" in ans_clean)
+    history_correct = ("局限" in ans_clean and ("封建" in ans_clean or "体制" in ans_clean or "技术" in ans_clean or "制度" in ans_clean))
+    logic_correct = ("前提" in ans_clean or "偷换" in ans_clean or "因果" in ans_clean or "稻草人" in ans_clean or "充分条件" in ans_clean)
     
-    if is_confident or momentum_correct or derivative_correct:
-        return "✅ **成功通关！认知迁移达成**\n\n导师非常赞赏你的敏锐与自信！你的结论完全准确，不仅精准把握了核心受力与约束本质，更展现了极其扎实的数理直觉。请乘胜追击，挑战下一关！"
+    if is_confident or momentum_correct or derivative_correct or history_correct or logic_correct:
+        return "✅ **成功通关！认知迁移达成**\n\n导师非常赞赏你的敏锐与自信！你的结论与立论逻辑完全准确，不仅精准把握了底层约束机制，更展现了极其扎实的高阶思维直觉。请乘胜追击，挑战下一关！"
 
     # 2. 常规答题交由大模型终审评判
     if not is_valid_api_key(api_config.get("api_key")):
-        return f"💡 **导师启发指引**\n\n请结合变式题核心约束：{variant_hint}，进一步尝试写出推导方程。"
+        return f"💡 **导师启发指引**\n\n请结合变式题核心考查要点：{variant_hint}，进一步尝试写出推导方程或论证分析。"
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     prompt = TRANSFER_EVAL_PROMPT.format(
         variant_question=variant_question,
@@ -428,10 +439,36 @@ def generate_next_tier_variant(
                 "question": f"设函数 $g(x) = \\frac{{\\ln x}}{{x}} - ax$。（1）讨论 $g(x)$ 的零点个数；（2）若 $x_1, x_2$ 为 $g(x)$ 的两个不同零点，证明：$x_1 x_2 > e^2$，且 $x_1 + x_2 > 2e$。",
                 "hint": "对偶对称变换或极值点偏移常用构造方法：令 $t = \\frac{{x_1}}{{x_2}}$ 转化为单变量对数均值不等式。"
             }
+    elif any(k in question for k in ["洋务", "历史", "史料", "革命", "朝代", "辛亥", "晚清"]):
+        if next_tier == 4:
+            return {
+                "title": "第四关：跨国文明比较与现代化转型范式跃迁",
+                "question": "比较晚清洋务运动与日本明治维新在面对西方工业文明冲击时的制度调适与思想重构。试从国家治理结构、财政动员能力以及社会心态三个维度，论证为何技术层面的单向引进无法自发催生出整体性的近代化突破。",
+                "hint": "打破孤立国别史局限，构建跨文明比较视野，紧扣经济基础与上层建筑的辩证互动机制。"
+            }
+        else:
+            return {
+                "title": f"第{c_tier}关：深层结构归因与反事实历史推演",
+                "question": f"假定晚清在甲午战前成立类似近代内阁的决策机构，洋务企业是否就能突破官督商办的体制困局？请结合当时中央与地方督抚财权分配的实态，论证该假设成立或不成立的依据。",
+                "hint": "运用反事实推演检验历史因果链条的必然性与偶然性，避免后见之明的简单归因。"
+            }
+    elif any(k in question for k in ["论证", "逻辑", "阅读", "哲学", "主旨", "语文", "谬误"]):
+        if next_tier == 4:
+            return {
+                "title": "第四关：多重语境张力与隐性元假设解构",
+                "question": "分析论述文本在立论过程中是否预设了未经证明的价值优先序（如效率优先于公平，或理性决定论）。请撰写一份批判性反思要点，指出其隐含前提并重构可能的对立立论视角。",
+                "hint": "考查对论证深层预设的敏锐洞察，区分经验性描述与规范性价值判断。"
+            }
+        else:
+            return {
+                "title": f"第{c_tier}关：论点溯源与反例对抗重构",
+                "question": f"针对原议题的核心主张，寻找一个极具张力的矛盾反例案例。试说明该反例如何挑战了原论题的普适性，并尝试对原论点进行边界修正。",
+                "hint": "考查概念边界意识与批判性反思，学会在反例碰撞中实现立论自我修正。"
+            }
     else:
         return {
-            "title": f"第{c_tier}关：高维复合约束与逆向极限反推挑战",
-            "question": f"在原模型基础上，引入第{c_tier}维度的逆向动态边界与外力扰动。试建立系统的状态方程，推导临界突变点，并证明系统在边界条件下的守恒或单调闭环。",
-            "hint": "综合运用极端值假设、量纲分析与守恒闭环论证高阶数理推导。"
+            "title": f"第{c_tier}关：高维复合约束与深度迁移挑战",
+            "question": f"在原模型核心认知机制基础上，引入第{c_tier}维度的边界扰动与深层变量。试分析核心要素之间的相互制约关系，推导临界突变点，并给出自洽的论证结论。",
+            "hint": "透过表面情境差异，抓住底层逻辑的同构不变性。"
         }
 
