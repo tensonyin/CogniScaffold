@@ -247,7 +247,7 @@ def build_tier_completion_report(session: dict, max_defined: int) -> str:
     blindspot = diag.get("blindspot_type", "思维卡点")
     breakthrough = diag.get("key_breakthrough", "自主逻辑重构")
 
-    return f"""🏆 **变式跃迁 · 全线通关战报**
+    return f"""🏆 **阶段 4 · 对抗变式全线通关战报**
 
 恭喜！你已连续攻克【{info['subject']}】领域的全部 **{to_chinese_num(max_defined)}** 重递进关卡，展现了{info['ability']}！
 
