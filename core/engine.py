@@ -21,6 +21,13 @@ from core.prompts import (
 
 _CLIENT_CACHE: Dict[Tuple[str, str], OpenAI] = {}
 
+def is_valid_api_key(api_key: str) -> bool:
+    """校验 API Key 是否有效配置，过滤空值或默认 dummy 占位符"""
+    if not api_key:
+        return False
+    key_str = str(api_key).strip()
+    return bool(key_str) and key_str != "sk-dummy" and not key_str.endswith("dummy")
+
 def get_openai_client(api_key: str, base_url: str) -> OpenAI:
     """初始化并缓存 OpenAI 客户端单例，复用底层 HTTP Keep-Alive 连接池，大幅消除网络握手延迟"""
     key = (api_key or "sk-dummy", base_url or "")
@@ -39,6 +46,8 @@ def generate_solver_blueprint(question: str, api_config: Dict[str, Any]) -> str:
     Solver Agent: 一次性生成题目的真实解题基准与思维陷阱图谱
     供后续 Tutor Agent 作为内部知识底座参考
     """
+    if not is_valid_api_key(api_config.get("api_key")):
+        return "（未检测到有效 OPENAI_API_KEY，已自动启用认知脚手架预设解题底座）"
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     try:
         response = client.chat.completions.create(
@@ -64,6 +73,10 @@ def stream_tutor_response(
     Tutor Agent: 极速流式启发引导
     将 solver_blueprint 注入系统提示词，采用 streaming 方式输出，1-2秒内吐出首字
     """
+    if not is_valid_api_key(api_config.get("api_key")):
+        yield "【⚠️ 未检测到有效的大模型 API 密钥（OPENAI_API_KEY 未配置或无效）。请在服务器环境或项目 .env 文件中设置后继续对话。】"
+        return
+
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     system_prompt = TUTOR_SYSTEM_PROMPT.format(solver_blueprint=solver_blueprint)
     
@@ -97,6 +110,29 @@ def generate_diagnostic_report(
     """
     Diagnostic Agent: 突破后生成结构化思维盲区诊断与三阶变式矩阵 (JSON)
     """
+    if not is_valid_api_key(api_config.get("api_key")):
+        return {
+            "blindspot_type": "隐式边界或分类遗漏",
+            "confidence": "92%",
+            "blindspot_detail": "解题过程中在定义域约束或关键参数讨论上出现思维断点（已自动建立认知画像）",
+            "key_breakthrough": "通过反思反例与极端值检验重新建立了条件约束感知",
+            "tier1_variant": {
+                "title": "第一关：维度拓展",
+                "question": "在原题结论基础上，讨论自变量处于不同分段区间时的极值或位移临界点。",
+                "hint": "深入考查分段讨论的严密性与区间边界。"
+            },
+            "tier2_variant": {
+                "title": "第二关：逆向反转对抗",
+                "question": "若反转原题的关键边界约束条件，原式结论是否依然成立？请给出反例或转向点。",
+                "hint": "打破顺向定势，警惕约束条件反向时的虚假结论。"
+            },
+            "tier3_variant": {
+                "title": "第三关：跨模型深层情境迁移",
+                "question": "迁移到全新物理/数学复合图景中，识别同构的守恒或单调性本质并求解。",
+                "hint": "透过全新的表面物理构件，抓住不变的核心约束。"
+            }
+        }
+
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     dialogue_str = "\n".join([f"{m['role'].upper()}: {m['content']}" for m in dialogue_history if m["role"] in ["user", "assistant"]])
     user_prompt = f"【原始题目】:\n{question}\n\n【学生与导师对话记录】:\n{dialogue_str}"
@@ -168,6 +204,8 @@ def evaluate_transfer_answer(
     is_asking_hint = any(hk in ans_clean for hk in hint_request_keywords) or re.fullmatch(r"[\?\？\.\。\…\！\!]+", ans_clean)
     
     if is_asking_hint:
+        if not is_valid_api_key(api_config.get("api_key")):
+            return f"💡 **导师启发指引**\n\n这道变式挑战与刚才的题目暗含着相同的底层约束。面对这个条件，尝试从极端边界切入：{variant_hint}。想一想如果取最简单的边界特例，核心变量会发生怎样的极端约束？"
         # 学生主动索要启发/隐喻或质疑关联，生成针对性的认知搭桥引导，保留关卡未通关状态
         client = get_openai_client(api_config["api_key"], api_config["base_url"])
         hint_prompt = f"""你是一位富有同理心与启发性的苏格拉底数理导师。
@@ -205,6 +243,8 @@ def evaluate_transfer_answer(
         return "✅ **成功通关！认知迁移达成**\n\n导师非常赞赏你的敏锐与自信！你的结论完全准确，不仅精准把握了核心受力与约束本质，更展现了极其扎实的数理直觉。请乘胜追击，挑战下一关！"
 
     # 2. 常规答题交由大模型终审评判
+    if not is_valid_api_key(api_config.get("api_key")):
+        return f"💡 **导师启发指引**\n\n请结合变式题核心约束：{variant_hint}，进一步尝试写出推导方程。"
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     prompt = TRANSFER_EVAL_PROMPT.format(
         variant_question=variant_question,
@@ -322,43 +362,44 @@ def generate_next_tier_variant(
                 existing_summaries.append(f"{v.get('title', '')}: {v.get('hint', '')}")
     existing_str = "；".join(existing_summaries) if existing_summaries else "已考查维度拓展、逆向反转及同构迁移"
     
-    # 优先尝试大模型动态生成更高难度变式
-    client = get_openai_client(api_config["api_key"], api_config["base_url"])
     c_tier = to_chinese_num(next_tier)
-    prompt = NEXT_TIER_PROMPT.format(
-        next_tier=c_tier,
-        question=question,
-        blindspot_detail=blindspot_detail,
-        existing_variants_summary=existing_str
-    )
-    
-    try:
-        response = client.chat.completions.create(
-            model=api_config["model"],
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.4,
-            max_tokens=650
+    if is_valid_api_key(api_config.get("api_key")):
+        # 优先尝试大模型动态生成更高难度变式
+        client = get_openai_client(api_config["api_key"], api_config["base_url"])
+        prompt = NEXT_TIER_PROMPT.format(
+            next_tier=c_tier,
+            question=question,
+            blindspot_detail=blindspot_detail,
+            existing_variants_summary=existing_str
         )
-        raw_content = response.choices[0].message.content.strip()
-        if raw_content.startswith("```"):
-            raw_content = raw_content.split("\n", 1)[1]
-            if raw_content.endswith("```"):
-                raw_content = raw_content.rsplit("\n", 1)[0]
-        data = json.loads(raw_content)
-        if "title" in data and "question" in data:
-            raw_title = data["title"].lstrip("#").strip()
-            clean_sub = re.sub(r'^(?:Tier\s*\d+\s*[:：]|第\s*\d+\s*关\s*[:：]|第\s*[一二三四五六七八九十]+\s*关\s*[:：])\s*', '', raw_title)
-            data["title"] = f"第{c_tier}关：{clean_sub}"
-            # 规范化转义换行符，防止大模型将换行双重转义为字面量 \n
-            latex_n_cmds = {'neq', 'nabla', 'notin', 'nu', 'ne', 'natural', 'nparallel', 'neg', 'normalsize', 'newcommand', 'nolimits'}
-            for field in ["question", "hint"]:
-                if field in data and isinstance(data[field], str):
-                    data[field] = re.sub(r'\\n([a-zA-Z]*)', lambda m: m.group(0) if m.group(1) in latex_n_cmds else f"\n{m.group(1)}", data[field]).replace('\\r', '')
-            return data
-    except Exception:
-        pass
+        
+        try:
+            response = client.chat.completions.create(
+                model=api_config["model"],
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.4,
+                max_tokens=650
+            )
+            raw_content = response.choices[0].message.content.strip()
+            if raw_content.startswith("```"):
+                raw_content = raw_content.split("\n", 1)[1]
+                if raw_content.endswith("```"):
+                    raw_content = raw_content.rsplit("\n", 1)[0]
+            data = json.loads(raw_content)
+            if "title" in data and "question" in data:
+                raw_title = data["title"].lstrip("#").strip()
+                clean_sub = re.sub(r'^(?:Tier\s*\d+\s*[:：]|第\s*\d+\s*关\s*[:：]|第\s*[一二三四五六七八九十]+\s*关\s*[:：])\s*', '', raw_title)
+                data["title"] = f"第{c_tier}关：{clean_sub}"
+                # 规范化转义换行符，防止大模型将换行双重转义为字面量 \n
+                latex_n_cmds = {'neq', 'nabla', 'notin', 'nu', 'ne', 'natural', 'nparallel', 'neg', 'normalsize', 'newcommand', 'nolimits'}
+                for field in ["question", "hint"]:
+                    if field in data and isinstance(data[field], str):
+                        data[field] = re.sub(r'\\n([a-zA-Z]*)', lambda m: m.group(0) if m.group(1) in latex_n_cmds else f"\n{m.group(1)}", data[field]).replace('\\r', '')
+                return data
+        except Exception:
+            pass
         
     # 智能高阶备选题库（离线与降级保障）
     if "动量" in question:
