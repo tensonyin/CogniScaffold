@@ -5,7 +5,7 @@ import asyncio
 import mimetypes
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -204,8 +204,14 @@ def trigger_diagnosis_for_session(session: dict, offline_mode: bool = False):
 # 静态首页与基础 Bootstrap
 # ============================================================
 
+@app.get("/cogni-scaffold")
+async def redirect_to_trailing_slash(request: Request):
+    """强制重定向无末尾斜杠路径，避免移动端/平板浏览器将相对静态资源解析至根域名"""
+    query_str = f"?{request.url.query}" if request.url.query else ""
+    return RedirectResponse(url=f"/cogni-scaffold/{query_str}", status_code=301)
+
+
 @app.get("/", response_class=HTMLResponse)
-@app.get("/cogni-scaffold", response_class=HTMLResponse)
 @app.get("/cogni-scaffold/", response_class=HTMLResponse)
 async def serve_index():
     with open("static/index.html", "r", encoding="utf-8") as f:

@@ -6,11 +6,92 @@
   <title>知阶 · 不给答案，只给台阶</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
   
-  <!-- 本地 KaTeX 科学公式与 Marked 渲染引擎（完全脱机支持内网极速加载） -->
-  <link rel="stylesheet" href="static/vendor/katex.min.css">
+  <script>
+    (function() {
+      // 1. 兼容移动端/老旧平板 Blink/WebKit 内核缺少 String.prototype.replaceAll 的致命报错
+      if (!String.prototype.replaceAll) {
+        String.prototype.replaceAll = function(str, newStr) {
+          return this.split(str).join(newStr);
+        };
+      }
+      // 2. 规范化子路径：当访问 /cogni-scaffold 缺少末尾斜杠时，立即重定向补全斜杠，防止静态资源相对解析至根域名
+      if (window.location.pathname === '/cogni-scaffold') {
+        window.location.replace('/cogni-scaffold/' + window.location.search + window.location.hash);
+      }
+    })();
+  </script>
+
+  <!-- 本地 KaTeX 科学公式与 Marked 渲染引擎（优先本地极速加载，配置动态容灾 CDN 兜底） -->
+  <link rel="stylesheet" id="katex-css-local" href="static/vendor/katex.min.css">
   <script src="static/vendor/katex.min.js"></script>
   <script src="static/vendor/auto-render.min.js"></script>
   <script src="static/vendor/marked.min.js"></script>
+
+  <script>
+    // KaTeX / Marked 动态容灾多级加载器（针对平板 Opera 省流模式或相对路径受损自动恢复）
+    window.__katexLoadingPromise = null;
+    function ensureKaTeXLoaded() {
+      if (window.katex && window.renderMathInElement && window.marked) {
+        return Promise.resolve();
+      }
+      if (window.__katexLoadingPromise) return window.__katexLoadingPromise;
+      window.__katexLoadingPromise = new Promise(function(resolve) {
+        var baseCdn = "https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/";
+        var backupCdn = "https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/";
+
+        function loadCss(href) {
+          var exists = document.querySelector('link[href*="katex.min.css"]');
+          if (!exists) {
+            var l = document.createElement('link');
+            l.rel = 'stylesheet';
+            l.href = href;
+            document.head.appendChild(l);
+          }
+        }
+
+        function loadJs(src, done) {
+          var s = document.createElement('script');
+          s.src = src;
+          s.async = false;
+          s.onload = function() { done(null); };
+          s.onerror = function() { done(new Error('fail ' + src)); };
+          document.head.appendChild(s);
+        }
+
+        loadCss(baseCdn + "katex.min.css");
+
+        function tryVendor(prefix, fallback) {
+          loadJs(prefix + "katex.min.js", function(err) {
+            if (err) return fallback ? fallback() : resolve();
+            loadJs(prefix + (prefix.includes('npm') ? "dist/contrib/auto-render.min.js" : "contrib/auto-render.min.js"), function() {
+              if (!window.marked) {
+                loadJs("https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js", function() {
+                  resolve();
+                });
+              } else {
+                resolve();
+              }
+            });
+          });
+        }
+
+        if (!window.katex) {
+          tryVendor(baseCdn, function() {
+            tryVendor(backupCdn, function() {
+              resolve();
+            });
+          });
+        } else if (!window.renderMathInElement) {
+          loadJs(baseCdn + "contrib/auto-render.min.js", function() {
+            resolve();
+          });
+        } else {
+          resolve();
+        }
+      });
+      return window.__katexLoadingPromise;
+    }
+  </script>
 
   <style>
     /* 全局与字体重置 */
@@ -968,11 +1049,22 @@
     .st-chat-content blockquote p {
       margin: 0.35rem 0;
     }
-    .st-chat-content .katex {
+    /* 平板/移动端 Opera 及省流模式下的数学公式字体平滑降级与横向防溢出 */
+    .katex {
+      font-family: KaTeX_Main, "Times New Roman", "Cambria Math", "DejaVu Serif", STIXGeneral, serif !important;
+      text-rendering: optimizeLegibility;
       font-size: 1.05em;
       margin: 0 0.12em;
     }
-    .st-chat-content .katex-display {
+    .katex .mathnormal {
+      font-family: KaTeX_Math, "Times New Roman", "Cambria Math", "DejaVu Serif", STIXGeneral, italic, serif !important;
+    }
+    .katex-display {
+      overflow-x: auto;
+      overflow-y: hidden;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
+      padding: 4px 0;
       margin: 0.8em 0;
     }
     /* 学生发言（右对齐） */
@@ -3002,6 +3094,7 @@
       // 2. 提取成对的 $$...$$ 块级公式并预渲染
       const mathPlaceholders = [];
       t = t.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
+        if (!window.katex || !katex.renderToString) return match;
         try {
           const rendered = katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_BLOCK_${mathPlaceholders.length}%%`;
@@ -3014,6 +3107,7 @@
 
       // 3. 提取成对的 $...$ 行内公式并预渲染
       t = t.replace(/\$([^\$\n]+?)\$/g, (match, formula) => {
+        if (!window.katex || !katex.renderToString) return match;
         try {
           const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
@@ -3026,6 +3120,7 @@
 
       // 4. 对未包裹 $ 的孤立常见数学公式（此时已在 mathPlaceholders 之外，绝无破坏成对公式的风险）进行安全识别与渲染
       t = t.replace(/(\\frac\{[^{}]+\}\{[^{}]+\})/g, (match, formula) => {
+        if (!window.katex || !katex.renderToString) return match;
         try {
           const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
@@ -3036,6 +3131,7 @@
         }
       });
       t = t.replace(/(\\sqrt\{[^{}]+\})/g, (match, formula) => {
+        if (!window.katex || !katex.renderToString) return match;
         try {
           const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
@@ -3057,14 +3153,14 @@
 
       let html = "";
       try {
-        html = marked.parse(t);
+        html = (window.marked && marked.parse) ? marked.parse(t) : t;
       } catch(e) {
         html = t;
       }
 
-      // 将预渲染的 KaTeX HTML 完美复原，彻底避免 Markdown 逃逸与格式破损
+      // 将预渲染的 KaTeX HTML 完美复原，split.join 确保老旧平板/移动端 Opera 100% 兼容无抛错
       mathPlaceholders.forEach(({ placeholder, rendered }) => {
-        html = html.replaceAll(placeholder, rendered);
+        html = html.split(placeholder).join(rendered);
       });
 
       return html;
@@ -3120,17 +3216,42 @@
       return `第${cNum}关：${clean}`;
     }
 
-    // 渲染 KaTeX
+    // 渲染 KaTeX（纯 HTML 渲染，强制避免平板端 MathML 冲突错位，具备自动容灾重试）
     function renderLatex(container) {
+      if (!container) return;
       if (window.renderMathInElement) {
-        renderMathInElement(container, {
-          delimiters: [
-            {left: '$$', right: '$$', display: true},
-            {left: '$', right: '$', display: false},
-            {left: '\\(', right: '\\)', display: false},
-            {left: '\\[', right: '\\]', display: true}
-          ],
-          throwOnError: false
+        try {
+          renderMathInElement(container, {
+            delimiters: [
+              {left: '$$', right: '$$', display: true},
+              {left: '$', right: '$', display: false},
+              {left: '\\(', right: '\\)', display: false},
+              {left: '\\[', right: '\\]', display: true}
+            ],
+            output: 'html', // 关键：强制纯 HTML 输出，杜绝平板与移动端 MathML 重叠乱码
+            throwOnError: false
+          });
+        } catch(e) {
+          console.warn("KaTeX render error:", e);
+        }
+      } else {
+        ensureKaTeXLoaded().then(() => {
+          if (window.renderMathInElement && container) {
+            try {
+              renderMathInElement(container, {
+                delimiters: [
+                  {left: '$$', right: '$$', display: true},
+                  {left: '$', right: '$', display: false},
+                  {left: '\\(', right: '\\)', display: false},
+                  {left: '\\[', right: '\\]', display: true}
+                ],
+                output: 'html',
+                throwOnError: false
+              });
+            } catch(e) {
+              console.warn("KaTeX fallback render error:", e);
+            }
+          }
         });
       }
     }
@@ -3165,7 +3286,9 @@
         // 渲染开题示例公式与预设卡片公式
         const sampleMathEl = document.getElementById('onboardSampleMath');
         if (sampleMathEl) {
-          sampleMathEl.innerHTML = katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false, output: 'html' });
+          sampleMathEl.innerHTML = (window.katex && katex.renderToString)
+            ? katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false, output: 'html' })
+            : 'f(x) = ln x - ax';
         }
         document.querySelectorAll('.preset-card-desc').forEach(el => {
           const raw = el.getAttribute('data-raw') || el.textContent.trim();
