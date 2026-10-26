@@ -2132,6 +2132,255 @@
       }
     }
 
+
+    /* ============================================================
+       🔒 账号身份胶囊、个人中心下拉与认证安全弹窗 (Auth & Security)
+       ============================================================ */
+    .user-auth-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+    .user-auth-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-main);
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .user-auth-btn:hover {
+      border-color: var(--primary);
+      background: rgba(59, 130, 246, 0.1);
+    }
+    .user-auth-btn.logged-in {
+      border-color: rgba(59, 130, 246, 0.4);
+      background: rgba(59, 130, 246, 0.08);
+      color: var(--primary);
+    }
+    .user-profile-menu {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      min-width: 170px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.25);
+      padding: 6px;
+      z-index: 1050;
+      display: none;
+      animation: popIn 0.18s ease forwards;
+    }
+    .user-profile-menu.show {
+      display: block !important;
+    }
+    .user-menu-header {
+      padding: 6px 10px 8px 10px;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--card-border);
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+    .user-menu-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      font-size: 0.82rem;
+      color: var(--text-main);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    .user-menu-item:hover {
+      background: var(--input-bg);
+      color: var(--primary);
+    }
+    .user-menu-item.logout {
+      color: #ef4444;
+    }
+    .user-menu-item.logout:hover {
+      background: rgba(239, 68, 68, 0.1);
+    }
+    .user-menu-divider {
+      height: 1px;
+      background: var(--card-border);
+      margin: 4px 0;
+    }
+
+    /* 认证弹窗样式 */
+    .auth-modal-card {
+      width: 100%;
+      max-width: 410px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.35);
+    }
+    .auth-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 18px;
+    }
+    .auth-modal-title-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .auth-icon-badge {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .auth-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      margin: 0;
+    }
+    .auth-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin: 4px 0 0 0;
+    }
+    .auth-close-btn {
+      background: none;
+      border: none;
+      font-size: 18px;
+      color: var(--text-muted);
+      cursor: pointer;
+      line-height: 1;
+      padding: 4px;
+    }
+    .auth-close-btn:hover {
+      color: var(--text-main);
+    }
+    .auth-alert-box {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      margin-bottom: 14px;
+      line-height: 1.4;
+      display: none;
+    }
+    .auth-alert-box.error {
+      background: rgba(239, 68, 68, 0.12);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.25);
+      display: block !important;
+    }
+    .auth-alert-box.success {
+      background: rgba(16, 185, 129, 0.12);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      display: block !important;
+    }
+    .auth-form {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .auth-input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .auth-label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .auth-input {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--input-border);
+      background: var(--input-bg);
+      color: var(--text-main);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      box-sizing: border-box;
+    }
+    .auth-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+    }
+    .auth-security-badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: -2px;
+    }
+    .sec-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      background: var(--input-bg);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--card-border);
+    }
+    .auth-btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .auth-submit-btn {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .auth-submit-btn:hover {
+      background: var(--primary-hover);
+    }
+    .auth-cancel-btn {
+      padding: 10px 16px;
+      background: var(--input-bg);
+      color: var(--text-muted);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .auth-cancel-btn:hover {
+      background: var(--card-border);
+      color: var(--text-main);
+    }
+
   </style>
 </head>
 <body data-theme="dark">
@@ -2147,6 +2396,26 @@
     </div>
     <div class="add-tab-circle" id="addBtn" title="新建解题探索标签页">+</div>
     <div class="right-controls">
+      <!-- 动态用户身份胶囊 -->
+      <div class="user-auth-wrapper" id="userAuthWrapper">
+        <button class="user-auth-btn" id="userAuthBtn" onclick="handleUserAuthBtnClick(event)">
+          <svg class="ui-icon" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          <span class="user-name-text" id="userNameText">登录</span>
+        </button>
+        <div class="user-profile-menu" id="userProfileMenu">
+          <div class="user-menu-header" id="userMenuHeader">未登录 (游客试看)</div>
+          <div class="user-menu-item" id="menuItemChangePwd" onclick="openChangePasswordModal()" style="display: none;">
+            <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            修改密码
+          </div>
+          <div class="user-menu-divider" id="menuDivider" style="display: none;"></div>
+          <div class="user-menu-item logout" id="menuItemLogout" onclick="handleLogout()" style="display: none;">
+            <svg class="ui-icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+            退出登录
+          </div>
+        </div>
+      </div>
+
       <button class="history-archive-btn" id="historyBtn" title="查看收藏与历史归档">
         <span style="display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> 历史归档</span>
         <span id="archivedBadge">0</span>
@@ -2236,7 +2505,7 @@
 
             <!-- 主按钮与输入框等宽居中构图 -->
             <div style="margin-top: 14px;">
-              <button class="btn btn-primary" style="width: 100%; height: 42px; font-size: 0.95rem; font-weight: 600;" onclick="submitOnboardText()"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m9 12-2 2"/><path d="m12 15 2-2"/></svg> 开启思维引导</button>
+              <button class="btn btn-primary" id="onboardSubmitBtn" style="width: 100%; height: 42px; font-size: 0.95rem; font-weight: 600;" onclick="submitOnboardText()"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m9 12-2 2"/><path d="m12 15 2-2"/></svg> 开启思维引导</button>
               <div style="text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">
                 <svg class="ui-icon ui-icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 约 3–5 轮苏格拉底递进启发，系统不会直接给出最终答案
               </div>
@@ -2449,7 +2718,99 @@
   
   <div class="popover-backdrop" id="popoverBackdrop" onclick="closeAllPopovers()"></div>
 
-  <!-- 主题模态弹窗组件 (符合暗色/亮色风格) -->
+
+  <!-- 登录核验模态弹窗 (封闭式准入) -->
+  <div class="theme-modal-backdrop" id="loginModal" onclick="closeLoginModal()">
+    <div class="theme-modal-card auth-modal-card" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">
+            <svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </span>
+          <div>
+            <h3 class="auth-title">知阶 · 身份安全核验</h3>
+            <p class="auth-subtitle">封闭式准入体系 · 请输入管理员分发的专属账号</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeLoginModal()">✕</button>
+      </div>
+
+      <div class="auth-alert-box" id="loginAlertBox"></div>
+
+      <form class="auth-form" id="loginForm" onsubmit="handleLoginSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">
+            <svg class="ui-icon" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            账号 / 用户名
+          </label>
+          <input type="text" class="auth-input" id="loginUsername" placeholder="请输入你的账号 (如 student01)" autocomplete="username" required>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">
+            <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            密码
+          </label>
+          <input type="password" class="auth-input" id="loginPassword" placeholder="请输入密码" autocomplete="current-password" required>
+        </div>
+
+        <div class="auth-security-badge-row">
+          <span class="sec-badge"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> PBKDF2-HMAC-SHA256 加密</span>
+          <span class="sec-badge"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 防爆破智能锁定</span>
+        </div>
+
+        <div class="auth-btn-row">
+          <button type="submit" class="auth-submit-btn" id="loginSubmitBtn">
+            <span>安全登录系统</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 修改密码模态弹窗 -->
+  <div class="theme-modal-backdrop" id="changePasswordModal" onclick="closeChangePasswordModal()">
+    <div class="theme-modal-card auth-modal-card" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">
+            <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </span>
+          <div>
+            <h3 class="auth-title">修改账户密码</h3>
+            <p class="auth-subtitle">为保障账号安全，请定期更新密码（至少8位包含字母与数字）</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeChangePasswordModal()">✕</button>
+      </div>
+
+      <div class="auth-alert-box" id="changePwdAlertBox"></div>
+
+      <form class="auth-form" id="changePwdForm" onsubmit="handleChangePasswordSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">原密码</label>
+          <input type="password" class="auth-input" id="oldPasswordInput" placeholder="请输入当前密码" required>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">新密码</label>
+          <input type="password" class="auth-input" id="newPasswordInput" placeholder="8位以上，须含英文字母和数字" required>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">确认新密码</label>
+          <input type="password" class="auth-input" id="confirmPasswordInput" placeholder="请再次输入新密码" required>
+        </div>
+
+        <div class="auth-btn-row">
+          <button type="button" class="auth-cancel-btn" onclick="closeChangePasswordModal()">取消</button>
+          <button type="submit" class="auth-submit-btn" id="changePwdSubmitBtn">确认更新密码</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+    <!-- 主题模态弹窗组件 (符合暗色/亮色风格) -->
   <div class="theme-modal-backdrop" id="customThemeModal" onclick="closeThemeModal()">
     <div class="theme-modal-card" onclick="event.stopPropagation()">
       <div class="theme-modal-header">
@@ -2501,15 +2862,103 @@
     };
 
     const BASE_PATH = window.location.pathname.startsWith('/cogni-scaffold') ? '/cogni-scaffold' : '';
-    function apiFetch(path, options) {
+    function apiFetch(path, options = {}) {
       const fullPath = path.startsWith('/') ? (BASE_PATH + path) : (BASE_PATH + '/' + path);
-      return fetch(fullPath, options);
+      const opts = { ...options };
+      opts.headers = { ...(opts.headers || {}) };
+      const token = localStorage.getItem('cogni_token');
+      if (token && !opts.headers['Authorization']) {
+        opts.headers['Authorization'] = `Bearer ${token}`;
+      }
+      opts.credentials = 'same-origin';
+      return fetch(fullPath, opts);
     }
+
+    let currentUser = null;
+    let pendingActionAfterLogin = null;
     let appState = null;
     let latexTree = null;
     let activeKbdT1 = null;
     let activeKbdT2 = null;
     let isStreaming = false;
+
+    // ============================================================
+    // 🗄️ 客户端 IndexedDB 本地数据库引擎 (分账号隔离 & 0ms 秒切)
+    // ============================================================
+    const DB_NAME = 'CogniScaffold_DB';
+    const DB_VERSION = 1;
+    let dbPromise = null;
+
+    function getIDB() {
+      if (dbPromise) return dbPromise;
+      dbPromise = new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+          const db = e.target.result;
+          if (!db.objectStoreNames.contains('sessions')) {
+            const store = db.createObjectStore('sessions', { keyPath: ['userId', 'id'] });
+            store.createIndex('userId', 'userId', { unique: false });
+          }
+        };
+        req.onsuccess = (e) => resolve(e.target.result);
+        req.onerror = (e) => reject(e.target.error);
+      });
+      return dbPromise;
+    }
+
+    async function idbSaveSession(userId, session) {
+      if (!userId || !session || !session.id) return;
+      try {
+        const db = await getIDB();
+        const tx = db.transaction('sessions', 'readwrite');
+        const store = tx.objectStore('sessions');
+        store.put({ ...session, userId });
+      } catch (e) {
+        console.warn('IDB save session error:', e);
+      }
+    }
+
+    async function idbSaveAllSessions(userId, sessionsList) {
+      if (!userId || !Array.isArray(sessionsList) || !sessionsList.length) return;
+      try {
+        const db = await getIDB();
+        const tx = db.transaction('sessions', 'readwrite');
+        const store = tx.objectStore('sessions');
+        for (const sess of sessionsList) {
+          if (sess && sess.id) {
+            store.put({ ...sess, userId });
+          }
+        }
+      } catch (e) {
+        console.warn('IDB bulk save error:', e);
+      }
+    }
+
+    async function idbGetSession(userId, sessionId) {
+      if (!userId || !sessionId) return null;
+      try {
+        const db = await getIDB();
+        return new Promise((resolve) => {
+          const tx = db.transaction('sessions', 'readonly');
+          const store = tx.objectStore('sessions');
+          const req = store.get([userId, sessionId]);
+          req.onsuccess = () => resolve(req.result || null);
+          req.onerror = () => resolve(null);
+        });
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function idbDeleteSession(userId, sessionId) {
+      if (!userId || !sessionId) return;
+      try {
+        const db = await getIDB();
+        const tx = db.transaction('sessions', 'readwrite');
+        const store = tx.objectStore('sessions');
+        store.delete([userId, sessionId]);
+      } catch (e) {}
+    }
 
     // 格式化对话 Markdown 并规范化 LaTeX 公式，预渲染 KaTeX 防 Markdown 解析破坏
     function formatMarkdown(text) {
@@ -2691,7 +3140,22 @@
       try {
         const res = await apiFetch('/api/bootstrap');
         const data = await res.json();
-        appState = data.store;
+        currentUser = data.user || null;
+        updateUserUI();
+
+        if (currentUser && data.store) {
+          appState = data.store;
+          idbSaveAllSessions(currentUser.id, Object.values(appState.active_sessions || {}));
+          idbSaveAllSessions(currentUser.id, Object.values(appState.archived_sessions || {}));
+        } else {
+          appState = {
+            active_sessions: {},
+            archived_sessions: {},
+            current_session_id: null,
+            theme_mode: 'dark'
+          };
+        }
+
         latexTree = data.latex_presets_tree;
         applyTheme(appState.theme_mode || 'dark');
         renderTabs();
@@ -2929,16 +3393,272 @@
     }
 
     async function switchTab(id) {
+      if (!appState) return;
       if (appState.current_session_id === id) return;
-      const res = await apiFetch('/api/sessions/switch', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({session_id: id})
-      });
-      const data = await res.json();
-      appState = data.store;
+      appState.current_session_id = id;
       renderTabs();
-      renderCurrentSessionView();
+
+      // 1. 优先直接从当前内存读取并渲染 (0ms 纯本地呈现，彻底告别卡顿)
+      const sess = (appState.active_sessions || {})[id];
+      if (sess && sess.dialogue_history) {
+        renderCurrentSessionView();
+        if (currentUser) {
+          apiFetch('/api/sessions/switch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: id})
+          }).catch(() => {});
+        }
+        return;
+      }
+
+      // 2. 如果内存缺少该会话，从本地 IndexedDB 读取 (秒开，0ms)
+      if (currentUser) {
+        const cached = await idbGetSession(currentUser.id, id);
+        if (cached) {
+          appState.active_sessions = appState.active_sessions || {};
+          appState.active_sessions[id] = cached;
+          renderCurrentSessionView();
+          apiFetch('/api/sessions/switch', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_id: id})
+          }).catch(() => {});
+          return;
+        }
+
+        // 3. 本地 IndexedDB 也没有（如换了新设备），后台自动向服务器拉取并下载到本地
+        try {
+          const res = await apiFetch(`/api/sessions/${id}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.session) {
+              appState.active_sessions = appState.active_sessions || {};
+              appState.active_sessions[id] = data.session;
+              idbSaveSession(currentUser.id, data.session);
+              renderCurrentSessionView();
+            }
+          }
+        } catch (e) {
+          console.warn('Failed to fetch session from server:', e);
+        }
+      } else {
+        renderCurrentSessionView();
+      }
+    }
+
+    
+    // ============================================================
+    // 🔐 用户认证面板、改密与门禁拦截控制逻辑
+    // ============================================================
+    function updateUserUI() {
+      const userAuthBtn = document.getElementById('userAuthBtn');
+      const userNameText = document.getElementById('userNameText');
+      const userMenuHeader = document.getElementById('userMenuHeader');
+      const itemChangePwd = document.getElementById('menuItemChangePwd');
+      const itemLogout = document.getElementById('menuItemLogout');
+      const menuDivider = document.getElementById('menuDivider');
+
+      if (currentUser) {
+        if (userNameText) userNameText.textContent = currentUser.username;
+        if (userAuthBtn) userAuthBtn.classList.add('logged-in');
+        if (userMenuHeader) userMenuHeader.textContent = `${currentUser.display_name || currentUser.username} (${currentUser.role === 'admin' ? '管理员' : '学者'})`;
+        if (itemChangePwd) itemChangePwd.style.display = 'flex';
+        if (itemLogout) itemLogout.style.display = 'flex';
+        if (menuDivider) menuDivider.style.display = 'block';
+      } else {
+        if (userNameText) userNameText.textContent = '登录';
+        if (userAuthBtn) userAuthBtn.classList.remove('logged-in');
+        if (userMenuHeader) userMenuHeader.textContent = '未登录 (游客试看)';
+        if (itemChangePwd) itemChangePwd.style.display = 'none';
+        if (itemLogout) itemLogout.style.display = 'none';
+        if (menuDivider) menuDivider.style.display = 'none';
+      }
+    }
+
+    function handleUserAuthBtnClick(e) {
+      e.stopPropagation();
+      if (!currentUser) {
+        openLoginModal();
+      } else {
+        const menu = document.getElementById('userProfileMenu');
+        if (menu) menu.classList.toggle('show');
+      }
+    }
+
+    document.addEventListener('click', (e) => {
+      const menu = document.getElementById('userProfileMenu');
+      if (menu && !e.target.closest('#userAuthWrapper')) {
+        menu.classList.remove('show');
+      }
+    });
+
+    function openLoginModal(pendingCallback = null) {
+      if (pendingCallback) {
+        pendingActionAfterLogin = pendingCallback;
+      }
+      const modal = document.getElementById('loginModal');
+      const alertBox = document.getElementById('loginAlertBox');
+      if (alertBox) alertBox.className = 'auth-alert-box';
+      if (alertBox) alertBox.textContent = '';
+      if (modal) modal.classList.add('show');
+      setTimeout(() => {
+        const uInput = document.getElementById('loginUsername');
+        if (uInput) uInput.focus();
+      }, 100);
+    }
+
+    function closeLoginModal() {
+      const modal = document.getElementById('loginModal');
+      if (modal) modal.classList.remove('show');
+      pendingActionAfterLogin = null;
+    }
+
+    async function handleLoginSubmit(e) {
+      e.preventDefault();
+      const uInput = document.getElementById('loginUsername');
+      const pInput = document.getElementById('loginPassword');
+      const alertBox = document.getElementById('loginAlertBox');
+      const submitBtn = document.getElementById('loginSubmitBtn');
+
+      const username = uInput.value.trim();
+      const password = pInput.value.trim();
+      if (!username || !password) return;
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>登录中...</span>';
+      alertBox.className = 'auth-alert-box';
+
+      try {
+        const res = await apiFetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+          currentUser = data.user;
+          localStorage.setItem('cogni_token', data.token);
+          appState = data.store;
+          
+          if (appState) {
+            idbSaveAllSessions(currentUser.id, Object.values(appState.active_sessions || {}));
+            idbSaveAllSessions(currentUser.id, Object.values(appState.archived_sessions || {}));
+          }
+
+          updateUserUI();
+          renderTabs();
+          renderCurrentSessionView();
+          closeLoginModal();
+
+          if (pendingActionAfterLogin) {
+            const action = pendingActionAfterLogin;
+            pendingActionAfterLogin = null;
+            action();
+          }
+        } else {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.textContent = data.message || '登录失败，请检查账号密码';
+        }
+      } catch (err) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.textContent = '网络连接异常，请稍候重试';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>安全登录系统</span>';
+      }
+    }
+
+    async function handleLogout() {
+      try {
+        await apiFetch('/api/auth/logout', { method: 'POST' });
+      } catch (e) {}
+
+      currentUser = null;
+      localStorage.removeItem('cogni_token');
+      const menu = document.getElementById('userProfileMenu');
+      if (menu) menu.classList.remove('show');
+
+      appState = {
+        active_sessions: {},
+        archived_sessions: {},
+        current_session_id: null,
+        theme_mode: 'dark'
+      };
+
+      updateUserUI();
+      renderTabs();
+      showOnboardingView();
+    }
+
+    function openChangePasswordModal() {
+      const menu = document.getElementById('userProfileMenu');
+      if (menu) menu.classList.remove('show');
+      const modal = document.getElementById('changePasswordModal');
+      const alertBox = document.getElementById('changePwdAlertBox');
+      if (alertBox) alertBox.className = 'auth-alert-box';
+      if (alertBox) alertBox.textContent = '';
+      document.getElementById('changePwdForm').reset();
+      if (modal) modal.classList.add('show');
+    }
+
+    function closeChangePasswordModal() {
+      const modal = document.getElementById('changePasswordModal');
+      if (modal) modal.classList.remove('show');
+    }
+
+    async function handleChangePasswordSubmit(e) {
+      e.preventDefault();
+      const oldPwd = document.getElementById('oldPasswordInput').value.trim();
+      const newPwd = document.getElementById('newPasswordInput').value.trim();
+      const confirmPwd = document.getElementById('confirmPasswordInput').value.trim();
+      const alertBox = document.getElementById('changePwdAlertBox');
+      const submitBtn = document.getElementById('changePwdSubmitBtn');
+
+      if (newPwd !== confirmPwd) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.textContent = '两次输入的新密码不一致';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = '更新中...';
+
+      try {
+        const res = await apiFetch('/api/auth/change_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ old_password: oldPwd, new_password: newPwd })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === 'ok') {
+          if (data.token) {
+            localStorage.setItem('cogni_token', data.token);
+          }
+          alertBox.className = 'auth-alert-box success';
+          alertBox.textContent = '密码修改成功！请牢记新密码。';
+          setTimeout(() => {
+            closeChangePasswordModal();
+          }, 1500);
+        } else {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.textContent = data.message || '密码修改失败';
+        }
+      } catch (err) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.textContent = '网络连接异常，请重试';
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '确认更新密码';
+      }
+    }
+
+    function requireLogin(callback) {
+      if (currentUser) {
+        callback();
+      } else {
+        openLoginModal(callback);
+      }
     }
 
     async function closeTab(id) {
@@ -2965,19 +3685,24 @@
       renderTabs();
     }
 
-    document.getElementById('addBtn').onclick = async () => {
-      // 7. 仅允许打开一个新建探索页面
-      const activeDict = appState.active_sessions || {};
-      const blankId = Object.keys(activeDict).find(id => !activeDict[id].is_initialized && !activeDict[id].question);
-      if (blankId) {
-        switchTab(blankId);
-        return;
-      }
-      const res = await apiFetch('/api/sessions/create', {method: 'POST'});
-      const data = await res.json();
-      appState = data.store;
-      renderTabs();
-      renderCurrentSessionView();
+    document.getElementById('addBtn').onclick = () => {
+      requireLogin(async () => {
+        // 7. 仅允许打开一个新建探索页面
+        const activeDict = appState.active_sessions || {};
+        const blankId = Object.keys(activeDict).find(id => !activeDict[id].is_initialized && !activeDict[id].question);
+        if (blankId) {
+          switchTab(blankId);
+          return;
+        }
+        const res = await apiFetch('/api/sessions/create', {method: 'POST'});
+        const data = await res.json();
+        appState = data.store;
+        if (currentUser) {
+          idbSaveAllSessions(currentUser.id, Object.values(appState.active_sessions || {}));
+        }
+        renderTabs();
+        renderCurrentSessionView();
+      });
     };
 
     // 历史归档抽屉
@@ -3661,6 +4386,10 @@
 
     // 提交文字开题
     async function submitOnboardText() {
+      if (!currentUser) {
+        requireLogin(() => submitOnboardText());
+        return;
+      }
       const text = onboardInput.value.trim();
       if (!text) return alert("请先输入题目内容！");
       const curId = appState.current_session_id;
@@ -3678,6 +4407,10 @@
 
     // 提交思维回复 (核心 SSE 极速打字机推流)
     async function handleSubmitThought() {
+      if (!currentUser) {
+        requireLogin(() => handleSubmitThought());
+        return;
+      }
       if (isStreaming) return;
       const text = chatInput.value.trim();
       if (!text) return;
@@ -3855,6 +4588,10 @@
 
     // 处理图片上传
     async function handleImageUpload(e, mode) {
+      if (!currentUser) {
+        requireLogin(() => openLoginModal());
+        return;
+      }
       const file = e.target.files[0];
       if (!file) return;
 

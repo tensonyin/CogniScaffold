@@ -2,6 +2,7 @@ import os
 import re
 import json
 import asyncio
+import mimetypes
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
@@ -13,8 +14,6 @@ load_dotenv(override=True)
 
 from core.presets import GOLDEN_PRESETS
 from core.storage import (
-    load_all_data,
-    save_all_data,
     create_new_session_data,
     generate_session_title,
     to_chinese_num,
@@ -34,6 +33,33 @@ from core.latex_presets import LATEX_PRESETS_TREE
 from core.guardrails import check_input_guardrail, check_output_refusal
 from core.intent import classify_user_intent
 
+# 导入 SQLite 持久化与认证安全模块
+from core.db import (
+    init_db,
+    get_user_by_username,
+    get_user_by_id,
+    create_auth_token_session,
+    get_user_from_token,
+    delete_auth_token,
+    update_user_password,
+    log_audit_event,
+    get_user_store,
+    save_user_session,
+    set_user_current_session,
+    set_user_session_order,
+    archive_user_session,
+    restore_user_session,
+    delete_archived_user_session,
+    toggle_user_session_star
+)
+from core.auth import (
+    verify_password,
+    validate_password_strength,
+    check_rate_limit,
+    record_failed_attempt,
+    reset_failed_attempts
+)
+
 app = FastAPI(title="CogniScaffold API")
 
 app.add_middleware(
@@ -48,8 +74,7 @@ app.add_middleware(
 os.makedirs("static", exist_ok=True)
 os.makedirs("static/vendor", exist_ok=True)
 
-# 注册 Web 字体 MIME 类型，彻底避免 Edge/Chromium 在 Windows 下将 woff/woff2 识别为 octet-stream 拦截
-import mimetypes
+# 注册 Web 字体 MIME 类型，避免浏览器将 woff/woff2 拦截
 mimetypes.add_type("font/woff2", ".woff2")
 mimetypes.add_type("font/woff", ".woff")
 mimetypes.add_type("font/ttf", ".ttf")
@@ -66,30 +91,34 @@ api_config = {
     "temperature": 0.3
 }
 
-def get_store() -> dict:
-    store = load_all_data()
-    active_dict = store.setdefault("active_sessions", {})
-    curr_id = store.get("current_session_id")
-    if not curr_id or curr_id not in active_dict:
-        if active_dict:
-            curr_id = list(active_dict.keys())[0]
-            store["current_session_id"] = curr_id
-        else:
-            preset = GOLDEN_PRESETS["math_derivative"]
-            sess = create_new_session_data("📐 数学·导数极值讨论", preset["question"])
-            sess["solver_blueprint"] = preset["solver_blueprint"]
-            sess["dialogue_history"] = [
-                {"role": "user", "content": preset["initial_student_input"]},
-                {"role": "assistant", "content": preset["offline_simulation"][0]["tutor_response"]}
-            ]
-            sess["tutor_turns"] = 1
-            sess["current_stage"] = 2
-            sess["title_stage"] = 1
-            sess["is_initialized"] = True
-            active_dict[sess["id"]] = sess
-            store["current_session_id"] = sess["id"]
-            save_all_data(store)
-    return store
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()
+
+
+def get_client_ip(request: Request) -> str:
+    """提取客户端真实 IP，优先解析反向代理转发头"""
+    forwarded = request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "127.0.0.1"
+
+
+def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
+    """从 Bearer Header、Cookie 或 Query Param 解析已鉴权用户"""
+    auth_header = request.headers.get("Authorization", "")
+    token = ""
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:].strip()
+    if not token:
+        token = request.cookies.get("cogni_token", "")
+    if not token:
+        token = request.query_params.get("token", "")
+    if not token:
+        return None
+    return get_user_from_token(token)
+
 
 def dispatch_variant_tier_data(session: dict, tier_num: int):
     diag = session.get("diagnostic_result") or {}
@@ -103,7 +132,6 @@ def dispatch_variant_tier_data(session: dict, tier_num: int):
     question = tier_data.get("question", diag.get("variant_question", "请分析约束反转后的系统动量或导数单调性。"))
     hint = tier_data.get("hint", diag.get("variant_hint", "注意边界与受力方向的矢量分解。"))
 
-    # 规范化转义换行符，保留 \neq, \nabla 等合法 LaTeX 命令
     def unescape_newlines(txt: str) -> str:
         if not isinstance(txt, str): return txt
         latex_n_cmds = {'neq', 'nabla', 'notin', 'nu', 'ne', 'natural', 'nparallel', 'neg', 'normalsize', 'newcommand', 'nolimits'}
@@ -130,6 +158,7 @@ def dispatch_variant_tier_data(session: dict, tier_num: int):
     session["current_stage"] = 4
     session["current_variant_tier"] = tier_num
     return prompt_msg
+
 
 def trigger_diagnosis_for_session(session: dict, offline_mode: bool = False):
     q_t = session.get("question", "")
@@ -171,6 +200,10 @@ def trigger_diagnosis_for_session(session: dict, offline_mode: bool = False):
     dispatch_variant_tier_data(session, 1)
 
 
+# ============================================================
+# 静态首页与基础 Bootstrap
+# ============================================================
+
 @app.get("/", response_class=HTMLResponse)
 @app.get("/cogni-scaffold", response_class=HTMLResponse)
 @app.get("/cogni-scaffold/", response_class=HTMLResponse)
@@ -181,10 +214,19 @@ async def serve_index():
 
 @app.get("/api/bootstrap")
 @app.get("/cogni-scaffold/api/bootstrap")
-async def get_bootstrap():
-    store = get_store()
+async def get_bootstrap(request: Request):
+    user = get_current_user(request)
+    user_store = get_user_store(user["id"]) if user else None
+    user_info = {
+        "id": user["id"],
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "role": user["role"]
+    } if user else None
+
     return {
-        "store": store,
+        "user": user_info,
+        "store": user_store,
         "golden_presets": {
             k: {
                 "title": v.get("title", k),
@@ -199,178 +241,314 @@ async def get_bootstrap():
     }
 
 
+# ============================================================
+# 认证体系 API: 登录 / 登出 / 状态 / 改密 (严防盗号与暴力破解)
+# ============================================================
+
+@app.post("/api/auth/login")
+@app.post("/cogni-scaffold/api/auth/login")
+async def auth_login(request: Request, data: dict):
+    username = data.get("username", "").strip()
+    password = data.get("password", "").strip()
+    client_ip = get_client_ip(request)
+
+    if not username or not password:
+        raise HTTPException(status_code=400, detail="用户名和密码不能为空")
+
+    # 1. 暴力破解防御：校验用户账号与 IP 是否锁定
+    is_locked, remaining = check_rate_limit(f"user:{username}")
+    if not is_locked:
+        is_locked, remaining = check_rate_limit(f"ip:{client_ip}")
+    if is_locked:
+        log_audit_event(None, "login_locked_attempt", client_ip, f"username: {username}")
+        return JSONResponse(
+            status_code=429,
+            content={"status": "error", "message": f"尝试次数过多，账号已临时锁定，请等待 {remaining} 秒后再试"}
+        )
+
+    # 2. 查询用户并校验密码（PBKDF2-HMAC 常量时间比对）
+    user = get_user_by_username(username)
+    if not user or user.get("status") != "active" or not verify_password(password, user["salt"], user["password_hash"]):
+        is_now_locked, attempts, lock_sec = record_failed_attempt(f"user:{username}")
+        record_failed_attempt(f"ip:{client_ip}")
+        log_audit_event(user["id"] if user else None, "login_failed", client_ip, f"username: {username}, attempts: {attempts}")
+        await asyncio.sleep(0.6)  # 渐进式延迟阻断暴力试凑
+        if is_now_locked:
+            return JSONResponse(
+                status_code=429,
+                content={"status": "error", "message": f"密码连续错误 5 次，账号已被临时锁定 15 分钟"}
+            )
+        rem = max(0, 5 - attempts)
+        return JSONResponse(
+            status_code=401,
+            content={"status": "error", "message": f"用户名或密码错误（剩余尝试次数：{rem}）"}
+        )
+
+    # 3. 登录成功：清除失败频次，签发高熵会话令牌
+    reset_failed_attempts(f"user:{username}")
+    reset_failed_attempts(f"ip:{client_ip}")
+
+    ua = request.headers.get("user-agent", "")
+    token = create_auth_token_session(user["id"], ip=client_ip, user_agent=ua)
+    log_audit_event(user["id"], "login_success", client_ip, "Success")
+
+    user_info = {
+        "id": user["id"],
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "role": user["role"]
+    }
+    user_store = get_user_store(user["id"])
+
+    response = JSONResponse(content={
+        "status": "ok",
+        "user": user_info,
+        "token": token,
+        "store": user_store
+    })
+    response.set_cookie(
+        key="cogni_token",
+        value=token,
+        httponly=True,
+        samesite="lax",
+        max_age=7 * 86400,
+        path="/"
+    )
+    return response
+
+
+@app.post("/api/auth/logout")
+@app.post("/cogni-scaffold/api/auth/logout")
+async def auth_logout(request: Request):
+    token = request.cookies.get("cogni_token")
+    if not token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
+    if token:
+        delete_auth_token(token)
+    response = JSONResponse(content={"status": "ok"})
+    response.delete_cookie(key="cogni_token", path="/")
+    return response
+
+
+@app.get("/api/auth/me")
+@app.get("/cogni-scaffold/api/auth/me")
+async def auth_me(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return {"user": None}
+    return {
+        "user": {
+            "id": user["id"],
+            "username": user["username"],
+            "display_name": user["display_name"],
+            "role": user["role"]
+        }
+    }
+
+
+@app.post("/api/auth/change_password")
+@app.post("/cogni-scaffold/api/auth/change_password")
+async def auth_change_password(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    old_password = data.get("old_password", "").strip()
+    new_password = data.get("new_password", "").strip()
+    client_ip = get_client_ip(request)
+
+    db_user = get_user_by_id(user["id"])
+    if not db_user or not verify_password(old_password, db_user["salt"], db_user["password_hash"]):
+        log_audit_event(user["id"], "change_password_failed", client_ip, "Old password invalid")
+        return JSONResponse(status_code=400, content={"status": "error", "message": "原密码不正确"})
+
+    valid, err_msg = validate_password_strength(new_password)
+    if not valid:
+        return JSONResponse(status_code=400, content={"status": "error", "message": err_msg})
+
+    update_user_password(user["id"], new_password)
+    # 签发新会话令牌
+    new_token = create_auth_token_session(user["id"], ip=client_ip, user_agent=request.headers.get("user-agent", ""))
+    log_audit_event(user["id"], "change_password_success", client_ip, "Success")
+
+    response = JSONResponse(content={"status": "ok", "message": "密码修改成功", "token": new_token})
+    response.set_cookie(
+        key="cogni_token",
+        value=new_token,
+        httponly=True,
+        samesite="lax",
+        max_age=7 * 86400,
+        path="/"
+    )
+    return response
+
+
+# ============================================================
+# 会话管理 API (多用户严格隔离与鉴权门禁)
+# ============================================================
+
 @app.post("/api/sessions/create")
 @app.post("/cogni-scaffold/api/sessions/create")
-async def create_session():
-    store = get_store()
+async def create_session(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="问答功能需先登录账号")
+
+    user_id = user["id"]
+    store = get_user_store(user_id)
     active = store.setdefault("active_sessions", {})
 
-    # 7. 仅允许打开一个新建探索：如果已经存在未初始化的空白新建会话，直接切换至该会话
+    # 仅允许存在一个未初始化的空白新建会话
     for s_id, s in active.items():
         if not s.get("is_initialized", False) and not s.get("question", "").strip():
+            set_user_current_session(user_id, s_id)
             store["current_session_id"] = s_id
-            save_all_data(store)
             return {"status": "ok", "store": store, "already_exists": True}
 
     new_s = create_new_session_data(is_initialized=False, store=store)
-    store["active_sessions"][new_s["id"]] = new_s
-    store["current_session_id"] = new_s["id"]
-    save_all_data(store)
-    return {"status": "ok", "store": store}
+    save_user_session(user_id, new_s)
+    set_user_current_session(user_id, new_s["id"])
+    return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/switch")
 @app.post("/cogni-scaffold/api/sessions/switch")
-async def switch_session(data: dict):
+async def switch_session(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
     s_id = data.get("session_id")
-    store = get_store()
+    user_id = user["id"]
+    store = get_user_store(user_id)
     if s_id in store.get("active_sessions", {}):
+        set_user_current_session(user_id, s_id)
         store["current_session_id"] = s_id
-        save_all_data(store)
         return {"status": "ok", "store": store}
     raise HTTPException(status_code=404, detail="Session not found")
 
+
+@app.get("/api/sessions/{session_id}")
+@app.get("/cogni-scaffold/api/sessions/{session_id}")
+async def get_single_session(session_id: str, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
+    store = get_user_store(user_id)
+    sess = store.get("active_sessions", {}).get(session_id) or store.get("archived_sessions", {}).get(session_id)
+    if not sess:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    return {"status": "ok", "session": sess}
 
 
 @app.post("/api/sessions/reorder")
 @app.post("/cogni-scaffold/api/sessions/reorder")
-async def reorder_sessions(data: dict):
+async def reorder_sessions(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     new_order = data.get("order", [])
-    store = get_store()
-    active = store.get("active_sessions", {})
     if new_order and isinstance(new_order, list):
-        reordered = {}
-        # 先按指定的新顺序插入
-        for s_id in new_order:
-            if s_id in active:
-                reordered[s_id] = active[s_id]
-        # 补全可能遗漏的其他活动标签
-        for s_id, s in active.items():
-            if s_id not in reordered:
-                reordered[s_id] = s
-        store["active_sessions"] = reordered
-        save_all_data(store)
-        return {"status": "ok", "store": store}
-    return {"status": "ok", "store": store}
+        set_user_session_order(user_id, new_order)
+    return {"status": "ok", "store": get_user_store(user_id)}
+
 
 @app.post("/api/sessions/close")
 @app.post("/cogni-scaffold/api/sessions/close")
-async def close_session(data: dict):
+async def close_session(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
-    active = store.get("active_sessions", {})
-    archived = store.setdefault("archived_sessions", {})
-    if s_id in active:
-        # 1. 记录关闭前的有序 Tab 键列表及其当前索引
-        active_keys = list(active.keys())
-        closed_idx = active_keys.index(s_id) if s_id in active_keys else -1
-
-        closed = active.pop(s_id)
-        # 仅在已有实质内容（已初始化或有提问）时才存入历史归档，未输入的新会话直接废弃
-        has_content = closed.get("is_initialized", False) or bool(closed.get("question", "").strip())
-        if has_content:
-            archived[s_id] = closed
-
-        # 2. 浏览器级 Tab 关闭回退算法 (Chrome Tab 行为完全对齐)
-        remaining_keys = list(active.keys())
-        if not remaining_keys:
-            # 若删除后 active 为空，自动新建一个全新会话
-            new_s = create_new_session_data(is_initialized=False, store=store)
-            active[new_s["id"]] = new_s
-            store["current_session_id"] = new_s["id"]
-        elif store.get("current_session_id") == s_id:
-            # 若删除的是当前活动标签：
-            # 如果关闭的是非最后一个标签（右侧还有标签），自动切换到右侧相邻标签（即此时索引相同的标签）
-            # 如果关闭的是最后一个标签，自动切换到左侧相邻标签（即 remaining_keys 的最后一个）
-            if closed_idx < len(remaining_keys):
-                store["current_session_id"] = remaining_keys[closed_idx]
-            else:
-                store["current_session_id"] = remaining_keys[-1]
-
-        save_all_data(store)
-        return {"status": "ok", "store": store, "closed_title": closed.get("title")}
-    raise HTTPException(status_code=404, detail="Session not found")
+    archive_user_session(user_id, s_id)
+    return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/toggle_star")
 @app.post("/cogni-scaffold/api/sessions/toggle_star")
-async def toggle_star(data: dict):
+async def toggle_star(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
-    active = store.get("active_sessions", {})
-    archived = store.get("archived_sessions", {})
-    target = active.get(s_id) or archived.get(s_id)
-    if target:
-        target["is_starred"] = not target.get("is_starred", False)
-        save_all_data(store)
-        return {"status": "ok", "is_starred": target["is_starred"]}
-    raise HTTPException(status_code=404, detail="Session not found")
+    is_starred = toggle_user_session_star(user_id, s_id)
+    return {"status": "ok", "is_starred": is_starred, "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/restore")
 @app.post("/cogni-scaffold/api/sessions/restore")
-async def restore_session(data: dict):
+async def restore_session(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
-    active = store.setdefault("active_sessions", {})
-    archived = store.get("archived_sessions", {})
-
-    # 若已经在活跃标签页中打开，直接激活并切换到它，绝不重复插入，避免标签页混乱
-    if s_id in active:
-        # 移至末尾
-        sess = active.pop(s_id)
-        active[s_id] = sess
-        store["current_session_id"] = s_id
-        save_all_data(store)
-        return {"status": "ok", "store": store, "already_opened": True}
-
-    if s_id in archived:
-        sess = archived.pop(s_id)
-        # 严格插入到末尾
-        active[s_id] = sess
-        store["current_session_id"] = s_id
-        save_all_data(store)
-        return {"status": "ok", "store": store}
-    raise HTTPException(status_code=404, detail="Archived session not found")
+    restore_user_session(user_id, s_id)
+    set_user_current_session(user_id, s_id)
+    return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/delete_archived")
 @app.post("/cogni-scaffold/api/sessions/delete_archived")
-async def delete_archived(data: dict):
+async def delete_archived(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
-    archived = store.get("archived_sessions", {})
-    if s_id in archived:
-        archived.pop(s_id, None)
-        save_all_data(store)
-        return {"status": "ok", "store": store}
-    raise HTTPException(status_code=404, detail="Archived session not found")
+    delete_archived_user_session(user_id, s_id)
+    return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/theme")
 @app.post("/cogni-scaffold/api/theme")
-async def set_theme(data: dict):
+async def set_theme(request: Request, data: dict):
     theme = data.get("theme", "dark")
-    store = get_store()
-    store["theme_mode"] = theme
-    save_all_data(store)
+    user = get_current_user(request)
+    if user:
+        from core.db import get_db_connection
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("""
+        INSERT INTO user_preferences (user_id, theme) VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET theme = excluded.theme;
+        """, (user["id"], theme))
+        conn.commit()
+        conn.close()
     return {"status": "ok", "theme": theme}
 
 
 @app.post("/api/sessions/init_question")
 @app.post("/cogni-scaffold/api/sessions/init_question")
-async def init_question(data: dict):
+async def init_question(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="问答功能需先登录账号")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
     question_text = data.get("question", "").strip()
     preset_key = data.get("preset_key")
     
-    store = get_store()
+    store = get_user_store(user_id)
     active = store.get("active_sessions", {})
     sess = active.get(s_id)
     if not sess:
         sess = create_new_session_data(is_initialized=False, store=store)
         active[sess["id"]] = sess
-        store["current_session_id"] = sess["id"]
+        s_id = sess["id"]
 
     if preset_key and preset_key in GOLDEN_PRESETS:
         preset = GOLDEN_PRESETS[preset_key]
@@ -420,18 +598,25 @@ async def init_question(data: dict):
         )
         sess["solver_blueprint"] = generate_solver_blueprint(question_text, api_config)
 
-    save_all_data(store)
-    return {"status": "ok", "store": store}
+    save_user_session(user_id, sess)
+    set_user_current_session(user_id, s_id)
+    return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/reset")
 @app.post("/cogni-scaffold/api/sessions/reset")
-async def reset_session(data: dict):
+async def reset_session(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
+    store = get_user_store(user_id)
     sess = store.get("active_sessions", {}).get(s_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
+
     sess["dialogue_history"] = [
         {"role": "assistant", "content": "我已经审视了这道题目。作为你的苏格拉底思维导师，我不会直接给出最终答案。请告诉我，看到这道题你的第一直觉是什么？脑海中浮现的第一个公式、定理或分析切入点是什么？"}
     ]
@@ -440,8 +625,8 @@ async def reset_session(data: dict):
     sess["diagnostic_result"] = None
     sess["transfer_eval_result"] = None
     sess["current_variant_tier"] = 1
-    save_all_data(store)
-    return {"status": "ok", "store": store}
+    save_user_session(user_id, sess)
+    return {"status": "ok", "store": get_user_store(user_id)}
 
 
 _session_tier_locks: Dict[str, asyncio.Lock] = {}
@@ -454,9 +639,14 @@ def get_session_lock(session_id: str) -> asyncio.Lock:
 
 @app.post("/api/sessions/verify")
 @app.post("/cogni-scaffold/api/sessions/verify")
-async def verify_session(data: dict):
+async def verify_session(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
+    store = get_user_store(user_id)
     sess = store.get("active_sessions", {}).get(s_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -466,31 +656,35 @@ async def verify_session(data: dict):
         return {"status": "ok", "store": store}
 
     async with lock:
-        store = get_store()
+        store = get_user_store(user_id)
         sess = store.get("active_sessions", {}).get(s_id)
         if sess.get("diagnostic_result"):
             return {"status": "ok", "store": store}
         trigger_diagnosis_for_session(sess, offline_mode=False)
-        save_all_data(store)
-        return {"status": "ok", "store": store}
+        save_user_session(user_id, sess)
+        return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/next_tier")
 @app.post("/cogni-scaffold/api/sessions/next_tier")
-async def next_tier(data: dict):
+async def next_tier(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    user_id = user["id"]
     s_id = data.get("session_id")
-    store = get_store()
+    store = get_user_store(user_id)
     sess = store.get("active_sessions", {}).get(s_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
         
     lock = get_session_lock(s_id)
     if lock.locked():
-        # 并发防抖：如果已有出题任务正在处理，直接返回当前状态，绝不允许跳关
         return {"status": "ok", "store": store}
 
     async with lock:
-        store = get_store()
+        store = get_user_store(user_id)
         sess = store.get("active_sessions", {}).get(s_id)
         diag = sess.get("diagnostic_result") or {}
         existing_tiers = [
@@ -501,7 +695,6 @@ async def next_tier(data: dict):
         max_t = max(existing_tiers, default=3)
         curr_tier = sess.get("current_variant_tier", 1)
 
-        # 严格幂等防重：只有全部关卡通关后 (curr_tier > max_t)，才允许生成新题
         if curr_tier <= max_t:
             return {"status": "ok", "store": store}
 
@@ -518,17 +711,22 @@ async def next_tier(data: dict):
         sess["current_variant_tier"] = next_t
         sess["current_stage"] = 4
         dispatch_variant_tier_data(sess, next_t)
-        save_all_data(store)
-        return {"status": "ok", "store": store}
+        save_user_session(user_id, sess)
+        return {"status": "ok", "store": get_user_store(user_id)}
 
 
 @app.post("/api/sessions/upload_image")
 @app.post("/cogni-scaffold/api/sessions/upload_image")
 async def upload_image(
+    request: Request,
     image: UploadFile = File(...),
     mode: str = Form("question"),
     question_context: str = Form("")
 ):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="问答功能需先登录账号")
+
     try:
         content = await image.read()
         recognized_text = analyze_image_input(content, mode, question_context, api_config)
@@ -539,8 +737,13 @@ async def upload_image(
 
 @app.get("/api/sessions/{session_id}/chat/stream")
 @app.get("/cogni-scaffold/api/sessions/{session_id}/chat/stream")
-async def chat_stream(session_id: str, student_text: str):
-    store = get_store()
+async def chat_stream(session_id: str, student_text: str, request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="问答功能需先登录账号")
+
+    user_id = user["id"]
+    store = get_user_store(user_id)
     sess = store.get("active_sessions", {}).get(session_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -550,15 +753,14 @@ async def chat_stream(session_id: str, student_text: str):
         raise HTTPException(status_code=400, detail="Text cannot be empty")
 
     async def event_generator():
-        nonlocal store, sess
+        nonlocal user_id, sess
         try:
             # 1. 记录学生输入
             sess["dialogue_history"].append({"role": "user", "content": student_text})
 
-            # 【断路器 1：前置安全与合规检测 (Fast Circuit Breaker)】
+            # 【断路器 1：前置安全与合规检测】
             is_blocked, refusal_text = check_input_guardrail(student_text)
             if is_blocked:
-                # 触发断路硬熔断：直接返回标准拒答，绝不调用大模型，绝不推进状态机，绝不出题！
                 chunk_size = 12
                 for i in range(0, len(refusal_text), chunk_size):
                     chunk = refusal_text[i:i+chunk_size]
@@ -566,15 +768,13 @@ async def chat_stream(session_id: str, student_text: str):
                     await asyncio.sleep(0.01)
 
                 sess["dialogue_history"].append({"role": "assistant", "content": refusal_text})
-                # 状态原地锁定，不推进任何关卡或轮次
-                save_all_data(store)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                save_user_session(user_id, sess)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
                 return
 
-            # 【意图与早退路由检测 (Intent & Early-Exit Routing)】
+            # 【意图与早退路由检测】
             intent_type, intent_guidance = classify_user_intent(student_text, sess.get("question", ""))
             
-            # 1. 情绪发泄、粗俗语拦截：温和安抚并重设边界，严格不推新题
             if intent_type == "PROFANITY":
                 chunk_size = 12
                 for i in range(0, len(intent_guidance), chunk_size):
@@ -583,12 +783,11 @@ async def chat_stream(session_id: str, student_text: str):
                     await asyncio.sleep(0.01)
 
                 sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
-                save_all_data(store)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                save_user_session(user_id, sess)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
                 return
 
-            # 2. Meta 纠错 / 上下文脱节 / 题目关联质疑：暂停答疑与判题流，由导师出面解释认知同构逻辑，严禁误判
-            if intent_type == "META_QUESTION":
+            elif intent_type in ["GIVE_UP", "OFF_TOPIC", "DEMAND_ANSWER", "LOW_INFO"]:
                 chunk_size = 12
                 for i in range(0, len(intent_guidance), chunk_size):
                     chunk = intent_guidance[i:i+chunk_size]
@@ -596,25 +795,13 @@ async def chat_stream(session_id: str, student_text: str):
                     await asyncio.sleep(0.01)
 
                 sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
-                save_all_data(store)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                sess["tutor_turns"] += 1
+                save_user_session(user_id, sess)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
                 return
 
-            # 3. 显式脱轨闲聊：优雅拉回，状态原地锁定，不推进关卡
-            if intent_type == "OFF_TOPIC":
-                chunk_size = 12
-                for i in range(0, len(intent_guidance), chunk_size):
-                    chunk = intent_guidance[i:i+chunk_size]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.01)
-
-                sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
-                save_all_data(store)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
-                return
-
-            # 判断是否处于变式闯关阶段 (Stage >= 4)
-            if sess.get("current_stage", 1) >= 4:
+            # 阶段 4：变式迁移挑战应答
+            if sess.get("current_stage") == 4:
                 diag = sess.get("diagnostic_result") or {}
                 defined_tiers = [
                     int(k.replace("tier", "").replace("_variant", ""))
@@ -625,7 +812,6 @@ async def chat_stream(session_id: str, student_text: str):
                 curr_tier = sess.get("current_variant_tier", 1)
 
                 if curr_tier > max_defined:
-                    # 全线通关后，学生输入新内容触发更高阶全新关卡
                     next_t = max_defined + 1
                     new_variant = generate_next_tier_variant(
                         sess.get("question", ""),
@@ -639,26 +825,23 @@ async def chat_stream(session_id: str, student_text: str):
                     sess["current_variant_tier"] = next_t
                     sess["current_stage"] = 4
                     prompt_msg = dispatch_variant_tier_data(sess, next_t)
-                    save_all_data(store)
+                    save_user_session(user_id, sess)
 
-                    # 模拟打字机流式展示新出题目
                     chunk_size = 12
                     for i in range(0, len(prompt_msg), chunk_size):
                         chunk = prompt_msg[i:i+chunk_size]
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant_variant'}, ensure_ascii=False)}\n\n"
                         await asyncio.sleep(0.01)
 
-                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
                     return
 
                 tier_data = diag.get(f"tier{curr_tier}_variant", {})
                 var_q = tier_data.get("question", "变式题")
                 var_h = tier_data.get("hint", "")
 
-                # 评估回答或提供启发线索
                 eval_text = evaluate_transfer_answer(var_q, var_h, student_text, api_config)
                 
-                # 模拟打字机流式输出给前端
                 chunk_size = 8
                 for i in range(0, len(eval_text), chunk_size):
                     chunk = eval_text[i:i+chunk_size]
@@ -676,15 +859,14 @@ async def chat_stream(session_id: str, student_text: str):
                     else:
                         sess["current_variant_tier"] = max_defined + 1
 
-                save_all_data(store)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                save_user_session(user_id, sess)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
 
             else:
                 # 阶段 1~3：启发式引导
                 full_response = ""
                 temp_history = list(sess["dialogue_history"])
                 
-                # 使用真实模型流式生成
                 for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config):
                     full_response += chunk
                     clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
@@ -696,7 +878,6 @@ async def chat_stream(session_id: str, student_text: str):
                 sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
                 sess["tutor_turns"] += 1
 
-                # 首次两段式标题进化
                 if sess.get("title_stage", 0) == 0:
                     new_title = generate_session_title(
                         sess["question"],
@@ -709,11 +890,8 @@ async def chat_stream(session_id: str, student_text: str):
                     sess["title"] = new_title
                     sess["title_stage"] = 1
 
-                # 【断路器 2：后置大模型拒答熔断检查】
                 is_refusal = check_output_refusal(clean_full)
 
-                # 【状态机解耦：前提条件严格校验】
-                # 只有在：1. 未被后置熔断 2. 非低信息量输入 3. 轮次>=2 4. 模型带有突破标识 时才允许触发诊断出题
                 can_trigger_diagnosis = (
                     not is_refusal
                     and intent_type not in ["LOW_INFO", "DEMAND_ANSWER"]
@@ -724,12 +902,12 @@ async def chat_stream(session_id: str, student_text: str):
                 if can_trigger_diagnosis:
                     trigger_diagnosis_for_session(sess, offline_mode=False)
 
-                save_all_data(store)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+                save_user_session(user_id, sess)
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
 
         except Exception as err:
             err_msg = f"⚠️ 连接处理异常：{str(err)}。请点击重试。"
-            yield f"data: {json.dumps({'type': 'chunk', 'content': err_text if 'err_text' in locals() else err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': store}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

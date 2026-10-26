@@ -20,6 +20,8 @@ env/
 # User Data & History Storage (Prevent committing private student chat history)
 data/history_store.json
 data/*.json
+data/*.db
+data/*.db-*
 
 # Release & Archive files
 *.zip
