@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
   <title>知阶 · 不给答案，只给台阶</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
   
@@ -1804,6 +1804,334 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
     }
+
+    /* ============================================================
+       📱 移动端与平板端全自适应响应系统 (Mobile & Tablet Adaptation)
+       ============================================================ */
+    .mobile-workspace-tabs {
+      display: none;
+    }
+    .popover-backdrop {
+      display: none;
+    }
+    .popover-close-btn {
+      display: none;
+      background: none;
+      border: none;
+      font-size: 16px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 2px 6px;
+      line-height: 1;
+    }
+    .popover-close-btn:hover {
+      color: var(--text-main);
+    }
+    .mobile-badge-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #ef4444;
+      margin-left: 2px;
+    }
+
+    /* 📱 手机端深度适配 (Screen Width <= 768px) */
+    @media (max-width: 768px) {
+      .app-main-layout {
+        padding: 10px 12px calc(20px + env(safe-area-inset-bottom)) 12px;
+      }
+      .chrome-tabbar-container {
+        padding: 0 8px;
+        height: 44px;
+      }
+      .brand-title-name {
+        display: none !important;
+      }
+      .brand-header-badge {
+        padding: 4px 6px;
+        margin-right: 4px;
+      }
+      .history-archive-text {
+        display: none !important;
+      }
+      .history-archive-btn {
+        padding: 5px 8px;
+      }
+      .tabs-scroll-area {
+        max-width: calc(100% - 120px) !important;
+        gap: 2px;
+      }
+      .chrome-tab {
+        min-width: 90px !important;
+        max-width: 135px !important;
+        padding: 0 6px 0 8px !important;
+        font-size: 11.5px !important;
+      }
+      .tab-icon {
+        margin-right: 4px;
+        font-size: 12px;
+      }
+
+      /* 开题引导区 (Onboarding) 手机端流式紧凑排版 */
+      .onboarding-hero {
+        margin: 0.6rem auto 1.2rem auto;
+      }
+      .onboarding-icon-box {
+        width: 44px;
+        height: 44px;
+        margin-bottom: 10px;
+      }
+      .hero-title {
+        font-size: 1.65rem !important;
+      }
+      .hero-sub {
+        font-size: 0.9rem !important;
+      }
+      .hero-badge-row {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 6px 8px !important;
+      }
+      .hero-badge-clean {
+        font-size: 0.76rem !important;
+      }
+      .hero-badge-dot {
+        display: none !important;
+      }
+      .onboarding-card {
+        padding: 16px 14px !important;
+        border-radius: 12px !important;
+      }
+      .st-tabs-header {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        white-space: nowrap !important;
+        gap: 4px !important;
+      }
+      .st-tab-button {
+        font-size: 0.8rem !important;
+        padding: 7px 12px !important;
+        flex-shrink: 0 !important;
+      }
+      .preset-category-tabs {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        white-space: nowrap !important;
+        padding-bottom: 4px !important;
+      }
+      .preset-cat-btn {
+        font-size: 0.78rem !important;
+        padding: 5px 10px !important;
+        flex-shrink: 0 !important;
+      }
+      .preset-grid {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+      }
+      .preset-card {
+        min-height: 120px !important;
+        padding: 12px 14px !important;
+      }
+
+      /* 工作区手机端双轨分段导航 */
+      .mobile-workspace-tabs {
+        display: flex !important;
+        gap: 6px;
+        margin-bottom: 12px;
+        background: var(--input-bg);
+        padding: 4px;
+        border-radius: 8px;
+        border: 1px solid var(--card-border);
+      }
+      .mobile-view-tab-btn {
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        padding: 8px 10px;
+        font-size: 0.86rem;
+        font-weight: 600;
+        color: var(--text-muted);
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+      .mobile-view-tab-btn.active {
+        background: var(--card-bg);
+        color: var(--primary);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+      }
+      .st-columns {
+        display: block !important;
+        gap: 0 !important;
+      }
+      .col-left {
+        width: 100% !important;
+      }
+      .col-right {
+        width: 100% !important;
+      }
+
+      /* 聊天气泡与输入控制 */
+      .chat-box {
+        height: 380px !important;
+        padding: 12px 10px !important;
+      }
+      .st-chat-content {
+        max-width: 90% !important;
+        padding: 10px 14px !important;
+        font-size: 0.88rem !important;
+      }
+      .st-chat-content .katex-display {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        padding: 4px 0 !important;
+      }
+
+      /* 底部操作按钮手机端自适应两排流式布局 */
+      .action-button-row {
+        flex-direction: column !important;
+        gap: 8px !important;
+        margin-top: 10px !important;
+      }
+      .action-button-row #submitBtn {
+        width: 100% !important;
+        height: 44px !important;
+        font-size: 0.95rem !important;
+        font-weight: 600 !important;
+        order: 1 !important;
+      }
+      .action-button-row .aux-btn-group {
+        width: 100% !important;
+        display: flex !important;
+        gap: 8px !important;
+        order: 2 !important;
+      }
+      .action-button-row .aux-btn-group .btn {
+        flex: 1 !important;
+        height: 38px !important;
+        font-size: 0.8rem !important;
+        padding: 4px 6px !important;
+        justify-content: center !important;
+      }
+
+      /* 手机端 LaTeX 键盘与草稿弹层：优雅触控底板 (Mobile Bottom Sheet) */
+      .popover-modal-box {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        top: auto !important;
+        width: 100vw !important;
+        max-width: 100vw !important;
+        max-height: 72vh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        border-radius: 20px 20px 0 0 !important;
+        padding: 16px 14px calc(20px + env(safe-area-inset-bottom)) 14px !important;
+        box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.7) !important;
+        z-index: 1000 !important;
+        transform: translateY(100%);
+        transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease !important;
+        opacity: 0;
+        display: block !important;
+        pointer-events: none;
+      }
+      .popover-modal-box.show {
+        transform: translateY(0) !important;
+        opacity: 1 !important;
+        pointer-events: auto !important;
+      }
+      .popover-close-btn {
+        display: block !important;
+      }
+      .popover-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(2px);
+        z-index: 999;
+      }
+      .popover-backdrop.show {
+        display: block !important;
+      }
+      .symbols-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+        gap: 6px !important;
+      }
+      .symbol-chip {
+        height: 42px !important;
+        font-size: 1.05rem !important;
+      }
+      .kbd-segmented-control {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        white-space: nowrap !important;
+      }
+      .kbd-seg-btn {
+        flex-shrink: 0 !important;
+      }
+
+      /* 历史归档抽屉手机端全屏覆盖 */
+      .history-drawer {
+        padding: 14px !important;
+      }
+      .history-cat-tabs {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        white-space: nowrap !important;
+      }
+      .history-cat-chip {
+        flex-shrink: 0 !important;
+      }
+
+      /* 页面页脚自适应 */
+      .site-footer {
+        flex-direction: column !important;
+        gap: 8px !important;
+        text-align: center !important;
+        padding-top: 1rem !important;
+      }
+      .footer-links-group {
+        flex-wrap: wrap !important;
+        justify-content: center !important;
+        gap: 12px !important;
+      }
+    }
+
+    /* 📱 平板端精致调优 (Tablet: 769px <= Width <= 1024px) */
+    @media (min-width: 769px) and (max-width: 1024px) {
+      .app-main-layout {
+        padding: 14px 18px !important;
+      }
+      .st-columns {
+        gap: 1.25rem !important;
+      }
+      .col-left {
+        flex: 1.35 !important;
+      }
+      .col-right {
+        flex: 1.0 !important;
+      }
+      .preset-grid {
+        grid-template-columns: repeat(2, 1fr) !important;
+      }
+      .popover-modal-box {
+        width: 440px !important;
+      }
+      .symbols-grid {
+        grid-template-columns: repeat(4, 1fr) !important;
+      }
+    }
+
   </style>
 </head>
 <body data-theme="dark">
@@ -1890,7 +2218,10 @@
               <div class="popover-modal-box" id="onboardLatexPopoverBox" style="right: 0; bottom: 38px; width: 480px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <span style="font-size: 0.86rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 全学科 LaTeX 符号键盘</span>
-                  <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
+                    <button class="popover-close-btn" onclick="closeAllPopovers()">✕</button>
+                  </div>
                 </div>
                 <div class="kbd-segmented-control" id="onboardKbdTier1"></div>
                 <div class="kbd-segmented-control" id="onboardKbdTier2" style="margin-top: 4px;"></div>
@@ -1972,6 +2303,18 @@
 
     <!-- 视图 B: 主双栏解题工作区 (Main Workspace) -->
     <div id="workspaceView" style="display: none;">
+      <!-- 移动端分段视图切换器 (手机 <= 768px 显示) -->
+      <div class="mobile-workspace-tabs" id="mobileWorkspaceTabs">
+        <button class="mobile-view-tab-btn active" id="btnMobileViewChat" onclick="switchMobileWorkspaceTab('chat')">
+          <svg class="ui-icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          启发式对话
+        </button>
+        <button class="mobile-view-tab-btn" id="btnMobileViewDash" onclick="switchMobileWorkspaceTab('dash')">
+          <svg class="ui-icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          学情看板
+          <span id="mobileDashDot" style="display: none; width: 7px; height: 7px; border-radius: 50%; background: #ef4444; margin-left: 2px;"></span>
+        </button>
+      </div>
       <div class="st-columns">
         
         <!-- 左侧：交互陪练流 -->
@@ -2001,7 +2344,10 @@
               <div class="popover-modal-box" id="latexPopoverBox">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
                   <span style="font-size: 0.88rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 全学科 LaTeX 符号预设库</span>
-                  <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
+                    <button class="popover-close-btn" onclick="closeAllPopovers()">✕</button>
+                  </div>
                 </div>
                 <div class="kbd-segmented-control" id="chatKbdTier1"></div>
                 <div class="kbd-segmented-control" id="chatKbdTier2" style="margin-top: 4px;"></div>
@@ -2010,7 +2356,10 @@
 
               <!-- 草稿上传浮层 -->
               <div class="popover-modal-box" id="draftPopoverBox" style="width: 320px;">
-                <div style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg> 手写草稿智能提取</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                  <span style="font-size: 0.88rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg> 手写草稿智能提取</span>
+                  <button class="popover-close-btn" onclick="closeAllPopovers()">✕</button>
+                </div>
                 <div class="draft-upload-dropzone" style="border: 1px dashed var(--input-border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;" onclick="document.getElementById('draftUploadInput').click()">
                   <div style="font-size: 24px;"><svg class="ui-icon" style="width: 28px; height: 28px; stroke: var(--text-muted);" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
                   <div style="font-size: 0.82rem; margin-top: 4px;">拍照或上传草稿照片</div>
@@ -2098,6 +2447,8 @@
   </div>
 
   
+  <div class="popover-backdrop" id="popoverBackdrop" onclick="closeAllPopovers()"></div>
+
   <!-- 主题模态弹窗组件 (符合暗色/亮色风格) -->
   <div class="theme-modal-backdrop" id="customThemeModal" onclick="closeThemeModal()">
     <div class="theme-modal-card" onclick="event.stopPropagation()">
@@ -2856,6 +3207,52 @@
     }
 
     // 渲染主解题视图或引导视图
+
+    // 移动端分段视图与底板交互控制
+    let activeMobileWorkspaceTab = 'chat';
+    function switchMobileWorkspaceTab(tab) {
+      activeMobileWorkspaceTab = tab;
+      const isMobile = window.innerWidth <= 768;
+      const btnChat = document.getElementById('btnMobileViewChat');
+      const btnDash = document.getElementById('btnMobileViewDash');
+      const colLeft = document.querySelector('.col-left');
+      const colRight = document.querySelector('.col-right');
+
+      if (btnChat) btnChat.classList.toggle('active', tab === 'chat');
+      if (btnDash) btnDash.classList.toggle('active', tab === 'dash');
+
+      if (tab === 'dash') {
+        const dot = document.getElementById('mobileDashDot');
+        if (dot) dot.style.display = 'none';
+      }
+
+      if (isMobile) {
+        if (colLeft) colLeft.style.display = (tab === 'chat') ? 'block' : 'none';
+        if (colRight) colRight.style.display = (tab === 'dash') ? 'block' : 'none';
+      } else {
+        if (colLeft) colLeft.style.display = 'block';
+        if (colRight) colRight.style.display = 'block';
+      }
+    }
+
+    function closeAllPopovers() {
+      document.querySelectorAll('.popover-modal-box').forEach(el => el.classList.remove('show'));
+      const backdrop = document.getElementById('popoverBackdrop');
+      if (backdrop) backdrop.classList.remove('show');
+    }
+
+    window.addEventListener('resize', () => {
+      const isMobile = window.innerWidth <= 768;
+      const colLeft = document.querySelector('.col-left');
+      const colRight = document.querySelector('.col-right');
+      if (!isMobile) {
+        if (colLeft) colLeft.style.display = 'block';
+        if (colRight) colRight.style.display = 'block';
+      } else {
+        switchMobileWorkspaceTab(activeMobileWorkspaceTab);
+      }
+    });
+
     function renderCurrentSessionView() {
       const curId = appState.current_session_id;
       const curSession = (appState.active_sessions || {})[curId];
@@ -2871,6 +3268,7 @@
 
       onboardingView.style.display = 'none';
       workspaceView.style.display = 'block';
+      switchMobileWorkspaceTab(activeMobileWorkspaceTab);
 
       // 1. 题目折叠卡片
       const qText = curSession.question.trim();
@@ -3515,13 +3913,19 @@
 
     document.getElementById('latexKbdToggleBtn').onclick = (e) => {
       e.stopPropagation();
-      latexPopoverBox.classList.toggle('show');
+      const willShow = !latexPopoverBox.classList.contains('show');
+      latexPopoverBox.classList.toggle('show', willShow);
       draftPopoverBox.classList.remove('show');
+      const bd = document.getElementById('popoverBackdrop');
+      if (bd) bd.classList.toggle('show', willShow && window.innerWidth <= 768);
     };
     document.getElementById('photoDraftToggleBtn').onclick = (e) => {
       e.stopPropagation();
-      draftPopoverBox.classList.toggle('show');
+      const willShow = !draftPopoverBox.classList.contains('show');
+      draftPopoverBox.classList.toggle('show', willShow);
       latexPopoverBox.classList.remove('show');
+      const bd = document.getElementById('popoverBackdrop');
+      if (bd) bd.classList.toggle('show', willShow && window.innerWidth <= 768);
     };
 
     // 仅在明确点击浮层外部时自动收起浮层（支持 e.composedPath 防 DOM 刷新元素脱落判断失效）

@@ -38,3 +38,5 @@ desktop.ini
 dist/
 build/
 *.egg-info/
+edge_*_profile/
+test_profile/
