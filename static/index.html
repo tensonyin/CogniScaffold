@@ -1899,32 +1899,32 @@
 
             <div class="preset-grid">
               <div class="preset-card" data-cat="stem" onclick="loadPreset('math_derivative')">
-                <div class="preset-card-title">📐 高中数学 · 导数分类讨论</div>
+                <div class="preset-card-title">📐 数学·导数分类讨论</div>
                 <div class="preset-card-desc" data-raw="暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类讨论缺失。"></div>
                 <div class="preset-card-btn">载入导数案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" onclick="loadPreset('physics_momentum')">
-                <div class="preset-card-title">⚖️ 高中物理 · 系统动量守恒</div>
+                <div class="preset-card-title">⚖️ 物理·系统动量守恒</div>
                 <div class="preset-card-desc" data-raw="暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。"></div>
                 <div class="preset-card-btn">载入动量案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" onclick="loadPreset('history_modernization')">
-                <div class="preset-card-title">📜 高中历史 · 洋务成因与制度局限</div>
+                <div class="preset-card-title">📜 历史·洋务成因与制度局限</div>
                 <div class="preset-card-desc" data-raw="暗坑：将近代化失败降维归因于偶然的财政与装备短缺，忽略“中体西用”维护封建专制制度的阶级局限。"></div>
                 <div class="preset-card-btn">载入历史案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" onclick="loadPreset('chinese_logic_fallacy')">
-                <div class="preset-card-title">📖 高中语文 · 论述批判与隐性前提</div>
+                <div class="preset-card-title">📖 语文·论述批判与隐性前提</div>
                 <div class="preset-card-desc" data-raw="暗坑：被动人情味修辞掩盖逻辑缺陷，混淆创作心理与美学客体范畴，陷入先验循环论证与稻草人归约。"></div>
                 <div class="preset-card-btn">载入语文案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" onclick="loadPreset('chemistry_equilibrium')">
-                <div class="preset-card-title">🧪 高中化学 · 水解与电荷守恒</div>
+                <div class="preset-card-title">🧪 化学·中性点电荷守恒</div>
                 <div class="preset-card-desc" data-raw="暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。"></div>
                 <div class="preset-card-btn">载入化学案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" onclick="loadPreset('tech_logic_control')">
-                <div class="preset-card-title">💻 高中技术 · 比较器门限电平</div>
+                <div class="preset-card-title">💻 技术·比较器门限电平</div>
                 <div class="preset-card-desc" data-raw="暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。"></div>
                 <div class="preset-card-btn">载入技术案例 ➔</div>
               </div>
@@ -2199,7 +2199,7 @@
       return html;
     }
 
-    // 标签页标题 LaTeX 清洗，确保选项卡纯文本优雅显示
+        // 标签页标题 LaTeX 清洗，确保选项卡纯文本优雅显示
     function cleanTitleForDisplay(title) {
       if (!title) return "探索会话";
       let t = title.replace(/\\frac\{([^{}]+)\}\{([^{}]+)\}/g, '$1/$2');
@@ -2208,6 +2208,11 @@
       t = t.replace(/\\(ln|log|sin|cos|tan)\b/g, '$1');
       t = t.replace(/\\[a-zA-Z]+/g, '');
       t = t.replace(/[\$\{\}]/g, '');
+      // 清除冗余的“高中”或“高考”字样，确保统一的 emoji+学科+... 规范
+      t = t.replace(/^(?:[\p{Extended_Pictographic}\u2600-\u27BF\uFE0F]+\s*)?(?:高考|高中)/u, (m) => {
+        const emo = m.match(/[\p{Extended_Pictographic}\u2600-\u27BF\uFE0F]+/u);
+        return emo ? emo[0] + " " : "";
+      });
       return t.replace(/\s+/g, ' ').trim();
     }
 
@@ -2469,7 +2474,14 @@
           else if (title.includes("数学") || title.includes("导数")) icon = "📐";
           else if (title.includes("化学")) icon = "🧪";
           else if (title.includes("技术")) icon = "💻";
+          else if (title.includes("历史")) icon = "📜";
+          else if (title.includes("语文") || title.includes("阅读")) icon = "📖";
+          else if (title.includes("政治")) icon = "🏛️";
+          else if (title.includes("地理")) icon = "🌍";
+          else if (title.includes("生物")) icon = "🧬";
+          else icon = "💡";
         }
+        pureTitle = pureTitle.replace(/^(?:高考|高中)/, '').trim();
 
         tabEl.innerHTML = `
           <span class="tab-icon">${icon}</span>
@@ -2577,16 +2589,18 @@
       renderHistoryList(activeHistoryTab);
     }
 
-    // 学科分类归类判定器 (Emoji + 名称全覆盖分类)
+    // 学科分类归类判定器 (统一 Emoji+学科 规范)
     const ALL_CATEGORIES = [
-      { key: "math", label: "📐 数学", fullLabel: "📐 高中数学", order: 1 },
-      { key: "physics", label: "⚖️ 物理", fullLabel: "⚖️ 高中物理", order: 2 },
-      { key: "chemistry", label: "🧪 化学", fullLabel: "🧪 高中化学", order: 3 },
-      { key: "biology", label: "🧬 生物", fullLabel: "🧬 高中生物", order: 4 },
-      { key: "geography", label: "🌍 地理", fullLabel: "🌍 高中地理", order: 5 },
-      { key: "humanities", label: "🏛️ 史政", fullLabel: "🏛️ 历史与政治", order: 6 },
-      { key: "technology", label: "💻 技术", fullLabel: "💻 通用与信息技术", order: 7 },
-      { key: "other", label: "💡 综合", fullLabel: "💡 综合与思维探索", order: 8 }
+      { key: "math", label: "📐 数学", fullLabel: "📐 数学", order: 1 },
+      { key: "physics", label: "⚖️ 物理", fullLabel: "⚖️ 物理", order: 2 },
+      { key: "chemistry", label: "🧪 化学", fullLabel: "🧪 化学", order: 3 },
+      { key: "biology", label: "🧬 生物", fullLabel: "🧬 生物", order: 4 },
+      { key: "geography", label: "🌍 地理", fullLabel: "🌍 地理", order: 5 },
+      { key: "history", label: "📜 历史", fullLabel: "📜 历史", order: 6 },
+      { key: "chinese", label: "📖 语文", fullLabel: "📖 语文", order: 7 },
+      { key: "politics", label: "🏛️ 政治", fullLabel: "🏛️ 政治", order: 8 },
+      { key: "technology", label: "💻 技术", fullLabel: "💻 技术", order: 9 },
+      { key: "other", label: "💡 综合", fullLabel: "💡 综合思辨", order: 10 }
     ];
 
     function categorizeSession(sess) {
@@ -2606,13 +2620,19 @@
       if (t.includes("🌍") || t.includes("地理") || t.includes("等高线") || t.includes("气候") || t.includes("洋流") || t.includes("区位")) {
         return ALL_CATEGORIES[4];
       }
-      if (t.includes("🏛️") || t.includes("历史") || t.includes("政治") || t.includes("哲学") || t.includes("经济") || t.includes("制度")) {
+      if (t.includes("📜") || t.includes("历史") || t.includes("洋务") || t.includes("辛亥") || t.includes("科举") || t.includes("史料")) {
         return ALL_CATEGORIES[5];
       }
-      if (t.includes("💻") || t.includes("技术") || t.includes("信息") || t.includes("算法") || t.includes("电路") || t.includes("逻辑门")) {
+      if (t.includes("📖") || t.includes("语文") || t.includes("论证") || t.includes("现代文") || t.includes("文言文") || t.includes("主旨") || t.includes("修辞")) {
         return ALL_CATEGORIES[6];
       }
-      return ALL_CATEGORIES[7];
+      if (t.includes("🏛️") || t.includes("政治") || t.includes("哲学") || t.includes("经济") || t.includes("制度")) {
+        return ALL_CATEGORIES[7];
+      }
+      if (t.includes("💻") || t.includes("技术") || t.includes("信息") || t.includes("算法") || t.includes("电路") || t.includes("逻辑门")) {
+        return ALL_CATEGORIES[8];
+      }
+      return ALL_CATEGORIES[9];
     }
 
     function renderHistoryList(tab) {

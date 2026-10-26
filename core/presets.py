@@ -5,7 +5,7 @@ CogniScaffold 黄金演示案例与离线仿真库 (Golden Presets)
 
 GOLDEN_PRESETS = {
     "math_derivative": {
-        "title": "高考导数：隐式定义域与参数分类陷阱",
+        "title": "📐 数学·导数极值分类",
         "subject": "数学",
         "category": "stem",
         "question": "讨论函数 $f(x) = \\ln x - ax$ 的单调性与极值。",
@@ -63,7 +63,7 @@ GOLDEN_PRESETS = {
         }
     },
     "physics_momentum": {
-        "title": "高考物理：系统动量守恒的条件与参考系陷阱",
+        "title": "⚖️ 物理·系统动量守恒",
         "subject": "物理",
         "category": "stem",
         "question": "在光滑水平地面上，有一质量为 $M$、内壁光滑的圆弧形凹槽。一质量为 $m$ 的小滑块从凹槽顶端由静止释放。讨论滑块从顶端滑至最低点的过程中，系统在水平与竖直方向的动量守恒情况。",
@@ -119,7 +119,7 @@ GOLDEN_PRESETS = {
         }
     },
     "chemistry_equilibrium": {
-        "title": "高考化学：电离水解平衡与中性点电荷守恒陷阱",
+        "title": "🧪 化学·中性点电荷守恒",
         "subject": "化学",
         "category": "stem",
         "question": "常温下，向 $20\\,\\mathrm{mL}\\ 0.1\\,\\mathrm{mol\\cdot L^{-1}}$ 的 $\\mathrm{CH_3COOH}$ 溶液中逐滴滴加 $0.1\\,\\mathrm{mol\\cdot L^{-1}}$ 的 $\\mathrm{NaOH}$ 溶液。讨论当混合溶液恰好呈中性（$\\mathrm{pH} = 7$）时，$c(\\mathrm{Na^+})$ 与 $c(\\mathrm{CH_3COO^-})$ 的大小关系，以及所加入 $\\mathrm{NaOH}$ 溶液的体积 $V$ 是否等于 $20\\,\\mathrm{mL}$？",
@@ -176,7 +176,7 @@ GOLDEN_PRESETS = {
         }
     },
     "tech_logic_control": {
-        "title": "高中技术：比较器门限电平与三极管开闭逻辑陷阱",
+        "title": "💻 技术·比较器门限电平",
         "subject": "技术",
         "category": "stem",
         "question": "在基于通用技术的温控排风控制电路中，负温度系数热敏电阻 $R_t$（温度升高阻值变小）与定值电阻 $R_1$ 组成测温分压电路，接入电压比较器的同相输入端 $V_+$，反相输入端 $V_-$ 接入基准固定分压。比较器输出端通过基极电阻连接 NPN 型三极管驱动继电器。讨论当环境温度上升超过预设阈值时，同相端电位 $V_+$ 的变化趋势，以及如何连接才能实现高温时继电器吸合排风？",
@@ -233,7 +233,7 @@ GOLDEN_PRESETS = {
     }
 ,
     "history_modernization": {
-        "title": "高考历史：洋务运动成败归因与制度局限思辨",
+        "title": "📜 历史·洋务成因与制度局限",
         "subject": "历史",
         "category": "humanities",
         "question": "阅读史料：李鸿章曾言“中国文武制度，事事远出西人之上，独火器万不能及”。结合洋务企业“官督商办”的实际运作与甲午战争结局，评价洋务运动未能使中国走上独立富强道路的核心根源。",
@@ -278,7 +278,7 @@ GOLDEN_PRESETS = {
         }
 },
     "chinese_logic_fallacy": {
-        "title": "语文思辨：现代文论述中的隐性前提与稻草人谬误",
+        "title": "📖 语文·论述批判与隐性前提",
         "subject": "语文",
         "category": "humanities",
         "question": "分析论述文本逻辑：某作者主张“人工智能技术必然摧毁人类的审美创造力，因为一切真正的艺术创作都源自个体内在无法被编码的生命痛感与灵光乍现，而机器只是在死板地拼贴冰冷的数据概率。”请指出该论断背后的隐性前提，并评估其论证是否存在逻辑漏洞。",

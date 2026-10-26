@@ -369,9 +369,11 @@ async def init_question(data: dict):
             "math_derivative": "📐 数学·导数极值分类",
             "physics_momentum": "⚖️ 物理·系统动量守恒",
             "chemistry_equilibrium": "🧪 化学·中性点电荷守恒",
-            "tech_logic_control": "💻 技术·电控逻辑门限"
+            "tech_logic_control": "💻 技术·比较器门限电平",
+            "history_modernization": "📜 历史·洋务成因与制度局限",
+            "chinese_logic_fallacy": "📖 语文·论述批判与隐性前提"
         }
-        sess["title"] = title_map.get(preset_key, preset.get("title", "思维探索"))
+        sess["title"] = title_map.get(preset_key, preset.get("title", "💡 探索·思维引导突破"))
         sess["is_initialized"] = True
         sess["title_stage"] = 1
         sess["question"] = preset["question"]
