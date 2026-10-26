@@ -47,7 +47,16 @@ app.add_middleware(
 # 确保 static 目录及 vendor 目录存在
 os.makedirs("static", exist_ok=True)
 os.makedirs("static/vendor", exist_ok=True)
+
+# 注册 Web 字体 MIME 类型，彻底避免 Edge/Chromium 在 Windows 下将 woff/woff2 识别为 octet-stream 拦截
+import mimetypes
+mimetypes.add_type("font/woff2", ".woff2")
+mimetypes.add_type("font/woff", ".woff")
+mimetypes.add_type("font/ttf", ".ttf")
+mimetypes.add_type("font/otf", ".otf")
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/vendor", StaticFiles(directory="static/vendor"), name="vendor")
 app.mount("/cogni-scaffold/static", StaticFiles(directory="static"), name="static_subpath")
 
 api_config = {

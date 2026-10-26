@@ -885,17 +885,53 @@
       word-break: break-word;
       letter-spacing: 0.2px;
     }
-    /* 彻底杜绝 KaTeX 绝对定位 MathML 溢出造成页面底部无限延展空白 */
+    /* 彻底杜绝 KaTeX 绝对定位 MathML 在 Edge/Chromium 下重叠与排版溢出 */
     .katex-mathml {
+      display: none !important;
+      visibility: hidden !important;
       position: absolute !important;
       top: 0 !important;
       left: 0 !important;
       clip: rect(1px, 1px, 1px, 1px) !important;
       padding: 0 !important;
       border: 0 !important;
-      height: 1px !important;
-      width: 1px !important;
+      height: 0 !important;
+      width: 0 !important;
       overflow: hidden !important;
+    }
+    /* 统一线性图标系统 (Modern Outline Vector Icons) */
+    .ui-icon {
+      display: inline-block;
+      vertical-align: -0.18em;
+      width: 1.15em;
+      height: 1.15em;
+      stroke-width: 1.85;
+      stroke: currentColor;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      flex-shrink: 0;
+    }
+    .ui-icon-sm {
+      width: 1em;
+      height: 1em;
+      vertical-align: -0.14em;
+    }
+    .ui-icon-lg {
+      width: 1.35em;
+      height: 1.35em;
+      vertical-align: -0.22em;
+    }
+    .ui-icon-hero {
+      width: 32px;
+      height: 32px;
+      stroke: var(--primary);
+    }
+    .brand-logo-icon .ui-icon {
+      width: 1.25em;
+      height: 1.25em;
+      stroke: var(--primary);
+      vertical-align: -0.2em;
     }
     .st-chat-content p {
       margin: 0.65rem 0;
@@ -1775,7 +1811,7 @@
   <!-- 1. 顶部 Chrome 标签栏 (品牌标识 + 标签流 + 靠右操作) -->
   <div class="chrome-tabbar-container">
     <div class="brand-header-badge" onclick="navigateToHome()" title="知阶 · 点击新建/回到探索首页">
-      <span class="brand-logo-icon">🧭</span>
+      <span class="brand-logo-icon"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></span>
       <span class="brand-title-name">知阶</span>
     </div>
     <div class="tabs-scroll-area" id="tabsScrollArea">
@@ -1784,7 +1820,7 @@
     <div class="add-tab-circle" id="addBtn" title="新建解题探索标签页">+</div>
     <div class="right-controls">
       <button class="history-archive-btn" id="historyBtn" title="查看收藏与历史归档">
-        <span>📚 历史归档</span>
+        <span style="display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> 历史归档</span>
         <span id="archivedBadge">0</span>
       </button>
       <button class="theme-toggle-icon-btn" id="themeToggleBtn" title="切换暗色/亮色模式">
@@ -1799,15 +1835,15 @@
     <!-- 历史归档抽屉 (点击顶栏「📚 历史归档」时展开) -->
     <div class="history-drawer" id="historyDrawer">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-        <h4 style="font-size: 1rem; font-weight: 700;">📚 历史归档与收藏库</h4>
+        <h4 style="font-size: 1rem; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;"><svg class="ui-icon" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg> 历史归档与收藏库</h4>
         <button class="btn btn-secondary" style="padding: 2px 8px; font-size: 12px;" onclick="toggleHistoryDrawer()">✕ 收起</button>
       </div>
       <div class="st-tabs-header" id="historyTabsHeader">
-        <button class="st-tab-button active" id="historyTabStarredBtn" onclick="switchHistoryTab('starred')">🌟 我的收藏</button>
-        <button class="st-tab-button" id="historyTabArchivedBtn" onclick="switchHistoryTab('archived')">🗂️ 归档历史</button>
+        <button class="st-tab-button active" id="historyTabStarredBtn" onclick="switchHistoryTab('starred')"><svg class="ui-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 我的收藏</button>
+        <button class="st-tab-button" id="historyTabArchivedBtn" onclick="switchHistoryTab('archived')"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 归档历史</button>
       </div>
       <div class="history-search-wrapper">
-        <span class="history-search-icon-left">🔍</span>
+        <span class="history-search-icon-left"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
         <input type="text" id="historySearchInput" class="history-search-line" placeholder="搜索学科、题目关键词或题型..." oninput="handleHistorySearch(this.value)">
       </div>
       <div class="history-cat-tabs" id="historyCatTabs">
@@ -1820,23 +1856,23 @@
     <div id="onboardingView" style="display: none;">
       <div class="onboarding-vertical-center">
         <div class="onboarding-hero">
-          <div class="onboarding-icon-box">🧭</div>
+          <div class="onboarding-icon-box"><svg class="ui-icon ui-icon-hero" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
           <h1 class="hero-title">知阶 CogniScaffold</h1>
           <div class="hero-sub">不给答案，只给台阶。</div>
           <div class="hero-badge-row" style="margin-top: 0.9rem; align-items: center; gap: 8px;">
-            <span class="hero-badge-clean">🎯 逐步提问 · 阶梯引导</span>
+            <span class="hero-badge-clean"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 逐步提问 · 阶梯引导</span>
             <span class="hero-badge-dot">•</span>
-            <span class="hero-badge-clean">⚡ 反例诱导 · 暴露盲区</span>
+            <span class="hero-badge-clean"><svg class="ui-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> 反例诱导 · 暴露盲区</span>
             <span class="hero-badge-dot">•</span>
-            <span class="hero-badge-clean">💡 自主发现 · 深度迁移</span>
+            <span class="hero-badge-clean"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M19 3v4"/><path d="M21 5h-4"/></svg> 自主发现 · 深度迁移</span>
           </div>
         </div>
 
         <div class="onboarding-card">
           <div class="st-tabs-header">
-            <button class="st-tab-button active" onclick="switchOnboardTab('text')">✍️ 文字录入新题</button>
-            <button class="st-tab-button" onclick="switchOnboardTab('photo')">📸 拍照 / 图片上传</button>
-            <button class="st-tab-button" onclick="switchOnboardTab('preset')">💡 经典案例库</button>
+            <button class="st-tab-button active" onclick="switchOnboardTab('text')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg> 文字录入新题</button>
+            <button class="st-tab-button" onclick="switchOnboardTab('photo')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg> 拍照 / 图片上传</button>
+            <button class="st-tab-button" onclick="switchOnboardTab('preset')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> 经典案例库</button>
           </div>
 
           <!-- 子面板 1: 文字录入 -->
@@ -1848,12 +1884,12 @@
             
             <div class="onboard-textarea-wrapper">
               <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容与材料（覆盖浙江十门科目与通用思维拓展，理科公式支持 LaTeX 如 $x^2 + 1 = 0$ 或 $F = ma$）..."></textarea>
-              <button class="onboard-kbd-toggle-trigger" id="onboardKbdToggleBtn" title="插入 LaTeX 科学符号与公式">Σ</button>
+              <button class="onboard-kbd-toggle-trigger" id="onboardKbdToggleBtn" title="插入 LaTeX 科学符号与公式"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg></button>
 
               <!-- 悬浮 LaTeX 符号键盘浮层 -->
               <div class="popover-modal-box" id="onboardLatexPopoverBox" style="right: 0; bottom: 38px; width: 480px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-size: 0.86rem; font-weight: 700;">📐 全学科 LaTeX 符号键盘</span>
+                  <span style="font-size: 0.86rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 全学科 LaTeX 符号键盘</span>
                   <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
                 </div>
                 <div class="kbd-segmented-control" id="onboardKbdTier1"></div>
@@ -1863,15 +1899,15 @@
             </div>
             
             <div class="latex-preview-card" id="onboardPreviewBox" style="display: none; margin-top: 8px;">
-              <span class="latex-preview-title">👁️ 题目公式实时排版预览：</span>
+              <span class="latex-preview-title"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> 题目公式实时排版预览：</span>
               <div class="latex-preview-body" id="onboardPreviewContent"></div>
             </div>
 
             <!-- 主按钮与输入框等宽居中构图 -->
             <div style="margin-top: 14px;">
-              <button class="btn btn-primary" style="width: 100%; height: 42px; font-size: 0.95rem; font-weight: 600;" onclick="submitOnboardText()">🚀 开启思维引导</button>
+              <button class="btn btn-primary" style="width: 100%; height: 42px; font-size: 0.95rem; font-weight: 600;" onclick="submitOnboardText()"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m9 12-2 2"/><path d="m12 15 2-2"/></svg> 开启思维引导</button>
               <div style="text-align: center; font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">
-                ⏱️ 约 3–5 轮苏格拉底递进启发，系统不会直接给出最终答案
+                <svg class="ui-icon ui-icon-sm" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> 约 3–5 轮苏格拉底递进启发，系统不会直接给出最终答案
               </div>
             </div>
           </div>
@@ -1880,7 +1916,7 @@
           <div id="onboardTabPhoto" style="display: none;">
             <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 12px;">上传试卷、练习册照片，系统将智能识别文字与数学公式：</p>
             <div style="border: 2px dashed var(--input-border); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer;" onclick="document.getElementById('fileUploadInput').click()">
-              <div style="font-size: 32px; margin-bottom: 8px;">📷</div>
+              <div style="font-size: 32px; margin-bottom: 8px;"><svg class="ui-icon" style="width: 36px; height: 36px; stroke: var(--text-muted);" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
               <div style="font-size: 0.9rem; font-weight: 600;">点击上传照片或从手机拍照上传</div>
               <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 4px;">支持 PNG, JPG, JPEG 格式</div>
               <input type="file" id="fileUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'question')">
@@ -1892,9 +1928,9 @@
             <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 10px;">挑选经过认知心理学验证的全学科典型思维暗坑与论证误区，即刻体验苏格拉底启发推导：</p>
             
             <div class="preset-category-tabs">
-              <button class="preset-cat-btn active" data-cat="all" onclick="filterPresetCards('all')">🌟 推荐精选 (全部)</button>
-              <button class="preset-cat-btn" data-cat="stem" onclick="filterPresetCards('stem')">📐 数理技术轨 (数/物/化/技)</button>
-              <button class="preset-cat-btn" data-cat="humanities" onclick="filterPresetCards('humanities')">📚 人文社科轨 (史/语/政/地)</button>
+              <button class="preset-cat-btn active" data-cat="all" onclick="filterPresetCards('all')"><svg class="ui-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 推荐精选 (全部)</button>
+              <button class="preset-cat-btn" data-cat="stem" onclick="filterPresetCards('stem')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 数理技术轨 (数/物/化/技)</button>
+              <button class="preset-cat-btn" data-cat="humanities" onclick="filterPresetCards('humanities')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> 人文社科轨 (史/语/政/地)</button>
             </div>
 
             <div class="preset-grid">
@@ -1956,15 +1992,15 @@
 
           <!-- 输入区 -->
           <div class="input-header-row">
-            <div class="input-area-label">✍️ 你的推导与疑问：</div>
+            <div class="input-area-label"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg> 你的推导与疑问：</div>
             <div class="tool-popover-group">
-              <button class="popover-icon-btn" id="latexKbdToggleBtn" title="全学科 LaTeX 符号键盘">𝛴</button>
-              <button class="popover-icon-btn" id="photoDraftToggleBtn" title="拍照上传手写草稿识别">📷</button>
+              <button class="popover-icon-btn" id="latexKbdToggleBtn" title="全学科 LaTeX 符号键盘"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg></button>
+              <button class="popover-icon-btn" id="photoDraftToggleBtn" title="拍照上传手写草稿识别"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></button>
 
               <!-- LaTeX 符号键盘浮层 -->
               <div class="popover-modal-box" id="latexPopoverBox">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                  <span style="font-size: 0.88rem; font-weight: 700;">📐 全学科 LaTeX 符号预设库</span>
+                  <span style="font-size: 0.88rem; font-weight: 700; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 全学科 LaTeX 符号预设库</span>
                   <span style="font-size: 0.72rem; color: var(--primary); background: rgba(59, 130, 246, 0.1); padding: 2px 7px; border-radius: 4px;">双层分类检索</span>
                 </div>
                 <div class="kbd-segmented-control" id="chatKbdTier1"></div>
@@ -1974,9 +2010,9 @@
 
               <!-- 草稿上传浮层 -->
               <div class="popover-modal-box" id="draftPopoverBox" style="width: 320px;">
-                <div style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px;">📝 手写草稿智能提取</div>
+                <div style="font-size: 0.88rem; font-weight: 700; margin-bottom: 8px; display: inline-flex; align-items: center; gap: 5px;"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg> 手写草稿智能提取</div>
                 <div class="draft-upload-dropzone" style="border: 1px dashed var(--input-border); border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;" onclick="document.getElementById('draftUploadInput').click()">
-                  <div style="font-size: 24px;">📸</div>
+                  <div style="font-size: 24px;"><svg class="ui-icon" style="width: 28px; height: 28px; stroke: var(--text-muted);" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></div>
                   <div style="font-size: 0.82rem; margin-top: 4px;">拍照或上传草稿照片</div>
                   <input type="file" id="draftUploadInput" accept="image/*" style="display: none;" onchange="handleImageUpload(event, 'draft')">
                 </div>
@@ -1988,23 +2024,23 @@
 
           <!-- 实时 LaTeX 公式排版预览 -->
           <div class="latex-preview-card" id="chatPreviewBox" style="display: none;">
-            <span class="latex-preview-title">👁️ 实时公式排版预览：</span>
+            <span class="latex-preview-title"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> 实时公式排版预览：</span>
             <div class="latex-preview-body" id="chatPreviewContent"></div>
           </div>
 
           <!-- 底部操作按钮 -->
           <div class="action-button-row">
             <div class="aux-btn-group">
-              <button class="btn btn-secondary" id="verifyBtn" onclick="handleVerifyClick()">🎯 请求突破校验</button>
-              <button class="btn btn-secondary" id="hintBtn" onclick="handleHintClick()">💡 换个角度</button>
+              <button class="btn btn-secondary" id="verifyBtn" onclick="handleVerifyClick()"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 请求突破校验</button>
+              <button class="btn btn-secondary" id="hintBtn" onclick="handleHintClick()"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> 换个角度</button>
             </div>
-            <button class="btn btn-primary" id="submitBtn" onclick="handleSubmitThought()">🚀 提交思路</button>
+            <button class="btn btn-primary" id="submitBtn" onclick="handleSubmitThought()"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> 提交思路</button>
           </div>
         </div>
 
         <!-- 右侧：学情认知看板 -->
         <div class="col-right">
-          <h3 class="column-title">📊 学情认知看板</h3>
+          <h3 class="column-title"><svg class="ui-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> 学情认知看板</h3>
 
           <!-- 1. 阶段进度 Stepper -->
           <div class="stepper-box" id="stepperContainer">
@@ -2014,18 +2050,18 @@
           <!-- 2. 当前核心目标卡片 -->
           <div class="dashboard-card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-              <span class="dashboard-goal-title" id="stageGoalTitle">🎯 当前目标：审清关键约束与物理边界</span>
+              <span class="dashboard-goal-title" id="stageGoalTitle"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 当前目标：审清关键约束与物理边界</span>
               <span class="dashboard-turn-badge">
                 交互：第 <strong class="dashboard-turn-num" id="stageTurnNum">0</strong> 轮
               </span>
             </div>
-            <div class="dashboard-action-hint">👉 <strong>行动提示</strong>：<span id="stageActionHint">请在左侧回答你对本题条件与已知规律的第一直觉。</span></div>
+            <div class="dashboard-action-hint"><svg class="ui-icon" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg> <strong>行动提示</strong>：<span id="stageActionHint">请在左侧回答你对本题条件与已知规律的第一直觉。</span></div>
           </div>
 
           <!-- 3. 看板 Tabs (盲区透视 / 思维轨迹) -->
           <div class="st-tabs-header">
-            <button class="st-tab-button active" id="tabReportBtn" onclick="switchDashboardTab('report')">⚠️ 盲区透视</button>
-            <button class="st-tab-button" id="tabTrajBtn" onclick="switchDashboardTab('traj')">📈 思维轨迹</button>
+            <button class="st-tab-button active" id="tabReportBtn" onclick="switchDashboardTab('report')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg> 盲区透视</button>
+            <button class="st-tab-button" id="tabTrajBtn" onclick="switchDashboardTab('traj')"><svg class="ui-icon" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg> 思维轨迹</button>
           </div>
 
           <!-- 选项卡 1: 盲区画像与变式矩阵 -->
@@ -2078,6 +2114,41 @@
 
   <!-- 前端核心控制逻辑 (纯原生无第三方重型框架，脱机毫秒级响应) -->
   <script>
+    // 统一线性图标库 (Unified Modern Vector Icons)
+    const ICONS = {
+      compass: `<svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>`,
+      pen: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>`,
+      camera: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>`,
+      lightbulb: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg>`,
+      sigma: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg>`,
+      rocket: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m9 12-2 2"/><path d="m12 15 2-2"/></svg>`,
+      send: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>`,
+      target: `<svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>`,
+      zap: `<svg class="ui-icon" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+      sparkles: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="m12 3-1.9 5.8a2 2 0 0 1-1.3 1.3L3 12l5.8 1.9a2 2 0 0 1 1.3 1.3L12 21l1.9-5.8a2 2 0 0 1 1.3-1.3L21 12l-5.8-1.9a2 2 0 0 1-1.3-1.3Z"/><path d="M19 3v4"/><path d="M21 5h-4"/></svg>`,
+      dashboard: `<svg class="ui-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>`,
+      trendingUp: `<svg class="ui-icon" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+      alertTriangle: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+      eye: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>`,
+      lock: `<svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+      check: `<svg class="ui-icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>`,
+      arrowRight: `<svg class="ui-icon" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>`,
+      messageSquare: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+      pin: `<svg class="ui-icon" viewBox="0 0 24 24"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>`,
+      archive: `<svg class="ui-icon" viewBox="0 0 24 24"><rect width="20" height="5" x="2" y="3" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>`,
+      search: `<svg class="ui-icon" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+      star: `<svg class="ui-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+      moon: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>`,
+      sun: `<svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.34" y2="6.34"/><line x1="17.66" y1="17.66" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="6.34" y1="17.66" x2="4.93" y2="19.07"/><line x1="19.07" y1="4.93" x2="17.66" y2="6.34"/></svg>`,
+      bookOpen: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>`,
+      shield: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+      mail: `<svg class="ui-icon" viewBox="0 0 24 24"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>`,
+      fileText: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+      clock: `<svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+      award: `<svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg>`,
+      flame: `<svg class="ui-icon" viewBox="0 0 24 24"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>`
+    };
+
     const BASE_PATH = window.location.pathname.startsWith('/cogni-scaffold') ? '/cogni-scaffold' : '';
     function apiFetch(path, options) {
       const fullPath = path.startsWith('/') ? (BASE_PATH + path) : (BASE_PATH + '/' + path);
@@ -2116,7 +2187,7 @@
       // 0.2 将“考查要点与暗坑提示”转换为默认折叠交互组件 <details>
       t = t.replace(/(?:^|\n)>\s*💡\s*(?:\*\*)?(?:考查要点与暗坑提示|考查要点|暗坑提示)(?:\*\*)?[：:]\s*([\s\S]*?)(?=\n\s*\n\s*\*\*请在下方|\n\s*\n\s*请在下方|$)/g, (match, hintBody) => {
         const cleanHint = hintBody.replace(/^\s*>\s?/gm, '').trim();
-        return `\n\n<details class="st-hint-expander"><summary class="st-hint-summary">💡 考查要点与暗坑提示 (点击展开)</summary><div class="st-hint-content">\n\n${cleanHint}\n\n</div></details>\n\n`;
+        return `\n\n<details class="st-hint-expander"><summary class="st-hint-summary">${ICONS.lightbulb} 考查要点与暗坑提示 (点击展开)</summary><div class="st-hint-content">\n\n${cleanHint}\n\n</div></details>\n\n`;
       });
 
       // 0.3 针对题干小题序号 (1), (2), (3), (4), （1）, ① 前强制插入独立段落换行，保障数学试卷级专业排版
@@ -2132,7 +2203,7 @@
       const mathPlaceholders = [];
       t = t.replace(/\$\$([\s\S]+?)\$\$/g, (match, formula) => {
         try {
-          const rendered = katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false });
+          const rendered = katex.renderToString(formula.trim(), { displayMode: true, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_BLOCK_${mathPlaceholders.length}%%`;
           mathPlaceholders.push({ placeholder, rendered });
           return placeholder;
@@ -2144,7 +2215,7 @@
       // 3. 提取成对的 $...$ 行内公式并预渲染
       t = t.replace(/\$([^\$\n]+?)\$/g, (match, formula) => {
         try {
-          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
           mathPlaceholders.push({ placeholder, rendered });
           return placeholder;
@@ -2156,7 +2227,7 @@
       // 4. 对未包裹 $ 的孤立常见数学公式（此时已在 mathPlaceholders 之外，绝无破坏成对公式的风险）进行安全识别与渲染
       t = t.replace(/(\\frac\{[^{}]+\}\{[^{}]+\})/g, (match, formula) => {
         try {
-          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
           mathPlaceholders.push({ placeholder, rendered });
           return placeholder;
@@ -2166,7 +2237,7 @@
       });
       t = t.replace(/(\\sqrt\{[^{}]+\})/g, (match, formula) => {
         try {
-          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false });
+          const rendered = katex.renderToString(formula.trim(), { displayMode: false, throwOnError: false, output: 'html' });
           const placeholder = `%%MATH_INLINE_${mathPlaceholders.length}%%`;
           mathPlaceholders.push({ placeholder, rendered });
           return placeholder;
@@ -2279,7 +2350,7 @@
         // 渲染开题示例公式与预设卡片公式
         const sampleMathEl = document.getElementById('onboardSampleMath');
         if (sampleMathEl) {
-          sampleMathEl.innerHTML = katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false });
+          sampleMathEl.innerHTML = katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false, output: 'html' });
         }
         document.querySelectorAll('.preset-card-desc').forEach(el => {
           const raw = el.getAttribute('data-raw') || el.textContent.trim();
@@ -2311,15 +2382,20 @@
       const tIcon = document.getElementById('themeToggleIcon');
       const tBtn = document.getElementById('themeToggleBtn');
       if (tIcon) {
-        tIcon.innerText = isLight ? '☀️' : '🌙';
+        tIcon.innerHTML = isLight ? ICONS.sun : ICONS.moon;
       }
       if (tBtn) {
         tBtn.title = isLight ? '当前为亮色模式，点击切换为暗色模式' : '当前为暗色模式，点击切换为亮色模式';
       }
     }
 
-    function openThemeModal(title, contentHtml) {
-      document.getElementById('customModalTitle').innerText = title;
+    function openThemeModal(title, contentHtml, iconSvg = '') {
+      const headerTitleEl = document.getElementById('customModalTitle');
+      if (iconSvg) {
+        headerTitleEl.innerHTML = `${iconSvg} <span>${title}</span>`;
+      } else {
+        headerTitleEl.innerText = title;
+      }
       document.getElementById('customModalBody').innerHTML = contentHtml;
       document.getElementById('customThemeModal').classList.add('show');
     }
@@ -2330,27 +2406,27 @@
 
     function openFooterModal(type) {
       if (type === 'guide') {
-        openThemeModal('📖 知阶使用指引', `
+        openThemeModal('知阶使用指引', `
           <div style="margin-bottom: 8px;"><strong>1. 提出你的探究命题</strong>：全面支持浙江新高考十门学科（语文、数学、英语、物理、化学、生物、政治、历史、地理、技术）及通用思维拓展，在此输入题目内容或一键载入经典案例。</div>
           <div style="margin-bottom: 8px;"><strong>2. 文理双轨苏格拉底启发</strong>：拒绝直接馈赠答案或现成范文！数理技术轨注重极端特例检验与公式逻辑解构；人文社科轨注重史料实证、多维因果与反事实思辨，搭设层层递进的认知脚手架。</div>
           <div><strong>3. 深度思维画像与三阶变式对抗</strong>：完成突破后自动生成概念盲区画像，并解锁维度拓展、逆向对抗与跨界迁移的三阶同构变式挑战。</div>
-        `);
+        `, ICONS.bookOpen);
       } else if (type === 'philosophy') {
-        openThemeModal('🌱 教育理念与脚手架理论', `
+        openThemeModal('教育理念与脚手架理论', `
           <div style="margin-bottom: 8px;">知阶的设计源自维果茨基<strong>最近发展区 (ZPD)</strong> 理论与苏格拉底<strong>产婆术</strong>。</div>
           <div style="margin-bottom: 8px;">传统搜题工具通过“直接馈赠答案或套路范文”诱发学习者的“虚假理解错觉”与认知怠惰。我们坚信：真正的认知跃迁源于思维困境中的自我质疑与反事实推演。</div>
           <div>无论数理严密演绎还是人文批判性思辨，唯有在矛盾反例与证据链审查中自主反思，才能建立起真正属于学生自己的核心素养与高阶独立思维。</div>
-        `);
+        `, ICONS.compass);
       } else if (type === 'privacy') {
-        openThemeModal('🛡️ 隐私与安全承诺', `
+        openThemeModal('隐私与安全承诺', `
           <div style="margin-bottom: 8px;">• <strong>会话沙箱隔离</strong>：题目与交互思考过程仅保存在你当前的探索会话沙箱中。</div>
           <div>• <strong>安全合规保障</strong>：系统搭载架构级断路器，严格遵守学术诚信与未成年人安全防护准则。</div>
-        `);
+        `, ICONS.shield);
       } else if (type === 'feedback') {
-        openThemeModal('📬 问题与建议反馈', `
+        openThemeModal('问题与建议反馈', `
           <div style="margin-bottom: 8px;">知阶致力于打造真正陪伴高中拔尖与自主探究的启发式全学科工具。如果你发现任何推导逻辑漏洞、史料评判偏差、排版显示问题或有宝贵建议，欢迎随时联系作者：</div>
           <div style="background: rgba(128,128,128,0.1); padding: 8px 12px; border-radius: 6px; font-family: monospace; user-select: all; color: var(--primary);">tensonyin@outlook.com</div>
-        `);
+        `, ICONS.mail);
       }
     }
 
@@ -2801,7 +2877,7 @@
       const qSummary = getTruncatedSummary(qText, 60);
       const summaryMathHtml = formatMarkdown(qSummary).replace(/^<p>/, '').replace(/<\/p>\s*$/, '');
       const qSummaryEl = document.getElementById('questionSummaryText');
-      qSummaryEl.innerHTML = `📌 当前题目：${summaryMathHtml}`;
+      qSummaryEl.innerHTML = `${ICONS.pin} 当前题目：${summaryMathHtml}`;
       renderLatex(qSummaryEl);
       const qContent = document.getElementById('questionFullContent');
       qContent.innerHTML = formatMarkdown(qText);
@@ -2844,14 +2920,14 @@
         }
 
         const msgEl = document.createElement('div');
-        let avatar = "🧭";
+        let avatar = ICONS.compass;
         let cls = "tutor-message";
 
         if (msg.role === 'user') {
-          avatar = "🧑‍🎓";
+          avatar = `<svg class="ui-icon" style="width: 1.25em; height: 1.25em;" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
           cls = "user-message";
         } else if (msg.role === 'assistant_variant') {
-          avatar = "🎯";
+          avatar = ICONS.target;
           cls = "variant-message";
         }
 
@@ -2968,7 +3044,7 @@
         diagArea.innerHTML = `
           <div class="blindspot-locked-card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
-              <span class="locked-title">🔒 盲区画像透视（待解锁）</span>
+              <span class="locked-title" style="display: inline-flex; align-items: center; gap: 5px;">${ICONS.lock} 盲区画像透视（待解锁）</span>
               <span class="locked-badge">需再深度思考 ${remaining} 轮</span>
             </div>
             <div class="locked-desc">正在探测你的第一直觉卡点与隐含逻辑断点，完成 3 轮推导后在此解锁认知归因报告与变式挑战。</div>
@@ -3018,23 +3094,23 @@
         const stars = "⭐".repeat(Math.min(tNum, 4));
 
         if (currTier > tNum) {
-          rowsHtml += `<div class="tier-row-item tier-row-done"><span>${stars} <strong>${title}</strong></span><span>✅ 已通关</span></div>`;
+          rowsHtml += `<div class="tier-row-item tier-row-done"><span>${stars} <strong>${title}</strong></span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.check} 已通关</span></div>`;
         } else if (currTier === tNum) {
-          rowsHtml += `<div class="tier-row-item tier-row-active"><span>${stars} <strong>${title}</strong></span><span>🔥 挑战中</span></div>`;
+          rowsHtml += `<div class="tier-row-item tier-row-active"><span>${stars} <strong>${title}</strong></span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.flame} 挑战中</span></div>`;
         } else {
-          rowsHtml += `<div class="tier-row-item tier-row-locked"><span>★ ${title}</span><span>🔒 待解锁</span></div>`;
+          rowsHtml += `<div class="tier-row-item tier-row-locked"><span>★ ${title}</span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.lock} 待解锁</span></div>`;
         }
       });
 
       matrixArea.innerHTML = `
         <details class="st-expander variant-matrix-expander" open style="margin-top: 8px;">
           <summary style="font-size: 0.84rem; font-weight: 600; cursor: pointer; padding: 6px 10px; background: var(--card-bg); border-radius: 6px; border: 1px solid var(--card-border); list-style: none; display: flex; justify-content: space-between; align-items: center;">
-            <span>🎯 对抗变式闯关进度</span>
+            <span style="display: inline-flex; align-items: center; gap: 5px;">${ICONS.target} 对抗变式闯关进度</span>
             <span style="font-size: 0.75rem; color: var(--text-muted);">点击折叠/展开 ▾</span>
           </summary>
           <div class="variant-matrix-card" style="margin-top: 4px; border-top: none;">
             ${rowsHtml}
-            ${allDone ? `<div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-top: 8px;">🏆 当前全部 ${toChineseNum(maxTier)} 关变式挑战均已通关！</div>` : `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">👉 正在进行第${toChineseNum(currTier)}关挑战，请在左侧作答。</div>`}
+            ${allDone ? `<div style="font-size: 0.8rem; color: #10b981; font-weight: 600; margin-top: 8px;">${ICONS.award} 当前全部 ${toChineseNum(maxTier)} 关变式挑战均已通关！</div>` : `<div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">${ICONS.arrowRight} 正在进行第${toChineseNum(currTier)}关挑战，请在左侧作答。</div>`}
           </div>
         </details>
       `;
@@ -3218,7 +3294,7 @@
       const userMsgEl = document.createElement('div');
       userMsgEl.className = 'st-chat-message user-message';
       userMsgEl.innerHTML = `
-        <div class="st-chat-avatar">🧑‍🎓</div>
+        <div class="st-chat-avatar"><svg class="ui-icon" style="width: 1.25em; height: 1.25em;" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
         <div class="st-chat-content">${formatMarkdown(text)}</div>
       `;
       renderLatex(userMsgEl.querySelector('.st-chat-content'));
@@ -3505,7 +3581,7 @@
         if (labelHtml.includes('$')) {
           labelHtml = labelHtml.replace(/\$([^\$]+)\$/g, (m, f) => {
             try {
-              return katex.renderToString(f, { displayMode: false, throwOnError: false });
+              return katex.renderToString(f, { displayMode: false, throwOnError: false, output: 'html' });
             } catch(e) {
               return m;
             }
@@ -3513,7 +3589,7 @@
         } else if (labelHtml.includes('\\') || labelHtml.includes('^') || labelHtml.includes('_')) {
           // 纯 LaTeX 命令（如 \\overgroup{AB}）
           try {
-            labelHtml = katex.renderToString(labelHtml, { displayMode: false, throwOnError: false });
+            labelHtml = katex.renderToString(labelHtml, { displayMode: false, throwOnError: false, output: 'html' });
           } catch(e) {
             // 保留原文字
           }
