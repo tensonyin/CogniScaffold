@@ -142,7 +142,7 @@ def dispatch_variant_tier_data(session: dict, tier_num: int):
     
     session["dialogue_history"].append({
         "role": "divider",
-        "content": f"阶段 4 · {full_title}"
+        "content": f"变式跃迁 · {full_title}"
     })
     
     prompt_msg = (
