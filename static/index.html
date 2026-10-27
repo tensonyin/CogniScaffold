@@ -2620,17 +2620,131 @@
             <p style="font-size: 0.92rem; color: var(--text-muted); margin-bottom: 10px;">挑选经过认知心理学验证的全学科典型思维暗坑与论证误区，即刻体验苏格拉底启发推导：</p>
             
             <div class="preset-category-tabs">
-              <button class="preset-cat-btn active" data-cat="all" onclick="filterPresetCards('all')"><svg class="ui-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 推荐精选 (全部)</button>
-              <button class="preset-cat-btn" data-cat="stem" onclick="filterPresetCards('stem')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 数理技术轨 (数/物/化/技)</button>
-              <button class="preset-cat-btn" data-cat="humanities" onclick="filterPresetCards('humanities')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> 人文社科轨 (史/语/政/地)</button>
+              <button class="preset-cat-btn active" data-cat="recommend" onclick="filterPresetCards('recommend')"><svg class="ui-icon" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg> 推荐精选 (随机4例)</button>
+              <button class="preset-cat-btn" data-cat="stem" onclick="filterPresetCards('stem')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg> 数理技术轨 (数/物/化/生/技)</button>
+              <button class="preset-cat-btn" data-cat="humanities" onclick="filterPresetCards('humanities')"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg> 人文社科轨 (语/英/史/政/地)</button>
+              <button class="preset-cat-btn" data-cat="explore" onclick="filterPresetCards('explore')"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> 综合探索轨 (前沿/博弈/认知)</button>
+              <button class="preset-cat-btn" id="refreshRecommendBtn" onclick="refreshRandomRecommend()" title="换一批精选推荐案例" style="margin-left: auto; border-style: dashed; color: var(--primary);"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg> 换一批</button>
             </div>
 
             <div class="preset-grid">
-              <div class="preset-card" data-cat="stem" onclick="loadPreset('math_derivative')">
+              <!-- 数理技术轨 (STEM) - 10 个实例 (数/物/化/生/技 各 2 例) -->
+              <div class="preset-card" data-cat="stem" data-key="math_derivative" onclick="loadPreset('math_derivative')">
                 <div class="preset-card-title">📐 数学·导数分类讨论</div>
                 <div class="preset-card-desc" data-raw="暗坑：对数定义域 $x>0$ 隐式约束，及参数 $a \le 0$ 时导数恒正无极值的分类讨论缺失。"></div>
                 <div class="preset-card-btn">载入导数案例 ➔</div>
               </div>
+              <div class="preset-card" data-cat="stem" data-key="math_sequence" onclick="loadPreset('math_sequence')">
+                <div class="preset-card-title">📐 数学·数列放缩归纳</div>
+                <div class="preset-card-desc" data-raw="暗坑：机械套用全域裂项公式导致首项分母为零，缺乏隔离首项保留常数再裂项的降维策略。"></div>
+                <div class="preset-card-btn">载入数列案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="physics_momentum" onclick="loadPreset('physics_momentum')">
+                <div class="preset-card-title">⚖️ 物理·系统动量守恒</div>
+                <div class="preset-card-desc" data-raw="暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。"></div>
+                <div class="preset-card-btn">载入动量案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="physics_electromagnetic" onclick="loadPreset('physics_electromagnetic')">
+                <div class="preset-card-title">🧲 物理·双棒电磁感应平衡</div>
+                <div class="preset-card-desc" data-raw="暗坑：误以为安培力必将两棒减速至静止，忽略两棒相对速度归零时感应电流消失的动动态平衡。"></div>
+                <div class="preset-card-btn">载入电磁案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="chemistry_equilibrium" onclick="loadPreset('chemistry_equilibrium')">
+                <div class="preset-card-title">🧪 化学·中性点电荷守恒</div>
+                <div class="preset-card-desc" data-raw="暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。"></div>
+                <div class="preset-card-btn">载入化学案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="chemistry_redox" onclick="loadPreset('chemistry_redox')">
+                <div class="preset-card-title">🔋 化学·竞争氧化还原顺序</div>
+                <div class="preset-card-desc" data-raw="暗坑：还原性强弱倒置误判氧化优先序，且忽略强氧化剂对背景共存还原离子的假阳性干扰。"></div>
+                <div class="preset-card-btn">载入氧化还原案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="biology_genetics" onclick="loadPreset('biology_genetics')">
+                <div class="preset-card-title">🧬 生物·伴性遗传与致死效应</div>
+                <div class="preset-card-desc" data-raw="暗坑：忽视配子致死破坏了均等存活前提，盲目套用经典 $9:3:3:1$，未建立配子库归一化分析。"></div>
+                <div class="preset-card-btn">载入遗传案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="biology_metabolism" onclick="loadPreset('biology_metabolism')">
+                <div class="preset-card-title">🍃 生物·光合呼吸净积累补偿</div>
+                <div class="preset-card-desc" data-raw="暗坑：混淆正午光合瞬时速率最大点与全天干重净积累最大点（傍晚光补偿点）。"></div>
+                <div class="preset-card-btn">载入光合案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="tech_logic_control" onclick="loadPreset('tech_logic_control')">
+                <div class="preset-card-title">💻 技术·比较器门限电平</div>
+                <div class="preset-card-desc" data-raw="暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。"></div>
+                <div class="preset-card-btn">载入电控案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="stem" data-key="tech_algorithm" onclick="loadPreset('tech_algorithm')">
+                <div class="preset-card-title">⚡ 技术·双指针滑动窗口</div>
+                <div class="preset-card-desc" data-raw="暗坑：看到循环嵌套盲目判定为 $O(n^2)$，忽略双指针单向不回退总步数 $\le 2n$ 的均摊分析。"></div>
+                <div class="preset-card-btn">载入算法案例 ➔</div>
+              </div>
+
+              <!-- 人文社科轨 (Humanities) - 10 个实例 (语/英/史/政/地 各 2 例) -->
+              <div class="preset-card" data-cat="humanities" data-key="chinese_logic_fallacy" onclick="loadPreset('chinese_logic_fallacy')">
+                <div class="preset-card-title">📖 语文·论述批判与隐性前提</div>
+                <div class="preset-card-desc" data-raw="暗坑：被动人情味修辞掩盖逻辑缺陷，混淆创作心理与美学客体范畴，陷入先验循环论证与稻草人归约。"></div>
+                <div class="preset-card-btn">载入论述案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="chinese_ancient_poetry" onclick="loadPreset('chinese_ancient_poetry')">
+                <div class="preset-card-title">🖋️ 语文·古文意象隐喻哲思</div>
+                <div class="preset-card-desc" data-raw="暗坑：将苏轼《赤壁赋》超然物外达观贬低为消极避世阿Q精神，忽略放下占有走向审美的精神超越。"></div>
+                <div class="preset-card-btn">载入古文案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="english_grammar_inversion" onclick="loadPreset('english_grammar_inversion')">
+                <div class="preset-card-title">🔤 英语·否定倒装与虚拟语气</div>
+                <div class="preset-card-desc" data-raw="暗坑：遗漏 nor 置于分句句首时的强制部分倒装，死记句型而未理解比较级与 than 的对应关系。"></div>
+                <div class="preset-card-btn">载入语法案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="english_reading_inference" onclick="loadPreset('english_reading_inference')">
+                <div class="preset-card-title">🌐 英语·阅读主旨与作者态度</div>
+                <div class="preset-card-desc" data-raw="暗坑：受前期让步段落密集褒义词干扰误选乐观，未能把握转折词 Yet 后贬义隐喻的审慎批判立场。"></div>
+                <div class="preset-card-btn">载入阅读案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="history_modernization" onclick="loadPreset('history_modernization')">
+                <div class="preset-card-title">📜 历史·洋务成因与制度局限</div>
+                <div class="preset-card-desc" data-raw="暗坑：将近代化失败降维归因于偶然的财政与装备短缺，忽略“中体西用”维护封建专制制度的阶级局限。"></div>
+                <div class="preset-card-btn">载入历史案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="history_world_order" onclick="loadPreset('history_world_order')">
+                <div class="preset-card-title">🏛️ 历史·凡尔赛体系与危机传导</div>
+                <div class="preset-card-desc" data-raw="暗坑：孤立割裂政治与经济传导，将法西斯上台归因于个人演讲，忽略道威斯三角战债断裂的跨国雪崩。"></div>
+                <div class="preset-card-btn">载入凡尔赛案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="politics_market_failure" onclick="loadPreset('politics_market_failure')">
+                <div class="preset-card-title">⚖️ 政治·市场调节局限与调控</div>
+                <div class="preset-card-desc" data-raw="暗坑：将市场决定作用绝对化为新自由主义放任自流，忽略自然垄断与公共品失灵下的有为政府监管边界。"></div>
+                <div class="preset-card-btn">载入经济学案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="politics_epistemology" onclick="loadPreset('politics_epistemology')">
+                <div class="preset-card-title">💡 政治·认识论实践与矛盾主次</div>
+                <div class="preset-card-desc" data-raw="暗坑：单次实验失败即断言伪科学的庸俗认识论，因局部次要矛盾暴露而全盘否定事物前途的形而上学一点论。"></div>
+                <div class="preset-card-btn">载入哲学案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="geography_atmospheric" onclick="loadPreset('geography_atmospheric')">
+                <div class="preset-card-title">🌍 地理·热力环流与焚风雨影</div>
+                <div class="preset-card-desc" data-raw="暗坑：死记从沿海向内陆海陆分异模板，误以为靠大西洋的高原深居内陆，忽视安第斯背风坡焚风效应。"></div>
+                <div class="preset-card-btn">载入气候案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="humanities" data-key="geography_ocean_circulation" onclick="loadPreset('geography_ocean_circulation')">
+                <div class="preset-card-title">🌊 地理·大洋热盐环流动力机制</div>
+                <div class="preset-card-desc" data-raw="暗坑：线性升温直觉误区，忽视冰川淡水降低海水密度切断温盐环流下沉引擎，引发欧洲局部极寒悖论。"></div>
+                <div class="preset-card-btn">载入洋流案例 ➔</div>
+              </div>
+
+              <!-- 综合探索轨 (Exploration) - 2 个实例 -->
+              <div class="preset-card" data-cat="explore" data-key="explore_fermi_estimate" onclick="loadPreset('explore_fermi_estimate')">
+                <div class="preset-card-title">🚀 探索·费米估算与第一性原理</div>
+                <div class="preset-card-desc" data-raw="暗坑：因缺乏精确统计数据陷入瘫痪，缺乏利用生活常识将未知量拆解为物理基数乘积的费米分解能力。"></div>
+                <div class="preset-card-btn">载入费米案例 ➔</div>
+              </div>
+              <div class="preset-card" data-cat="explore" data-key="explore_prisoners_dilemma" onclick="loadPreset('explore_prisoners_dilemma')">
+                <div class="preset-card-title">🧩 探索·博弈论与纳什均衡</div>
+                <div class="preset-card-desc" data-raw="暗坑：站在旁观全局视角替代自利个体决策，混淆帕累托最优与个体占优策略导致集体次优的纳什均衡。"></div>
+                <div class="preset-card-btn">载入博弈案例 ➔</div>
+              </div>
+            </div>
+          </div>
               <div class="preset-card" data-cat="stem" onclick="loadPreset('physics_momentum')">
                 <div class="preset-card-title">⚖️ 物理·系统动量守恒</div>
                 <div class="preset-card-desc" data-raw="暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。"></div>
@@ -3295,6 +3409,11 @@
           el.setAttribute('data-raw', raw);
           el.innerHTML = formatMarkdown(raw);
         });
+
+        if (typeof pickRandomRecommendKeys === 'function') {
+          pickRandomRecommendKeys();
+          filterPresetCards('recommend');
+        }
 
         renderLatex(document.body);
       } catch (err) {
@@ -4458,19 +4577,63 @@
 
     // 开题子 Tab 切换
     
-    // 经典案例分类筛选
+    // 经典案例分类筛选 (确保每个子画面的实例数量均为偶数个：推荐 4 例，数理 10 例，人文 10 例，探索 2 例)
+    let currentRecommendKeys = [];
+
+    function pickRandomRecommendKeys() {
+      const allCards = Array.from(document.querySelectorAll('.preset-card'));
+      if (allCards.length === 0) return [];
+      // 从全部 22 个案例中随机抽取 4 个不重复的代表性实例
+      const keys = allCards.map(c => c.getAttribute('data-key')).filter(Boolean);
+      // 洗牌算法
+      for (let i = keys.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [keys[i], keys[j]] = [keys[j], keys[i]];
+      }
+      currentRecommendKeys = keys.slice(0, 4);
+      return currentRecommendKeys;
+    }
+
+    function refreshRandomRecommend() {
+      pickRandomRecommendKeys();
+      filterPresetCards('recommend');
+    }
+
     function filterPresetCards(cat) {
+      if (cat === 'all') cat = 'recommend';
+      const refreshBtn = document.getElementById('refreshRecommendBtn');
+      if (refreshBtn) {
+        refreshBtn.style.display = (cat === 'recommend') ? 'inline-flex' : 'none';
+      }
+
       document.querySelectorAll('.preset-cat-btn').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-cat') === cat);
       });
-      document.querySelectorAll('.preset-card').forEach(card => {
-        const cardCat = card.getAttribute('data-cat');
-        if (cat === 'all' || cardCat === cat) {
-          card.style.display = 'flex';
-        } else {
-          card.style.display = 'none';
+
+      if (cat === 'recommend') {
+        if (!currentRecommendKeys || currentRecommendKeys.length !== 4) {
+          pickRandomRecommendKeys();
         }
-      });
+        document.querySelectorAll('.preset-card').forEach(card => {
+          const key = card.getAttribute('data-key');
+          if (currentRecommendKeys.includes(key)) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      } else {
+        document.querySelectorAll('.preset-card').forEach(card => {
+          const cardCat = card.getAttribute('data-cat');
+          if (cardCat === cat) {
+            card.style.display = 'flex';
+          } else {
+            card.style.display = 'none';
+          }
+        });
+      }
+
+      renderLatex(document.getElementById('onboardTabPreset'));
     }
 
     function switchOnboardTab(tab) {
@@ -4482,6 +4645,8 @@
       document.getElementById('onboardTabPreset').style.display = tab === 'preset' ? 'block' : 'none';
 
       if (tab === 'preset') {
+        if (!currentRecommendKeys || currentRecommendKeys.length !== 4) { pickRandomRecommendKeys(); }
+        filterPresetCards('recommend');
         document.querySelectorAll('.preset-card-desc').forEach(el => {
           const raw = el.getAttribute('data-raw');
           if (raw) {

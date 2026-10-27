@@ -163,18 +163,17 @@ def dispatch_variant_tier_data(session: dict, tier_num: int):
 def trigger_diagnosis_for_session(session: dict, offline_mode: bool = False):
     q_t = session.get("question", "")
     if offline_mode:
-        if "动量" in q_t or "滑块" in q_t or "凹槽" in q_t:
-            preset = GOLDEN_PRESETS.get("physics_momentum")
-        elif "NaOH" in q_t or "CH_3COOH" in q_t or "中性" in q_t or "水解" in q_t:
-            preset = GOLDEN_PRESETS.get("chemistry_equilibrium")
-        elif "热敏电阻" in q_t or "比较器" in q_t or "三极管" in q_t:
-            preset = GOLDEN_PRESETS.get("tech_logic_control")
-        elif "李鸿章" in q_t or "洋务" in q_t or "历史" in q_t or "官督商办" in q_t:
-            preset = GOLDEN_PRESETS.get("history_modernization")
-        elif "人工智能" in q_t or "艺术" in q_t or "痛感" in q_t or "谬误" in q_t:
-            preset = GOLDEN_PRESETS.get("chinese_logic_fallacy")
-        else:
-            preset = GOLDEN_PRESETS.get("math_derivative")
+        matched = None
+        for k, v in GOLDEN_PRESETS.items():
+            if v.get("question") == q_t or (v.get("title") and v["title"] in session.get("title", "")):
+                matched = v
+                break
+        if not matched:
+            for k, v in GOLDEN_PRESETS.items():
+                if v.get("subject") and v["subject"] in q_t:
+                    matched = v
+                    break
+        preset = matched or GOLDEN_PRESETS.get("math_derivative")
         session["diagnostic_result"] = preset["preset_diagnostic"]
     else:
         session["diagnostic_result"] = generate_diagnostic_report(
@@ -558,15 +557,7 @@ async def init_question(request: Request, data: dict):
 
     if preset_key and preset_key in GOLDEN_PRESETS:
         preset = GOLDEN_PRESETS[preset_key]
-        title_map = {
-            "math_derivative": "📐 数学·导数极值分类",
-            "physics_momentum": "⚖️ 物理·系统动量守恒",
-            "chemistry_equilibrium": "🧪 化学·中性点电荷守恒",
-            "tech_logic_control": "💻 技术·比较器门限电平",
-            "history_modernization": "📜 历史·洋务成因与制度局限",
-            "chinese_logic_fallacy": "📖 语文·论述批判与隐性前提"
-        }
-        sess["title"] = title_map.get(preset_key, preset.get("title", "💡 探索·思维引导突破"))
+        sess["title"] = preset.get("title", "💡 探索·思维引导突破")
         sess["is_initialized"] = True
         sess["title_stage"] = 1
         sess["question"] = preset["question"]
