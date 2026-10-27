@@ -94,9 +94,6 @@
   </script>
 
   <style>
-    50% { opacity: 0.4; transform: scale(0.85); }
-    }
-
     /* 全局与字体重置 */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -104,6 +101,22 @@
       box-sizing: border-box;
       margin: 0;
       padding: 0;
+    }
+
+    html, body, div, span, applet, object, iframe,
+    h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+    a, abbr, acronym, address, big, cite, code,
+    del, dfn, em, img, ins, kbd, q, s, samp,
+    small, strike, strong, sub, sup, tt, var,
+    b, u, i, center,
+    dl, dt, dd, ol, ul, li,
+    fieldset, form, label, legend,
+    table, caption, tbody, tfoot, thead, tr, th, td,
+    article, aside, canvas, details, embed, 
+    figure, figcaption, footer, header, hgroup, 
+    menu, nav, output, ruby, section, summary,
+    time, mark, audio, video, input, textarea, button, select {
+      box-sizing: border-box;
     }
 
     html, body {
@@ -504,6 +517,8 @@
     .onboard-textarea-wrapper {
       position: relative;
       width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
     }
     .onboard-kbd-toggle-trigger {
       position: absolute;
@@ -1333,6 +1348,8 @@
 
     textarea.student-input {
       width: 100%;
+      max-width: 100%;
+      box-sizing: border-box;
       height: 125px;
       background: var(--input-bg);
       border: 1px solid var(--input-border);
@@ -2575,7 +2592,7 @@
             </div>
             
             <div class="onboard-textarea-wrapper">
-              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px;" placeholder="在此输入或粘贴题目完整内容与材料（覆盖浙江十门科目与通用思维拓展，理科公式支持 LaTeX 如 $x^2 + 1 = 0$ 或 $F = ma$）..."></textarea>
+              <textarea id="onboardTextInput" class="student-input" style="height: 120px; padding-right: 42px; box-sizing: border-box; width: 100%; max-width: 100%;" placeholder="在此输入或粘贴题目完整内容与材料（覆盖浙江十门科目与通用思维拓展，理科公式支持 LaTeX 如 $x^2 + 1 = 0$ 或 $F = ma$）..."></textarea>
               <button class="onboard-kbd-toggle-trigger" id="onboardKbdToggleBtn" title="插入 LaTeX 科学符号与公式"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M18 4H6l7 8-7 8h12"/></svg></button>
 
               <!-- 悬浮 LaTeX 符号键盘浮层 -->
