@@ -94,31 +94,7 @@
   </script>
 
   <style>
-    /* 离线安全仓管理员指示胶囊 */
-    .offline-mode-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 0.76rem;
-      font-weight: 600;
-      color: #f59e0b;
-      background: rgba(245, 158, 11, 0.12);
-      border: 1px solid rgba(245, 158, 11, 0.35);
-      border-radius: 20px;
-      padding: 3px 10px;
-      margin-right: 6px;
-    }
-    .offline-mode-badge .badge-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #f59e0b;
-      box-shadow: 0 0 6px rgba(245, 158, 11, 0.8);
-      animation: pulseDot 2s infinite;
-    }
-    @keyframes pulseDot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(0.85); }
+    50% { opacity: 0.4; transform: scale(0.85); }
     }
 
     /* 全局与字体重置 */
@@ -2515,10 +2491,6 @@
     </div>
     <div class="add-tab-circle" id="addBtn" title="新建解题探索标签页">+</div>
     <div class="right-controls">
-      <!-- 离线演练安全仓激活状态指示胶囊 -->
-      <div class="offline-mode-badge" id="offlineModeBanner" style="display: none;" title="当前已进入离线演练安全仓模式（仅管理员可控，断网可用，无Token消耗）">
-        <span class="badge-dot"></span> 🛡️ 离线演示仓
-      </div>
       <!-- 动态用户身份胶囊 -->
       <div class="user-auth-wrapper" id="userAuthWrapper">
         <button class="user-auth-btn" id="userAuthBtn" onclick="handleUserAuthBtnClick(event)">
@@ -2527,10 +2499,6 @@
         </button>
         <div class="user-profile-menu" id="userProfileMenu">
           <div class="user-menu-header" id="userMenuHeader">未登录 (游客试看)</div>
-          <div class="user-menu-item" id="menuItemOfflineDemo" onclick="toggleAdminOfflineDemo()" style="display: none;">
-            <svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            <span id="offlineMenuText">🛡️ 离线安全仓 (开/关)</span>
-          </div>
           <div class="user-menu-item" id="menuItemChangePwd" onclick="openChangePasswordModal()" style="display: none;">
             <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             修改密码
@@ -2680,7 +2648,7 @@
                 <div class="preset-card-btn">载入动量案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" data-key="physics_electromagnetic" onclick="loadPreset('physics_electromagnetic')">
-                <div class="preset-card-title">🧲 物理·双棒电磁感应平衡</div>
+                <div class="preset-card-title">⚖️ 物理·双棒电磁感应平衡</div>
                 <div class="preset-card-desc" data-raw="暗坑：误以为安培力必将两棒减速至静止，忽略两棒相对速度归零时感应电流消失的动动态平衡。"></div>
                 <div class="preset-card-btn">载入电磁案例 ➔</div>
               </div>
@@ -2690,7 +2658,7 @@
                 <div class="preset-card-btn">载入化学案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" data-key="chemistry_redox" onclick="loadPreset('chemistry_redox')">
-                <div class="preset-card-title">🔋 化学·竞争氧化还原顺序</div>
+                <div class="preset-card-title">🧪 化学·竞争氧化还原顺序</div>
                 <div class="preset-card-desc" data-raw="暗坑：还原性强弱倒置误判氧化优先序，且忽略强氧化剂对背景共存还原离子的假阳性干扰。"></div>
                 <div class="preset-card-btn">载入氧化还原案例 ➔</div>
               </div>
@@ -2700,7 +2668,7 @@
                 <div class="preset-card-btn">载入遗传案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" data-key="biology_metabolism" onclick="loadPreset('biology_metabolism')">
-                <div class="preset-card-title">🍃 生物·光合呼吸净积累补偿</div>
+                <div class="preset-card-title">🧬 生物·光合呼吸净积累补偿</div>
                 <div class="preset-card-desc" data-raw="暗坑：混淆正午光合瞬时速率最大点与全天干重净积累最大点（傍晚光补偿点）。"></div>
                 <div class="preset-card-btn">载入光合案例 ➔</div>
               </div>
@@ -2710,7 +2678,7 @@
                 <div class="preset-card-btn">载入电控案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="stem" data-key="tech_algorithm" onclick="loadPreset('tech_algorithm')">
-                <div class="preset-card-title">⚡ 技术·双指针滑动窗口</div>
+                <div class="preset-card-title">💻 技术·双指针滑动窗口</div>
                 <div class="preset-card-desc" data-raw="暗坑：看到循环嵌套盲目判定为 $O(n^2)$，忽略双指针单向不回退总步数 $\le 2n$ 的均摊分析。"></div>
                 <div class="preset-card-btn">载入算法案例 ➔</div>
               </div>
@@ -2722,7 +2690,7 @@
                 <div class="preset-card-btn">载入论述案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" data-key="chinese_ancient_poetry" onclick="loadPreset('chinese_ancient_poetry')">
-                <div class="preset-card-title">🖋️ 语文·古文意象隐喻哲思</div>
+                <div class="preset-card-title">📖 语文·古文意象隐喻哲思</div>
                 <div class="preset-card-desc" data-raw="暗坑：将苏轼《赤壁赋》超然物外达观贬低为消极避世阿Q精神，忽略放下占有走向审美的精神超越。"></div>
                 <div class="preset-card-btn">载入古文案例 ➔</div>
               </div>
@@ -2732,7 +2700,7 @@
                 <div class="preset-card-btn">载入语法案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" data-key="english_reading_inference" onclick="loadPreset('english_reading_inference')">
-                <div class="preset-card-title">🌐 英语·阅读主旨与作者态度</div>
+                <div class="preset-card-title">🔤 英语·阅读主旨与作者态度</div>
                 <div class="preset-card-desc" data-raw="暗坑：受前期让步段落密集褒义词干扰误选乐观，未能把握转折词 Yet 后贬义隐喻的审慎批判立场。"></div>
                 <div class="preset-card-btn">载入阅读案例 ➔</div>
               </div>
@@ -2742,17 +2710,17 @@
                 <div class="preset-card-btn">载入历史案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" data-key="history_world_order" onclick="loadPreset('history_world_order')">
-                <div class="preset-card-title">🏛️ 历史·凡尔赛体系与危机传导</div>
+                <div class="preset-card-title">📜 历史·凡尔赛体系与危机传导</div>
                 <div class="preset-card-desc" data-raw="暗坑：孤立割裂政治与经济传导，将法西斯上台归因于个人演讲，忽略道威斯三角战债断裂的跨国雪崩。"></div>
                 <div class="preset-card-btn">载入凡尔赛案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" data-key="politics_market_failure" onclick="loadPreset('politics_market_failure')">
-                <div class="preset-card-title">⚖️ 政治·市场调节局限与调控</div>
+                <div class="preset-card-title">🏛️ 政治·市场调节局限与调控</div>
                 <div class="preset-card-desc" data-raw="暗坑：将市场决定作用绝对化为新自由主义放任自流，忽略自然垄断与公共品失灵下的有为政府监管边界。"></div>
                 <div class="preset-card-btn">载入经济学案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" data-key="politics_epistemology" onclick="loadPreset('politics_epistemology')">
-                <div class="preset-card-title">💡 政治·认识论实践与矛盾主次</div>
+                <div class="preset-card-title">🏛️ 政治·认识论实践与矛盾主次</div>
                 <div class="preset-card-desc" data-raw="暗坑：单次实验失败即断言伪科学的庸俗认识论，因局部次要矛盾暴露而全盘否定事物前途的形而上学一点论。"></div>
                 <div class="preset-card-btn">载入哲学案例 ➔</div>
               </div>
@@ -2762,14 +2730,14 @@
                 <div class="preset-card-btn">载入气候案例 ➔</div>
               </div>
               <div class="preset-card" data-cat="humanities" data-key="geography_ocean_circulation" onclick="loadPreset('geography_ocean_circulation')">
-                <div class="preset-card-title">🌊 地理·大洋热盐环流动力机制</div>
+                <div class="preset-card-title">🌍 地理·大洋热盐环流动力机制</div>
                 <div class="preset-card-desc" data-raw="暗坑：线性升温直觉误区，忽视冰川淡水降低海水密度切断温盐环流下沉引擎，引发欧洲局部极寒悖论。"></div>
                 <div class="preset-card-btn">载入洋流案例 ➔</div>
               </div>
 
               <!-- 综合探索轨 (Exploration) - 2 个实例 -->
               <div class="preset-card" data-cat="explore" data-key="explore_fermi_estimate" onclick="loadPreset('explore_fermi_estimate')">
-                <div class="preset-card-title">🚀 探索·费米估算与第一性原理</div>
+                <div class="preset-card-title">🧩 探索·费米估算与第一性原理</div>
                 <div class="preset-card-desc" data-raw="暗坑：因缺乏精确统计数据陷入瘫痪，缺乏利用生活常识将未知量拆解为物理基数乘积的费米分解能力。"></div>
                 <div class="preset-card-btn">载入费米案例 ➔</div>
               </div>
@@ -2778,33 +2746,7 @@
                 <div class="preset-card-desc" data-raw="暗坑：站在旁观全局视角替代自利个体决策，混淆帕累托最优与个体占优策略导致集体次优的纳什均衡。"></div>
                 <div class="preset-card-btn">载入博弈案例 ➔</div>
               </div>
-            </div>
-          </div>
-              <div class="preset-card" data-cat="stem" onclick="loadPreset('physics_momentum')">
-                <div class="preset-card-title">⚖️ 物理·系统动量守恒</div>
-                <div class="preset-card-desc" data-raw="暗坑：动量守恒是矢量定律，滑块下滑竖直方向合外力不为零，仅水平分动量守恒。"></div>
-                <div class="preset-card-btn">载入动量案例 ➔</div>
-              </div>
-              <div class="preset-card" data-cat="humanities" onclick="loadPreset('history_modernization')">
-                <div class="preset-card-title">📜 历史·洋务成因与制度局限</div>
-                <div class="preset-card-desc" data-raw="暗坑：将近代化失败降维归因于偶然的财政与装备短缺，忽略“中体西用”维护封建专制制度的阶级局限。"></div>
-                <div class="preset-card-btn">载入历史案例 ➔</div>
-              </div>
-              <div class="preset-card" data-cat="humanities" onclick="loadPreset('chinese_logic_fallacy')">
-                <div class="preset-card-title">📖 语文·论述批判与隐性前提</div>
-                <div class="preset-card-desc" data-raw="暗坑：被动人情味修辞掩盖逻辑缺陷，混淆创作心理与美学客体范畴，陷入先验循环论证与稻草人归约。"></div>
-                <div class="preset-card-btn">载入语文案例 ➔</div>
-              </div>
-              <div class="preset-card" data-cat="stem" onclick="loadPreset('chemistry_equilibrium')">
-                <div class="preset-card-title">🧪 化学·中性点电荷守恒</div>
-                <div class="preset-card-desc" data-raw="暗坑：混淆中性点（$\mathrm{pH}=7$）与化学反应终点，忽略电荷守恒 $c(\mathrm{Na^+})=c(\mathrm{CH_3COO^-})$。"></div>
-                <div class="preset-card-btn">载入化学案例 ➔</div>
-              </div>
-              <div class="preset-card" data-cat="stem" onclick="loadPreset('tech_logic_control')">
-                <div class="preset-card-title">💻 技术·比较器门限电平</div>
-                <div class="preset-card-desc" data-raw="暗坑：直觉简化导致忽略分压桥臂电位升降，及电压比较器阈值突变逻辑断层。"></div>
-                <div class="preset-card-btn">载入技术案例 ➔</div>
-              </div>
+
             </div>
           </div>
         </div>
@@ -3116,8 +3058,7 @@
     }
 
     let currentUser = null;
-    let isOfflineDemoMode = false;
-    let pendingActionAfterLogin = null;
+        let pendingActionAfterLogin = null;
     let appState = null;
     let latexTree = null;
     let activeKbdT1 = null;
@@ -3412,8 +3353,7 @@
         const res = await apiFetch('/api/bootstrap');
         const data = await res.json();
         currentUser = data.user || null;
-        isOfflineDemoMode = !!data.offline_demo;
-        updateUserUI();
+                updateUserUI();
 
         if (currentUser && data.store) {
           appState = data.store;
@@ -3632,24 +3572,45 @@
         let title = (sess.title || "探索会话").trim();
         const displayTitle = cleanTitleForDisplay(title);
         
-        // 智能提取标题中的已有 Emoji，确保标签栏严格仅保留 1 个 Emoji
+        // 智能提取标题中的已有 Emoji，严格使用 11 门类统一定制的规范 Emoji
+        const CANONICAL_ICONS = {
+          "数学": "📐", "物理": "⚖️", "化学": "🧪", "生物": "🧬", "技术": "💻",
+          "语文": "📖", "英语": "🔤", "历史": "📜", "政治": "🏛️", "地理": "🌍", "探索": "🧩"
+        };
         const emojiMatch = displayTitle.match(/^[\p{Extended_Pictographic}\u2600-\u27BF\uFE0F]+/u);
-        let icon = "🧭";
+        let icon = "🧩";
         let pureTitle = displayTitle;
         if (emojiMatch) {
           icon = emojiMatch[0];
           pureTitle = displayTitle.slice(icon.length).trim();
+          // 若为非标准 Emoji (如旧版 💡, 🧭, 🚀)，自动标准化映射为规范 Emoji
+          if (icon === "💡" || icon === "🧭" || icon === "🚀") {
+            let matched = false;
+            for (const [subj, emo] of Object.entries(CANONICAL_ICONS)) {
+              if (displayTitle.includes(subj)) {
+                icon = emo;
+                matched = true;
+                break;
+              }
+            }
+            if (!matched) icon = "🧩";
+          }
         } else {
-          if (title.includes("物理") || title.includes("动量")) icon = "⚖️";
-          else if (title.includes("数学") || title.includes("导数")) icon = "📐";
-          else if (title.includes("化学")) icon = "🧪";
-          else if (title.includes("技术")) icon = "💻";
-          else if (title.includes("历史")) icon = "📜";
-          else if (title.includes("语文") || title.includes("阅读")) icon = "📖";
-          else if (title.includes("政治")) icon = "🏛️";
-          else if (title.includes("地理")) icon = "🌍";
-          else if (title.includes("生物")) icon = "🧬";
-          else icon = "💡";
+          let matched = false;
+          for (const [subj, emo] of Object.entries(CANONICAL_ICONS)) {
+            if (title.includes(subj)) {
+              icon = emo;
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) {
+            if (title.includes("动量") || title.includes("电磁")) icon = "⚖️";
+            else if (title.includes("导数") || title.includes("数列") || title.includes("几何")) icon = "📐";
+            else if (title.includes("英语") || /[a-zA-Z]{5,}/.test(title)) icon = "🔤";
+            else if (title.includes("阅读") || title.includes("隐性前提")) icon = "📖";
+            else icon = "🧩";
+          }
         }
         pureTitle = pureTitle.replace(/^(?:高考|高中)/, '').trim();
 
@@ -3746,17 +3707,7 @@
         if (itemLogout) itemLogout.style.display = 'flex';
         if (menuDivider) menuDivider.style.display = 'block';
 
-        // 仅系统管理员可见并控制离线演练安全仓
-        const isUserAdmin = currentUser && (currentUser.role === 'admin' || currentUser.username === 'admin');
-        const itemOffline = document.getElementById('menuItemOfflineDemo');
-        if (itemOffline) {
-          itemOffline.style.display = isUserAdmin ? 'flex' : 'none';
-          const offlineText = document.getElementById('offlineMenuText');
-          if (offlineText) {
-            offlineText.textContent = isOfflineDemoMode ? '🛡️ 离线安全仓 (已激活·点击关闭)' : '🛡️ 离线安全仓 (已关闭·点击开启)';
-            offlineText.style.color = isOfflineDemoMode ? '#f59e0b' : 'inherit';
-          }
-        }
+        
       } else {
         if (userNameText) userNameText.textContent = '登录';
         if (userAuthBtn) userAuthBtn.classList.remove('logged-in');
@@ -3765,37 +3716,9 @@
         if (itemLogout) itemLogout.style.display = 'none';
         if (menuDivider) menuDivider.style.display = 'none';
       }
-      const banner = document.getElementById('offlineModeBanner');
-      if (banner) {
-        banner.style.display = isOfflineDemoMode ? 'inline-flex' : 'none';
-      }
+      
     }
 
-    // 管理员切换离线演示模式
-    async function toggleAdminOfflineDemo() {
-      if (!currentUser || (currentUser.role !== 'admin' && currentUser.username !== 'admin')) {
-        alert("无权操作：离线演示安全仓模式仅允许系统管理员进入！");
-        return;
-      }
-      try {
-        const nextState = !isOfflineDemoMode;
-        const res = await apiFetch('/api/admin/toggle_offline_demo', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ enabled: nextState })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          isOfflineDemoMode = !!data.offline_demo;
-          updateUserUI();
-          alert(data.message || (isOfflineDemoMode ? "🛡️ 离线演示模式已激活" : "🌐 已恢复真实大模型在线模式"));
-        } else {
-          alert("操作失败：" + (data.detail || "权限不足"));
-        }
-      } catch (err) {
-        alert("网络或接口异常：" + err.message);
-      }
-    }
 
     function handleUserAuthBtnClick(e) {
       e.stopPropagation();
@@ -4062,50 +3985,52 @@
       renderHistoryList(activeHistoryTab);
     }
 
-    // 学科分类归类判定器 (统一 Emoji+学科 规范)
+    // 学科分类归类判定器 (统一 Emoji+学科 规范：涵盖高考十科与综合探索)
     const ALL_CATEGORIES = [
       { key: "math", label: "📐 数学", fullLabel: "📐 数学", order: 1 },
       { key: "physics", label: "⚖️ 物理", fullLabel: "⚖️ 物理", order: 2 },
       { key: "chemistry", label: "🧪 化学", fullLabel: "🧪 化学", order: 3 },
       { key: "biology", label: "🧬 生物", fullLabel: "🧬 生物", order: 4 },
-      { key: "geography", label: "🌍 地理", fullLabel: "🌍 地理", order: 5 },
-      { key: "history", label: "📜 历史", fullLabel: "📜 历史", order: 6 },
-      { key: "chinese", label: "📖 语文", fullLabel: "📖 语文", order: 7 },
-      { key: "politics", label: "🏛️ 政治", fullLabel: "🏛️ 政治", order: 8 },
-      { key: "technology", label: "💻 技术", fullLabel: "💻 技术", order: 9 },
-      { key: "other", label: "💡 综合", fullLabel: "💡 综合思辨", order: 10 }
+      { key: "technology", label: "💻 技术", fullLabel: "💻 技术", order: 5 },
+      { key: "chinese", label: "📖 语文", fullLabel: "📖 语文", order: 6 },
+      { key: "english", label: "🔤 英语", fullLabel: "🔤 英语", order: 7 },
+      { key: "history", label: "📜 历史", fullLabel: "📜 历史", order: 8 },
+      { key: "politics", label: "🏛️ 政治", fullLabel: "🏛️ 政治", order: 9 },
+      { key: "geography", label: "🌍 地理", fullLabel: "🌍 地理", order: 10 },
+      { key: "explore", label: "🧩 探索", fullLabel: "🧩 综合探索", order: 11 }
     ];
 
     function categorizeSession(sess) {
-      const t = (sess.title || "") + " " + (sess.question || "");
-      if (t.includes("📐") || t.includes("数学") || t.includes("导数") || t.includes("函数") || t.includes("几何") || t.includes("数列")) {
-        return ALL_CATEGORIES[0];
-      }
-      if (t.includes("⚖️") || t.includes("物理") || t.includes("动量") || t.includes("力学") || t.includes("电磁") || t.includes("天体")) {
-        return ALL_CATEGORIES[1];
-      }
-      if (t.includes("🧪") || t.includes("化学") || t.includes("离子") || t.includes("平衡") || t.includes("电解") || t.includes("有机")) {
-        return ALL_CATEGORIES[2];
-      }
-      if (t.includes("🧬") || t.includes("生物") || t.includes("遗传") || t.includes("细胞") || t.includes("光合") || t.includes("神经")) {
-        return ALL_CATEGORIES[3];
-      }
-      if (t.includes("🌍") || t.includes("地理") || t.includes("等高线") || t.includes("气候") || t.includes("洋流") || t.includes("区位")) {
-        return ALL_CATEGORIES[4];
-      }
-      if (t.includes("📜") || t.includes("历史") || t.includes("洋务") || t.includes("辛亥") || t.includes("科举") || t.includes("史料")) {
-        return ALL_CATEGORIES[5];
-      }
-      if (t.includes("📖") || t.includes("语文") || t.includes("论证") || t.includes("现代文") || t.includes("文言文") || t.includes("主旨") || t.includes("修辞")) {
-        return ALL_CATEGORIES[6];
-      }
-      if (t.includes("🏛️") || t.includes("政治") || t.includes("哲学") || t.includes("经济") || t.includes("制度")) {
-        return ALL_CATEGORIES[7];
-      }
-      if (t.includes("💻") || t.includes("技术") || t.includes("信息") || t.includes("算法") || t.includes("电路") || t.includes("逻辑门")) {
-        return ALL_CATEGORIES[8];
-      }
-      return ALL_CATEGORIES[9];
+      // 严格按照标题前若干字精确归类
+      const title = (sess.title || "").trim();
+      const head = title.slice(0, 8); // 提取前 8 个字符（包含 Emoji 与学科名）
+
+      if (head.includes("数学") || head.includes("📐")) return ALL_CATEGORIES[0];
+      if (head.includes("物理") || head.includes("⚖️")) return ALL_CATEGORIES[1];
+      if (head.includes("化学") || head.includes("🧪")) return ALL_CATEGORIES[2];
+      if (head.includes("生物") || head.includes("🧬")) return ALL_CATEGORIES[3];
+      if (head.includes("技术") || head.includes("💻")) return ALL_CATEGORIES[4];
+      if (head.includes("语文") || head.includes("📖")) return ALL_CATEGORIES[5];
+      if (head.includes("英语") || head.includes("🔤")) return ALL_CATEGORIES[6];
+      if (head.includes("历史") || head.includes("📜")) return ALL_CATEGORIES[7];
+      if (head.includes("政治") || head.includes("🏛️")) return ALL_CATEGORIES[8];
+      if (head.includes("地理") || head.includes("🌍")) return ALL_CATEGORIES[9];
+      if (head.includes("探索") || head.includes("🧩") || head.includes("🚀") || head.includes("💡")) return ALL_CATEGORIES[10];
+
+      // 仅当标题缺少前缀时做问题前文启发式研判
+      const q = (sess.question || "").trim().slice(0, 30);
+      if (q.includes("英语") || /[a-zA-Z]{5,}/.test(q)) return ALL_CATEGORIES[6];
+      if (q.includes("数学") || q.includes("导数") || q.includes("数列") || q.includes("函数")) return ALL_CATEGORIES[0];
+      if (q.includes("物理") || q.includes("动量") || q.includes("电磁") || q.includes("力学")) return ALL_CATEGORIES[1];
+      if (q.includes("化学") || q.includes("平衡") || q.includes("离子") || q.includes("氧化")) return ALL_CATEGORIES[2];
+      if (q.includes("生物") || q.includes("遗传") || q.includes("代谢") || q.includes("光合")) return ALL_CATEGORIES[3];
+      if (q.includes("技术") || q.includes("算法") || q.includes("门限") || q.includes("电路")) return ALL_CATEGORIES[4];
+      if (q.includes("语文") || q.includes("论述") || q.includes("隐性前提")) return ALL_CATEGORIES[5];
+      if (q.includes("历史") || q.includes("洋务") || q.includes("凡尔赛")) return ALL_CATEGORIES[7];
+      if (q.includes("政治") || q.includes("市场") || q.includes("哲学")) return ALL_CATEGORIES[8];
+      if (q.includes("地理") || q.includes("环流") || q.includes("洋流")) return ALL_CATEGORIES[9];
+
+      return ALL_CATEGORIES[10]; // 探索
     }
 
     function renderHistoryList(tab) {

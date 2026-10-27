@@ -2,7 +2,7 @@
 CogniScaffold 会话存储与多标签页数据持久化引擎
 优化：
 1. 区分“待开题空会话”与“正式推导会话”
-2. 差异化初始标题（💡 探索 #1, #2...），避免标签栏全是雷同文字
+2. 差异化初始标题（🧩 探索 #1, #2...），避免标签栏全是雷同文字
 3. 开题即提炼学科短标题，突破后追加错因定性
 """
 
@@ -52,10 +52,10 @@ def save_all_data(data: Dict[str, Any]):
 def create_new_session_data(title: str = None, question: str = "", is_initialized: bool = False, store: Dict[str, Any] = None) -> Dict[str, Any]:
     """
     创建一个全新的会话对象：
-    - 若未指定 title，则根据递增计数器分配明确的标题（如 💡 探索 #1）
+    - 若未指定 title，则根据递增计数器分配明确的标题（如 🧩 探索 #1）
     - is_initialized=False 表示这是一个新对话，主界面将展示优雅的“录入新题目”开题页
     """
-    default_title = title if title else "💡 新建探索"
+    default_title = title if title else "🧩 探索·新建会话"
 
     return {
         "id": str(uuid.uuid4())[:8],
@@ -90,8 +90,8 @@ def generate_session_title(
 ) -> str:
     """
     两段式 AI 标题生成：
-    - 阶段 1 (开题/首轮): 极速提炼「学科 + 核心题型」（7-10字，优先本地 0 延迟启发识别）
-    - 阶段 2 (突破结算后): 在原标题后追加「错因总结」（如 📐 数学·导数分类 [边界遗漏突破]）
+    - 阶段 1 (开题/首轮): 极速提炼统一规范【Emoji 学科·核心微考点】（严禁生成除高考10科及探索外的其他标题）
+    - 阶段 2 (突破结算后): 在原标题后追加「错因总结」（如 📐 数学·导数极值分类 [边界遗漏突破]）
     """
     if title_stage == 2 and diagnostic_result:
         blindspot = diagnostic_result.get("blindspot_type", "突破")
@@ -99,30 +99,51 @@ def generate_session_title(
         base_title = current_title.split("[")[0].strip()
         return f"{base_title} [{short_tag}突破]"
 
+    # 规范前缀映射字典 (覆盖 10 科 + 1 探索，严格对应唯一定制 Emoji)
+    CANONICAL_PREFIXES = {
+        "数学": "📐 数学·",
+        "物理": "⚖️ 物理·",
+        "化学": "🧪 化学·",
+        "生物": "🧬 生物·",
+        "技术": "💻 技术·",
+        "语文": "📖 语文·",
+        "英语": "🔤 英语·",
+        "历史": "📜 历史·",
+        "政治": "🏛️ 政治·",
+        "地理": "🌍 地理·",
+        "探索": "🧩 探索·",
+    }
+
     # 阶段 1：首轮提炼学科与题目类型
-    # 优先调用大模型高精度提取【Emoji 学科·题型概括】，失败时回退到全学科语义规则库
     if question and api_config and api_config.get("api_key"):
         try:
             from core.engine import get_openai_client
             client = get_openai_client(api_config["api_key"], api_config.get("base_url", ""))
             prompt = (
-                "你是一个学科题目标签提炼专家。请仔细阅读以下高中/大学题目，严格按如下格式输出精炼标签：\n"
-                "【单个Emoji】 【学科名】·【核心考点或微模型概括（严格4至8个汉字）】\n"
-                "常用Emoji与学科映射范例：\n"
-                "📐 数学·导数极值讨论、📐 数学·空间立体几何、📐 数学·圆锥曲线离心率\n"
-                "⚖️ 物理·斜面多体受力、⚖️ 物理·电磁感应双杆、⚖️ 物理·系统动量守恒\n"
-                "🧪 化学·水溶液离子平衡、🧪 化学·原电池电解原理\n"
-                "🧬 生物·遗传系谱图计算、🧬 生物·光合呼吸调节\n"
-                "🌍 地理·等高线地形特征、🌍 地理·洋流与气候分布\n"
-                "🏛️ 历史·中央集权制度演变、🏛️ 政治·市场调节与宏观调控\n"
-                "💻 技术·二叉树与算法设计、💻 技术·逻辑控制电路\n"
-                "规则：仅输出一行符合上述格式的标题，禁止带有引号、括号、前缀或任何多余文字说明！\n\n"
+                "你是一个高中与大学题目学科分类专家。请仔细阅读以下题目，将其严格归入以下【11个标准门类】之一，并生成规范标题：\n"
+                "【标准门类与固定Emoji映射表】：\n"
+                "- 📐 数学·【核心微考点】 (例如：📐 数学·导数极值讨论)\n"
+                "- ⚖️ 物理·【核心微考点】 (例如：⚖️ 物理·电磁感应双杆)\n"
+                "- 🧪 化学·【核心微考点】 (例如：🧪 化学·中性点电荷守恒)\n"
+                "- 🧬 生物·【核心微考点】 (例如：🧬 生物·遗传系谱图计算)\n"
+                "- 💻 技术·【核心微考点】 (例如：💻 技术·动态规划与控制)\n"
+                "- 📖 语文·【核心微考点】 (例如：📖 语文·论述批判与隐性前提)\n"
+                "- 🔤 英语·【核心微考点】 (例如：🔤 英语·倒装虚拟与长难句)\n"
+                "- 📜 历史·【核心微考点】 (例如：📜 历史·洋务成因与制度局限)\n"
+                "- 🏛️ 政治·【核心微考点】 (例如：🏛️ 政治·市场调节与宏观调控)\n"
+                "- 🌍 地理·【核心微考点】 (例如：🌍 地理·热力环流与洋流)\n"
+                "- 🧩 探索·【核心微考点】 (例如：🧩 探索·费米估算与博弈论)\n\n"
+                "严格规则：\n"
+                "1. 绝对不要生成除上述 10 门学科及「探索」之外的任何其他学科门类！若无法明确属于十科，必须归为「🧩 探索·xxx」！\n"
+                "2. Emoji 必须严格使用上方表格中对应门类的唯一指定 Emoji，严禁使用任何其他 Emoji！\n"
+                "3. 输出格式严格为：【Emoji】 【学科/探索名】·【考点概括（严格4至8个汉字）】\n"
+                "4. 仅输出一行，绝对不要带有任何引号、括号或多余说明！\n\n"
                 f"题目：\n{question[:350]}"
             )
             resp = client.chat.completions.create(
                 model=api_config.get("model", "deepseek-chat"),
                 messages=[
-                    {"role": "system", "content": "你只输出指定格式的一行学科标签，绝不废话。"},
+                    {"role": "system", "content": "你只输出指定格式的一行学科标签，绝不包含任何多余文字。"},
                     {"role": "user", "content": prompt}
                 ],
                 max_tokens=25,
@@ -131,16 +152,33 @@ def generate_session_title(
             )
             ai_title = resp.choices[0].message.content.strip().replace('"', '').replace("'", '').replace("【", "").replace("】", "")
             ai_title = ai_title.split("\n")[0].strip()
-            if len(ai_title) >= 4 and ("·" in ai_title or " " in ai_title):
-                return ai_title
+
+            # 校验并标准化前缀，严防模型偶发生成非标准 Emoji
+            matched_prefix = None
+            for subj, pfx in CANONICAL_PREFIXES.items():
+                if subj in ai_title or pfx in ai_title:
+                    matched_prefix = pfx
+                    break
+
+            if matched_prefix:
+                # 提取考点名
+                core_topic = ai_title.split("·")[-1].strip().split()[-1].strip()
+                core_topic = re.sub(r'^[^一-龥a-zA-Z0-9]+', '', core_topic)[:10]
+                if core_topic:
+                    return f"{matched_prefix}{core_topic}"
+            elif len(ai_title) >= 4 and "·" in ai_title:
+                return f"🧩 探索·{ai_title.split('·')[-1].strip()[:8]}"
         except Exception as e:
             print(f"AI Title generation fallback: {e}")
 
-    # 本地全学科规则匹配回退机制
+    # 本地全学科规则匹配回退机制 (严格覆盖 10 科 + 探索)
     if question:
         q_clean = question.replace("\n", " ").strip()
+        # 英语 (英文字符较多或语法核心词)
+        if any(k in q_clean for k in ["虚拟语气", "倒装", "从句", "阅读理解", "完形填空", "英语", "宾语从句", "定语从句", "inversion", "syntax"]) or len(re.findall(r'[a-zA-Z]{3,}', q_clean)) >= 6:
+            return "🔤 英语·语法逻辑与主旨推断"
         # 数学
-        if any(k in q_clean for k in ["导数", "极值", "单调", "切线", "驻点", "ln", "e^x", "f'(x)", "f(x)"]):
+        elif any(k in q_clean for k in ["导数", "极值", "单调", "切线", "驻点", "ln", "e^x", "f'(x)", "f(x)"]):
             return "📐 数学·导数与极值讨论"
         elif any(k in q_clean for k in ["椭圆", "双曲线", "抛物线", "离心率", "渐近线", "弦长", "焦点", "圆锥曲线"]):
             return "📐 数学·解析几何与圆锥曲线"
@@ -152,13 +190,13 @@ def generate_session_title(
             return "📐 数学·三角函数与向量"
         # 物理
         elif any(k in q_clean for k in ["动量", "碰撞", "弹性", "滑块", "小车", "动能", "反冲", "系统守恒"]):
-            return "⚖️ 物理·动量与系统守恒"
+            return "⚖️ 物理·系统动量与守恒"
         elif any(k in q_clean for k in ["磁场", "电场", "洛伦兹", "带电粒子", "偏转", "回旋", "感应电动势", "安培力"]):
-            return "⚖️ 物理·电磁复合场粒子"
+            return "⚖️ 物理·电磁复合场感应"
         elif any(k in q_clean for k in ["行星", "卫星", "轨道", "万有引力", "开普勒", "第一宇宙速度"]):
             return "⚖️ 物理·天体引力与轨道"
         elif any(k in q_clean for k in ["摩擦力", "斜面", "牛顿第二定律", "传送带", "圆周运动", "向心力"]):
-            return "⚖️ 物理·经典力学综合"
+            return "⚖️ 物理·动力学受力平衡"
         # 化学
         elif any(k in q_clean for k in ["水解", "电离", "pH", "平衡常数", "Ka", "Kb", "Kw", "NaOH", "CH3COOH", "沉淀溶解"]):
             return "🧪 化学·溶液平衡与离子"
@@ -168,41 +206,44 @@ def generate_session_title(
             return "🧪 化学·有机合成与推断"
         # 生物
         elif any(k in q_clean for k in ["基因", "遗传", "伴性遗传", "孟德尔", "显性", "隐性", "DNA", "RNA", "染色体"]):
-            return "🧬 生物·遗传系谱与概率"
+            return "🧬 生物·遗传系谱与伴性遗传"
         elif any(k in q_clean for k in ["光合", "呼吸", "叶绿体", "线粒体", "ATP", "神经", "激素", "反射弧", "内环境"]):
-            return "🧬 生物·细胞代谢与调节"
-        # 地理
-        elif any(k in q_clean for k in ["等高线", "晨昏线", "地转偏向力", "锋面", "气旋", "洋流", "板块", "岩石圈", "经纬度"]):
-            return "🌍 地理·自然地理与要素"
-        elif any(k in q_clean for k in ["城市区位", "人口迁移", "工业集聚", "农业地域", "交通运输", "可持续发展"]):
-            return "🌍 地理·人文与区域发展"
-        # 历史 / 政治
-        elif any(k in q_clean for k in ["洋务", "李鸿章", "甲午", "官督商办", "科举", "郡县", "封建", "辛亥", "抗日", "改革开放", "冷战", "工业革命", "历史", "史料"]):
-            return "📜 历史·洋务成因与制度局限" if "洋务" in q_clean else "📜 历史·历史演进与脉络"
-        elif any(k in q_clean for k in ["商品", "货币", "市场经济", "宏观调控", "人大", "政协", "矛盾", "唯物主义", "政治"]):
-            return "🏛️ 政治·制度与哲学原理"
-        # 语文 / 批判性思维
-        elif any(k in q_clean for k in ["现代文", "论证", "谬误", "隐性前提", "稻草人", "滑坡", "主旨", "修辞", "文言文", "阅读", "语文"]):
-            return "📖 语文·论述批判与隐性前提" if ("前提" in q_clean or "谬误" in q_clean) else "📖 语文·文本阅读与思辨"
-        # 信息学与通用技术
-        elif any(k in q_clean for k in ["二叉树", "动态规划", "dp", "二分", "贪心", "复杂度", "递归", "状态转移", "三极管", "比较器", "555"]):
-            return "💻 技术·算法与控制系统"
+            return "🧬 生物·细胞代谢与平衡调节"
+# 地理
+        elif any(k in q_clean for k in ["等高线", "晨昏线", "地转偏向力", "锋面", "气旋", "洋流", "板块", "岩石圈", "经纬度", "热力", "山谷风", "海陆风", "大气环流", "季风", "降水", "气候", "水循环", "地质构造", "褶皱", "断层", "地理"]):
+            return "🌍 地理·自然环境与热力环流"
+        elif any(k in q_clean for k in ["城市区位", "人口迁移", "工业集聚", "农业地域", "交通运输", "可持续发展", "城镇化", "产业转移"]):
+            return "🌍 地理·人文区位与协同发展"
+        # 历史
+        elif any(k in q_clean for k in ["洋务", "李鸿章", "甲午", "官督商办", "科举", "郡县", "封建", "辛亥", "抗日", "改革开放", "冷战", "工业革命", "凡尔赛", "历史", "史料", "王朝", "帝国", "皇帝"]):
+            return "📜 历史·洋务成因与制度局限" if "洋务" in q_clean else "📜 历史·历史演进与文明脉络"
+        # 政治
+        elif any(k in q_clean for k in ["商品", "货币", "市场经济", "宏观调控", "人大", "政协", "矛盾", "唯物主义", "政治", "实践", "认识论", "市场失灵", "公共物品", "自然垄断", "辩证"]):
+            return "🏛️ 政治·制度调控与哲学辨证"
+        # 技术
+        elif any(k in q_clean for k in ["二叉树", "动态规划", "dp", "二分", "贪心", "复杂度", "递归", "状态转移", "三极管", "比较器", "555", "电路", "技术", "门限", "算法", "寄存器"]):
+            return "💻 技术·算法逻辑与系统控制"
+        # 语文
+        elif any(k in q_clean for k in ["现代文", "论述", "论证", "谬误", "隐性前提", "人情味", "稻草人", "滑坡", "主旨", "修辞", "文言文", "阅读", "语文", "诗歌", "词赋", "鲁迅", "通假字", "意象", "抒情", "散文", "小说", "先验"]):
+            return "📖 语文·论述批判与隐性前提" if any(w in q_clean for w in ["前提", "谬误", "论述", "论证", "批判", "先验"]) else "📖 语文·文本阅读与思辨"
+        # 探索类 (费米估算/博弈论/逻辑谜题)
+        elif any(k in q_clean for k in ["费米", "估算", "纳什", "博弈", "囚徒", "帕累托", "逻辑", "悖论"]):
+            return "🧩 探索·思维建模与博弈推演"
 
-    # 若未命中，提取清晰概括
+    # 若未命中任何特定学科，统一规范归入 🧩 探索
     if question:
-        t = re.sub(r'\\frac\{([^{}]+)\}\{([^{}]+)\}', r'\1/\2', question)
-        t = re.sub(r'\\sqrt\{([^{}]+)\}', r'√\1', t)
+        t = re.sub(r'\\frac\{([^\{\}]+)\}\{([^\{\}]+)\}', r'\1/\2', question)
+        t = re.sub(r'\\sqrt\{([^\{\}]+)\}', r'√\1', t)
         t = t.replace(r'\times', '×').replace(r'\div', '÷').replace(r'\pm', '±').replace(r'\infty', '∞')
         t = re.sub(r'\\(ln|log|sin|cos|tan)\b', r'\1', t)
         t = re.sub(r'\\[a-zA-Z]+', '', t)
-        clean = re.sub(r'[\$#\*`\\{}_]+', ' ', t).strip()
+        clean = re.sub(r'[\$#\*`\\\{\}_]+', ' ', t).strip()
         clean = re.sub(r'\s+', ' ', clean).strip()
-        if len(clean) > 10:
-            return f"💡 探索·{clean[:8]}题型"
-        elif clean:
-            return f"💡 探索·{clean}"
+        clean_word = re.sub(r'[^\u4e00-\u9fa5a-zA-Z0-9]+', '', clean)[:6]
+        if clean_word:
+            return f"🧩 探索·{clean_word}探究"
 
-    return "💡 探索·思维引导突破"
+    return "🧩 探索·思维引导突破"
 
 
 CHINESE_NUMS = ["零", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五", "十六", "十七", "十八", "十九", "二十"]

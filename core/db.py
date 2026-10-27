@@ -142,6 +142,9 @@ def init_db():
     # 检查并迁移历史 JSON 数据
     _migrate_legacy_json_data(conn)
 
+    # 检查并注入 student01 的 22 个学科与探索金牌实例 (全员置星与完成对话)
+    _seed_student01_golden_presets(conn)
+
     conn.close()
 
 
@@ -223,6 +226,124 @@ def _migrate_legacy_json_data(conn: sqlite3.Connection):
         print(f"Error migrating legacy history data: {e}")
 
 
+def _seed_student01_golden_presets(conn: sqlite3.Connection):
+    """为 student01 账号注入全部 22 个学科与探索实例的完整对话，并默认置星收藏（追加保留现有记录）"""
+    try:
+        from core.presets import GOLDEN_PRESETS
+    except Exception as e:
+        print(f"Warning: could not import GOLDEN_PRESETS: {e}")
+        return
+
+    cur = conn.cursor()
+    cur.execute("SELECT id FROM users WHERE username = 'student01';")
+    stu_row = cur.fetchone()
+    if not stu_row:
+        return
+    stu_id = stu_row["id"]
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # 获取 student01 当前已有的题目
+    cur.execute("SELECT question, id FROM sessions WHERE user_id = ?;", (stu_id,))
+    existing = {row["question"]: row["id"] for row in cur.fetchall() if row["question"]}
+
+    # 查询当前最大 sort_order
+    cur.execute("SELECT COALESCE(MAX(sort_order), 0) FROM sessions WHERE user_id = ?;", (stu_id,))
+    max_order = cur.fetchone()[0]
+
+    first_preset_id = None
+    inserted_count = 0
+
+    for key, p in GOLDEN_PRESETS.items():
+        q = p.get("question", "")
+        if not q:
+            continue
+        max_order += 1
+        
+        # 提取 3 轮完整师生对话 (共 6 条消息)
+        sim_list = p.get("offline_simulation", [])
+        dialogue = []
+        if p.get("initial_student_input"):
+            dialogue.append({"role": "user", "content": p["initial_student_input"], "timestamp": now})
+        for r in sim_list:
+            if r.get("round") == 1:
+                dialogue.append({"role": "assistant", "content": r.get("tutor_response", "").replace("[TRIGGER_DIAGNOSIS]", "").strip(), "timestamp": now})
+            elif r.get("round") == 2:
+                if r.get("student_reply"):
+                    dialogue.append({"role": "user", "content": r["student_reply"], "timestamp": now})
+                dialogue.append({"role": "assistant", "content": r.get("tutor_response", "").replace("[TRIGGER_DIAGNOSIS]", "").strip(), "timestamp": now})
+            elif r.get("round") == 3:
+                if r.get("student_reply"):
+                    dialogue.append({"role": "user", "content": r["student_reply"], "timestamp": now})
+                dialogue.append({"role": "assistant", "content": r.get("tutor_response", "").replace("[TRIGGER_DIAGNOSIS]", "").strip(), "timestamp": now})
+
+        if q in existing:
+            # 已经存在此实例：确保所有匹配会话均恢复活跃、置星收藏，并补充标准标题、完整阶段信息、重置待诊断状态与完整对话
+            cur.execute("""
+            UPDATE sessions 
+            SET title = ?, is_starred = 1, tutor_turns = 3, current_stage = 2, is_archived = 0, diagnostic_result = NULL, transfer_eval_result = NULL 
+            WHERE user_id = ? AND question = ?;
+            """, (p.get("title", key), stu_id, q))
+
+            # 遍历该题目的每个会话，确保至少有全量 6 条完成对话
+            cur.execute("SELECT id FROM sessions WHERE user_id = ? AND question = ?;", (stu_id, q))
+            matching_ids = [r["id"] for r in cur.fetchall()]
+            for s_id in matching_ids:
+                cur.execute("SELECT COUNT(*) FROM messages WHERE session_id = ?;", (s_id,))
+                existing_msg_count = cur.fetchone()[0]
+                if existing_msg_count < 6 and len(dialogue) >= 6:
+                    cur.execute("DELETE FROM messages WHERE session_id = ?;", (s_id,))
+                    for idx, msg in enumerate(dialogue):
+                        cur.execute("""
+                        INSERT INTO messages (session_id, user_id, role, content, timestamp, metadata, created_at)
+                        VALUES (?, ?, ?, ?, ?, NULL, ?);
+                        """, (s_id, stu_id, msg["role"], msg["content"], msg.get("timestamp", now), int(time.time() * 1000) + idx))
+            if not first_preset_id and matching_ids:
+                first_preset_id = matching_ids[0]
+            continue
+
+        # 新插入会话
+        s_id = f"preset_{key}_{stu_id[:4]}"
+        if not first_preset_id:
+            first_preset_id = s_id
+        cur.execute("""
+        INSERT INTO sessions (
+            id, user_id, title, is_starred, is_initialized, question,
+            current_stage, tutor_turns, solver_blueprint, diagnostic_result,
+            transfer_eval_result, current_variant_tier, title_stage,
+            is_archived, sort_order, created_at, updated_at
+        ) VALUES (?, ?, ?, 1, 1, ?, 2, 3, ?, NULL, NULL, 1, 2, 0, ?, ?, ?);
+        """, (
+            s_id,
+            stu_id,
+            p.get("title", key),
+            q,
+            p.get("solver_blueprint", ""),
+            max_order,
+            now,
+            now
+        ))
+
+        for idx, msg in enumerate(dialogue):
+            cur.execute("""
+            INSERT INTO messages (session_id, user_id, role, content, timestamp, metadata, created_at)
+            VALUES (?, ?, ?, ?, ?, NULL, ?);
+            """, (s_id, stu_id, msg["role"], msg["content"], msg.get("timestamp", now), int(time.time() * 1000) + idx))
+
+        inserted_count += 1
+
+    # 检查 student01 的 user_preferences 是否有当前活跃会话
+    cur.execute("SELECT current_session_id FROM user_preferences WHERE user_id = ?;", (stu_id,))
+    pref_row = cur.fetchone()
+    if not pref_row or not pref_row["current_session_id"]:
+        cur.execute("""
+        INSERT OR REPLACE INTO user_preferences (user_id, current_session_id, theme, session_order)
+        VALUES (?, ?, 'dark', NULL);
+        """, (stu_id, first_preset_id))
+
+    conn.commit()
+    print(f"Seeded student01 with {inserted_count} new presets (all 22 starred and completed).")
+
+
 def _insert_session_record(conn: sqlite3.Connection, user_id: str, s: Dict[str, Any], is_archived: int, sort_order: int):
     cur = conn.cursor()
     s_id = s.get("id") or str(uuid.uuid4())[:8]
@@ -238,7 +359,7 @@ def _insert_session_record(conn: sqlite3.Connection, user_id: str, s: Dict[str, 
     """, (
         s_id,
         user_id,
-        s.get("title", "💡 新建探索"),
+        s.get("title", "🧩 探索·新建会话"),
         1 if s.get("is_starred") else 0,
         1 if s.get("is_initialized") else 0,
         s.get("question", ""),
@@ -471,7 +592,7 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
     if not active_sessions and not archived_sessions:
         default_sess = {
             "id": str(uuid.uuid4())[:8],
-            "title": "💡 新建探索",
+            "title": "🧩 探索·新建会话",
             "is_starred": False,
             "is_initialized": False,
             "question": "",
@@ -582,7 +703,7 @@ def save_user_session(user_id: str, session_data: Dict[str, Any]):
     """, (
         s_id,
         user_id,
-        session_data.get("title", "💡 新建探索"),
+        session_data.get("title", "🧩 探索·新建会话"),
         1 if session_data.get("is_starred") else 0,
         1 if session_data.get("is_initialized") else 0,
         session_data.get("question", ""),
