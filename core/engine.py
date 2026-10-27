@@ -439,6 +439,14 @@ def generate_next_tier_variant(
                 for field in ["question", "hint"]:
                     if field in data and isinstance(data[field], str):
                         data[field] = re.sub(r'\\n([a-zA-Z]*)', lambda m: m.group(0) if m.group(1) in latex_n_cmds else f"\n{m.group(1)}", data[field]).replace('\\r', '')
+                
+                # 清除 LLM 习惯性输出的“如图”、“如图所示”等误导性无图词汇，保持纯文本完全自洽
+                if "question" in data and isinstance(data["question"], str):
+                    q = data["question"].strip()
+                    q = re.sub(r'^(?:如图\s*(?:所示)?(?:，|,|：|:|\s)*|见图\s*(?:，|,|：|:|\s)*)', '设', q)
+                    q = re.sub(r'([，,。；;])\s*如图\s*(?:所示)?(?:，|,|：|:|\s)*', r'\1', q)
+                    data["question"] = q
+
                 return data
         except Exception:
             pass
