@@ -94,6 +94,33 @@
   </script>
 
   <style>
+    /* 离线安全仓管理员指示胶囊 */
+    .offline-mode-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.76rem;
+      font-weight: 600;
+      color: #f59e0b;
+      background: rgba(245, 158, 11, 0.12);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      border-radius: 20px;
+      padding: 3px 10px;
+      margin-right: 6px;
+    }
+    .offline-mode-badge .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #f59e0b;
+      box-shadow: 0 0 6px rgba(245, 158, 11, 0.8);
+      animation: pulseDot 2s infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
     /* 全局与字体重置 */
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -2488,6 +2515,10 @@
     </div>
     <div class="add-tab-circle" id="addBtn" title="新建解题探索标签页">+</div>
     <div class="right-controls">
+      <!-- 离线演练安全仓激活状态指示胶囊 -->
+      <div class="offline-mode-badge" id="offlineModeBanner" style="display: none;" title="当前已进入离线演练安全仓模式（仅管理员可控，断网可用，无Token消耗）">
+        <span class="badge-dot"></span> 🛡️ 离线演示仓
+      </div>
       <!-- 动态用户身份胶囊 -->
       <div class="user-auth-wrapper" id="userAuthWrapper">
         <button class="user-auth-btn" id="userAuthBtn" onclick="handleUserAuthBtnClick(event)">
@@ -2496,6 +2527,10 @@
         </button>
         <div class="user-profile-menu" id="userProfileMenu">
           <div class="user-menu-header" id="userMenuHeader">未登录 (游客试看)</div>
+          <div class="user-menu-item" id="menuItemOfflineDemo" onclick="toggleAdminOfflineDemo()" style="display: none;">
+            <svg class="ui-icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            <span id="offlineMenuText">🛡️ 离线安全仓 (开/关)</span>
+          </div>
           <div class="user-menu-item" id="menuItemChangePwd" onclick="openChangePasswordModal()" style="display: none;">
             <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             修改密码
@@ -3081,6 +3116,7 @@
     }
 
     let currentUser = null;
+    let isOfflineDemoMode = false;
     let pendingActionAfterLogin = null;
     let appState = null;
     let latexTree = null;
@@ -3376,6 +3412,7 @@
         const res = await apiFetch('/api/bootstrap');
         const data = await res.json();
         currentUser = data.user || null;
+        isOfflineDemoMode = !!data.offline_demo;
         updateUserUI();
 
         if (currentUser && data.store) {
@@ -3708,6 +3745,18 @@
         if (itemChangePwd) itemChangePwd.style.display = 'flex';
         if (itemLogout) itemLogout.style.display = 'flex';
         if (menuDivider) menuDivider.style.display = 'block';
+
+        // 仅系统管理员可见并控制离线演练安全仓
+        const isUserAdmin = currentUser && (currentUser.role === 'admin' || currentUser.username === 'admin');
+        const itemOffline = document.getElementById('menuItemOfflineDemo');
+        if (itemOffline) {
+          itemOffline.style.display = isUserAdmin ? 'flex' : 'none';
+          const offlineText = document.getElementById('offlineMenuText');
+          if (offlineText) {
+            offlineText.textContent = isOfflineDemoMode ? '🛡️ 离线安全仓 (已激活·点击关闭)' : '🛡️ 离线安全仓 (已关闭·点击开启)';
+            offlineText.style.color = isOfflineDemoMode ? '#f59e0b' : 'inherit';
+          }
+        }
       } else {
         if (userNameText) userNameText.textContent = '登录';
         if (userAuthBtn) userAuthBtn.classList.remove('logged-in');
@@ -3715,6 +3764,36 @@
         if (itemChangePwd) itemChangePwd.style.display = 'none';
         if (itemLogout) itemLogout.style.display = 'none';
         if (menuDivider) menuDivider.style.display = 'none';
+      }
+      const banner = document.getElementById('offlineModeBanner');
+      if (banner) {
+        banner.style.display = isOfflineDemoMode ? 'inline-flex' : 'none';
+      }
+    }
+
+    // 管理员切换离线演示模式
+    async function toggleAdminOfflineDemo() {
+      if (!currentUser || (currentUser.role !== 'admin' && currentUser.username !== 'admin')) {
+        alert("无权操作：离线演示安全仓模式仅允许系统管理员进入！");
+        return;
+      }
+      try {
+        const nextState = !isOfflineDemoMode;
+        const res = await apiFetch('/api/admin/toggle_offline_demo', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ enabled: nextState })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          isOfflineDemoMode = !!data.offline_demo;
+          updateUserUI();
+          alert(data.message || (isOfflineDemoMode ? "🛡️ 离线演示模式已激活" : "🌐 已恢复真实大模型在线模式"));
+        } else {
+          alert("操作失败：" + (data.detail || "权限不足"));
+        }
+      } catch (err) {
+        alert("网络或接口异常：" + err.message);
       }
     }
 

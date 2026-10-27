@@ -84,6 +84,8 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 app.mount("/vendor", StaticFiles(directory="static/vendor"), name="vendor")
 app.mount("/cogni-scaffold/static", StaticFiles(directory="static"), name="static_subpath")
 
+GLOBAL_OFFLINE_DEMO = False
+
 api_config = {
     "api_key": os.getenv("OPENAI_API_KEY", ""),
     "base_url": os.getenv("OPENAI_BASE_URL", "https://api.deepseek.com"),
@@ -242,7 +244,28 @@ async def get_bootstrap(request: Request):
             } for k, v in GOLDEN_PRESETS.items()
         },
         "latex_presets_tree": LATEX_PRESETS_TREE,
-        "offline_demo": False
+        "offline_demo": GLOBAL_OFFLINE_DEMO
+    }
+
+
+@app.post("/api/admin/toggle_offline_demo")
+@app.post("/cogni-scaffold/api/admin/toggle_offline_demo")
+async def toggle_offline_demo(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user or user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="无权操作：离线安全仓演示模式仅允许系统管理员进入")
+    
+    global GLOBAL_OFFLINE_DEMO
+    enabled = data.get("enabled")
+    if enabled is None:
+        GLOBAL_OFFLINE_DEMO = not GLOBAL_OFFLINE_DEMO
+    else:
+        GLOBAL_OFFLINE_DEMO = bool(enabled)
+    
+    log_audit_event(user["id"], "TOGGLE_OFFLINE_DEMO", f"Offline demo toggled to {GLOBAL_OFFLINE_DEMO}", get_client_ip(request))
+    return {
+        "offline_demo": GLOBAL_OFFLINE_DEMO,
+        "message": f"🛡️ 离线安全仓演示模式已{'开启（断网可用，无Token消耗）' if GLOBAL_OFFLINE_DEMO else '关闭（恢复大模型在线推理）'}"
     }
 
 
@@ -657,7 +680,7 @@ async def verify_session(request: Request, data: dict):
         sess = store.get("active_sessions", {}).get(s_id)
         if sess.get("diagnostic_result"):
             return {"status": "ok", "store": store}
-        trigger_diagnosis_for_session(sess, offline_mode=False)
+        trigger_diagnosis_for_session(sess, offline_mode=GLOBAL_OFFLINE_DEMO)
         save_user_session(user_id, sess)
         return {"status": "ok", "store": get_user_store(user_id)}
 
@@ -696,13 +719,20 @@ async def next_tier(request: Request, data: dict):
             return {"status": "ok", "store": store}
 
         next_t = max_t + 1
-        new_variant = generate_next_tier_variant(
-            sess.get("question", ""),
-            sess.get("dialogue_history", []),
-            diag,
-            next_t,
-            api_config
-        )
+        if GLOBAL_OFFLINE_DEMO:
+            new_variant = {
+                "title": f"第{to_chinese_num(next_t)}关：离线高阶极限定向逆转拓展",
+                "question": f"基于前序关卡推导，深入分析若外部环境约束达到极值时，核心系统参数如何实现自适应平衡？",
+                "hint": "离线拟真变式：运用第一性原理反思极限定理成立的充要条件。"
+            }
+        else:
+            new_variant = generate_next_tier_variant(
+                sess.get("question", ""),
+                sess.get("dialogue_history", []),
+                diag,
+                next_t,
+                api_config
+            )
         diag[f"tier{next_t}_variant"] = new_variant
         sess["diagnostic_result"] = diag
         sess["current_variant_tier"] = next_t
@@ -837,7 +867,10 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 var_q = tier_data.get("question", "变式题")
                 var_h = tier_data.get("hint", "")
 
-                eval_text = evaluate_transfer_answer(var_q, var_h, student_text, api_config)
+                if GLOBAL_OFFLINE_DEMO:
+                    eval_text = f"【综合评定】：通过！\n\n你准确识别了本关变式的核心破局点，逻辑推理严谨自洽，成功破解深层认知盲区！各项评测指标均达 90 分以上！[PASSED]"
+                else:
+                    eval_text = evaluate_transfer_answer(var_q, var_h, student_text, api_config)
                 
                 chunk_size = 8
                 for i in range(0, len(eval_text), chunk_size):
@@ -864,12 +897,36 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 full_response = ""
                 temp_history = list(sess["dialogue_history"])
                 
-                for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config):
-                    full_response += chunk
-                    clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
-                    if clean_chunk:
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.01)
+                if GLOBAL_OFFLINE_DEMO:
+                    preset = None
+                    for k, v in GOLDEN_PRESETS.items():
+                        if v.get("question") == sess.get("question") or (v.get("title") and v["title"] in sess.get("title", "")):
+                            preset = v
+                            break
+                    if not preset:
+                        for k, v in GOLDEN_PRESETS.items():
+                            if v.get("subject") and v["subject"] in sess.get("question", ""):
+                                preset = v
+                                break
+                    preset = preset or GOLDEN_PRESETS.get("math_derivative")
+                    sim_rounds = preset.get("offline_simulation", [])
+                    turn_idx = min(sess.get("tutor_turns", 0), len(sim_rounds) - 1)
+                    sim_turn = sim_rounds[turn_idx]
+                    sim_text = sim_turn.get("tutor_response", "请继续深入审视核心因果关系。 [TRIGGER_DIAGNOSIS]")
+
+                    for chunk in simulate_offline_stream(sim_text, delay=0.015):
+                        full_response += chunk
+                        clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
+                        if clean_chunk:
+                            yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                        await asyncio.sleep(0.015)
+                else:
+                    for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config):
+                        full_response += chunk
+                        clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
+                        if clean_chunk:
+                            yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                        await asyncio.sleep(0.01)
 
                 clean_full = full_response.replace("[TRIGGER_DIAGNOSIS]", "").strip()
                 sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
@@ -891,13 +948,12 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
 
                 can_trigger_diagnosis = (
                     not is_refusal
-                    and intent_type not in ["LOW_INFO", "DEMAND_ANSWER"]
-                    and sess.get("tutor_turns", 0) >= 2
+                    and (GLOBAL_OFFLINE_DEMO or (intent_type not in ["LOW_INFO", "DEMAND_ANSWER"] and sess.get("tutor_turns", 0) >= 2))
                     and "[TRIGGER_DIAGNOSIS]" in full_response
                 )
 
                 if can_trigger_diagnosis:
-                    trigger_diagnosis_for_session(sess, offline_mode=False)
+                    trigger_diagnosis_for_session(sess, offline_mode=GLOBAL_OFFLINE_DEMO)
 
                 save_user_session(user_id, sess)
                 yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
