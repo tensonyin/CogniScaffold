@@ -20,7 +20,7 @@ _COMPILED_SENSITIVE = re.compile("|".join(_SENSITIVE_PATTERNS), re.IGNORECASE)
 # 统一合规拒答文案
 STANDARD_REFUSAL_MESSAGE = (
     "抱歉，该内容涉及敏感或违规话题，我无法予以回应。"
-    "如果你在数理化学科学习或题目分析上有任何疑问，我很乐意继续陪你一起探讨。"
+    "如果你在各学科知识学习、思维建构或题目分析上有任何疑问，我很乐意继续陪你一起探讨。"
 )
 
 # 大模型输出的拒答特征检测

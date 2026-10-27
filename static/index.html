@@ -3160,10 +3160,26 @@
       } catch (e) {}
     }
 
+    // HTML 实体编码工具，防御 DOM XSS 注入
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
     // 格式化对话 Markdown 并规范化 LaTeX 公式，预渲染 KaTeX 防 Markdown 解析破坏
     function formatMarkdown(text) {
       if (!text) return "";
       let t = text;
+
+      // 0.0 防范 XSS 注入：对可执行的危险 HTML 标签和内联事件进行安全转义与阻断
+      t = t.replace(/<(\/?(?:script|iframe|object|embed|svg|img|style|link|meta|base|form|input|button|a)\b[^>]*)>/gi, '&lt;$1&gt;');
+      t = t.replace(/\bon\w+\s*=/gi, 'data-blocked-handler=');
+      t = t.replace(/javascript:/gi, 'blocked-javascript:');
 
       // 0. 修复反斜杠丢失导致被误转为换行符的合法 LaTeX 指令（如 \neq 被误解析为 \n + eq）
       t = t.replace(/\n(eq|nabla|notin|nu|ne\b|natural|nparallel|neg|normalsize|nolimits)/g, '\\n$1');
@@ -3633,7 +3649,7 @@
 
         tabEl.innerHTML = `
           <span class="tab-icon">${icon}</span>
-          <span class="tab-title-text" title="${displayTitle}">${pureTitle || displayTitle}</span>
+          <span class="tab-title-text" title="${escapeHtml(displayTitle)}">${escapeHtml(pureTitle || displayTitle)}</span>
           <div class="tab-action-group">
             ${(sess.is_initialized || (sess.title_stage && sess.title_stage >= 1)) ? `
               <span class="star-toggle-btn ${sess.is_starred ? 'is-starred' : ''}" onclick="event.stopPropagation(); toggleStar('${id}')" title="${sess.is_starred ? '取消收藏' : '收藏'}">${sess.is_starred ? '★' : '☆'}</span>
@@ -4148,7 +4164,7 @@
 
         const groupHeader = document.createElement('div');
         groupHeader.style.cssText = "font-size: 0.82rem; font-weight: 700; color: var(--primary); padding: 3px 6px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;";
-        groupHeader.innerHTML = `<span>${group.label}</span><span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
+        groupHeader.innerHTML = `<span>${escapeHtml(group.label)}</span><span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
         groupEl.appendChild(groupHeader);
 
         group.items.forEach(item => {
@@ -4163,7 +4179,7 @@
           row.innerHTML = `
             <div style="flex: 1; min-width: 0;">
               <div style="display: flex; align-items: center; gap: 6px;">
-                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${item.title || '会话'}</strong>
+                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.title || '会话')}</strong>
                 ${isAlreadyOpened ? `<span style="font-size: 0.72rem; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">已在标签页打开</span>` : ''}
               </div>
               <div class="history-item-math-q" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${qHtml}</div>

@@ -63,11 +63,23 @@ app = FastAPI(title="CogniScaffold API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://([a-zA-Z0-9-]+\.)*buildfuture\.tech)$",
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    return response
+
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
 
 # 确保 static 目录及 vendor 目录存在
 os.makedirs("static", exist_ok=True)
@@ -298,10 +310,12 @@ async def auth_login(request: Request, data: dict):
         "token": token,
         "store": user_store
     })
+    is_https = (request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
     response.set_cookie(
         key="cogni_token",
         value=token,
         httponly=True,
+        secure=is_https,
         samesite="lax",
         max_age=7 * 86400,
         path="/"
@@ -366,10 +380,12 @@ async def auth_change_password(request: Request, data: dict):
     log_audit_event(user["id"], "change_password_success", client_ip, "Success")
 
     response = JSONResponse(content={"status": "ok", "message": "密码修改成功", "token": new_token})
+    is_https = (request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
     response.set_cookie(
         key="cogni_token",
         value=new_token,
         httponly=True,
+        secure=is_https,
         samesite="lax",
         max_age=7 * 86400,
         path="/"
@@ -560,7 +576,9 @@ async def init_question(request: Request, data: dict):
         sess["current_variant_tier"] = 1
     else:
         if not question_text:
-            raise HTTPException(status_code=400, detail="Question cannot be empty")
+            raise HTTPException(status_code=400, detail="题目内容不能为空")
+        if len(question_text) > 8000:
+            raise HTTPException(status_code=400, detail="题目内容过长，请控制在 8000 字以内")
         sess["question"] = question_text
         sess["is_initialized"] = True
         sess["title_stage"] = 1
@@ -711,12 +729,23 @@ async def upload_image(
     if not user:
         raise HTTPException(status_code=401, detail="问答功能需先登录账号")
 
+    if image.content_type and image.content_type.lower() not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(status_code=400, detail="不支持的图片格式，仅支持 JPG、PNG、WebP 图片")
+
     try:
-        content = await image.read()
-        recognized_text = analyze_image_input(content, mode, question_context, api_config)
+        content = await image.read(MAX_UPLOAD_SIZE + 1)
+        if len(content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=400, detail="图片大小超出限制（单张最大允许 10MB）")
+
+        # 过滤与截断题目上下文，防范 Prompt 注入
+        safe_context = question_context[:500].strip()
+        recognized_text = analyze_image_input(content, mode, safe_context, api_config)
         return {"status": "ok", "text": recognized_text}
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"[Upload/OCR Error] {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail="图片处理与识别失败，请检查文件或稍后重试")
 
 
 @app.get("/api/sessions/{session_id}/chat/stream")
@@ -726,18 +755,25 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
     if not user:
         raise HTTPException(status_code=401, detail="问答功能需先登录账号")
 
+    student_text = student_text.strip()
+    if not student_text:
+        raise HTTPException(status_code=400, detail="输入内容不能为空")
+    if len(student_text) > 4000:
+        raise HTTPException(status_code=400, detail="单次输入内容过长，请控制在 4000 字以内")
+
     user_id = user["id"]
     store = get_user_store(user_id)
     sess = store.get("active_sessions", {}).get(session_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    student_text = student_text.strip()
-    if not student_text:
-        raise HTTPException(status_code=400, detail="Text cannot be empty")
+    lock = get_session_lock(session_id)
+    if lock.locked():
+        raise HTTPException(status_code=429, detail="当前会话已有正在进行的流式推理，请等待上一轮完成")
 
     async def event_generator():
         nonlocal user_id, sess
+        await lock.acquire()
         try:
             # 1. 记录学生输入
             sess["dialogue_history"].append({"role": "user", "content": student_text})
@@ -852,11 +888,14 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 temp_history = list(sess["dialogue_history"])
                 
                 for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config):
-                        full_response += chunk
-                        clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
-                        if clean_chunk:
-                            yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                        await asyncio.sleep(0.01)
+                    if await request.is_disconnected():
+                        print(f"[Chat Stream] Client disconnected prematurely for session {session_id}")
+                        break
+                    full_response += chunk
+                    clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
+                    if clean_chunk:
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                    await asyncio.sleep(0.01)
 
                 clean_full = full_response.replace("[TRIGGER_DIAGNOSIS]", "").strip()
                 sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
@@ -889,8 +928,12 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
 
         except Exception as err:
-            err_msg = f"⚠️ 连接处理异常：{str(err)}。请点击重试。"
+            print(f"[Chat Stream Exception] {type(err).__name__}: {err}")
+            err_msg = "⚠️ 导师连接处理异常，请点击重试。"
             yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+        finally:
+            if lock.locked():
+                lock.release()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
