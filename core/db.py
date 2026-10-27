@@ -149,15 +149,13 @@ def init_db():
 
 
 def _seed_default_users(conn: sqlite3.Connection):
-    """预置系统管理员 admin 与默认学生 student01"""
+    """预置系统管理员 admin 与默认学生 student01, student02"""
     cur = conn.cursor()
-    cur.execute("SELECT COUNT(*) FROM users;")
-    count = cur.fetchone()[0]
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-    if count == 0:
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-        # 1. 管理员 admin / Admin@Cogni2026!
+    # 1. 管理员 admin / Admin@Cogni2026!
+    cur.execute("SELECT id FROM users WHERE username = 'admin';")
+    if not cur.fetchone():
         salt_admin = generate_salt()
         pwd_hash_admin = hash_password("Admin@Cogni2026!", salt_admin)
         admin_id = str(uuid.uuid4())[:8]
@@ -165,8 +163,11 @@ def _seed_default_users(conn: sqlite3.Connection):
         INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """, (admin_id, "admin", pwd_hash_admin, salt_admin, "系统管理员", "admin", "active", now))
+        print("Initialized user: admin")
 
-        # 2. 学生 student01 / Student@2026!
+    # 2. 学生 student01 / Student@2026!
+    cur.execute("SELECT id FROM users WHERE username = 'student01';")
+    if not cur.fetchone():
         salt_stu = generate_salt()
         pwd_hash_stu = hash_password("Student@2026!", salt_stu)
         stu_id = str(uuid.uuid4())[:8]
@@ -174,9 +175,21 @@ def _seed_default_users(conn: sqlite3.Connection):
         INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?);
         """, (stu_id, "student01", pwd_hash_stu, salt_stu, "知阶学者 01", "student", "active", now))
+        print("Initialized user: student01")
 
-        conn.commit()
-        print("Initialized default users: admin and student01")
+    # 3. 学生 student02 / Student@2026!
+    cur.execute("SELECT id FROM users WHERE username = 'student02';")
+    if not cur.fetchone():
+        salt_stu2 = generate_salt()
+        pwd_hash_stu2 = hash_password("Student@2026!", salt_stu2)
+        stu2_id = str(uuid.uuid4())[:8]
+        cur.execute("""
+        INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+        """, (stu2_id, "student02", pwd_hash_stu2, salt_stu2, "知阶学者 02", "student", "active", now))
+        print("Initialized user: student02")
+
+    conn.commit()
 
 
 def _migrate_legacy_json_data(conn: sqlite3.Connection):
