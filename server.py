@@ -565,7 +565,7 @@ async def init_question(request: Request, data: dict):
         sess["is_initialized"] = True
         sess["title_stage"] = 1
         sess["dialogue_history"] = [
-            {"role": "assistant", "content": "我已经审视了这道题目。作为你的苏格拉底思维导师，我不会直接给出最终答案。请告诉我，看到这道题你的第一直觉是什么？脑海中浮现的第一个公式、定理或分析切入点是什么？"}
+            {"role": "assistant", "content": "我已经审视了这道题目。作为你的苏格拉底认知导师，我不会直接给出最终答案。请告诉我，面对这道题目，你的第一直觉是什么？你注意到的核心矛盾、关键已知线索或分析切入点是什么？"}
         ]
         sess["tutor_turns"] = 0
         sess["current_stage"] = 1
@@ -602,7 +602,7 @@ async def reset_session(request: Request, data: dict):
         raise HTTPException(status_code=404, detail="Session not found")
 
     sess["dialogue_history"] = [
-        {"role": "assistant", "content": "我已经审视了这道题目。作为你的苏格拉底思维导师，我不会直接给出最终答案。请告诉我，看到这道题你的第一直觉是什么？脑海中浮现的第一个公式、定理或分析切入点是什么？"}
+        {"role": "assistant", "content": "我已经审视了这道题目。作为你的苏格拉底认知导师，我不会直接给出最终答案。请告诉我，面对这道题目，你的第一直觉是什么？你注意到的核心矛盾、关键已知线索或分析切入点是什么？"}
     ]
     sess["tutor_turns"] = 0
     sess["current_stage"] = 1

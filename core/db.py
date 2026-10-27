@@ -290,10 +290,10 @@ def _seed_student01_golden_presets(conn: sqlite3.Connection):
                 dialogue.append({"role": "assistant", "content": r.get("tutor_response", "").replace("[TRIGGER_DIAGNOSIS]", "").strip(), "timestamp": now})
 
         if q in existing:
-            # 已经存在此实例：确保所有匹配会话均恢复活跃、置星收藏，并补充标准标题、完整阶段信息、重置待诊断状态与完整对话
+            # 已经存在此实例：仅更新标题、阶段与诊断信息，严禁篡改或覆盖用户的 is_archived 与 is_starred 归档及收藏状态
             cur.execute("""
             UPDATE sessions 
-            SET title = ?, is_starred = 1, tutor_turns = 3, current_stage = 2, is_archived = 0, diagnostic_result = NULL, transfer_eval_result = NULL 
+            SET title = ?, tutor_turns = 3, current_stage = 2, diagnostic_result = NULL, transfer_eval_result = NULL 
             WHERE user_id = ? AND question = ?;
             """, (p.get("title", key), stu_id, q))
 
@@ -602,7 +602,7 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
         archived_sessions[s_id] = _assemble_session_dict(conn, r)
 
     # 若当前无任何活跃会话，为该用户创建 1 个默认的新探索会话
-    if not active_sessions and not archived_sessions:
+    if not active_sessions:
         default_sess = {
             "id": str(uuid.uuid4())[:8],
             "title": "🧩 探索·新建会话",
@@ -630,6 +630,8 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
 
     if not current_session_id or current_session_id not in active_sessions:
         current_session_id = next(iter(active_sessions)) if active_sessions else None
+        cur.execute("UPDATE user_preferences SET current_session_id = ? WHERE user_id = ?;", (current_session_id, user_id))
+        conn.commit()
 
     conn.close()
 
@@ -670,6 +672,7 @@ def _assemble_session_dict(conn: sqlite3.Connection, r: sqlite3.Row) -> Dict[str
         "title": r["title"],
         "is_starred": bool(r["is_starred"]),
         "is_initialized": bool(r["is_initialized"]),
+        "is_archived": bool(r["is_archived"]),
         "question": r["question"] or "",
         "current_stage": r["current_stage"],
         "tutor_turns": r["tutor_turns"],
@@ -782,8 +785,31 @@ def set_user_session_order(user_id: str, order_list: List[str]):
 def archive_user_session(user_id: str, session_id: str):
     conn = get_db_connection()
     cur = conn.cursor()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cur.execute("UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ? AND user_id = ?;",
-                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), session_id, user_id))
+                (now, session_id, user_id))
+
+    # 同步清理偏好：若当前选中的是此会话，重定向至其他活跃会话；并从 session_order 剔除该会话
+    cur.execute("SELECT current_session_id, session_order FROM user_preferences WHERE user_id = ?;", (user_id,))
+    pref_row = cur.fetchone()
+    if pref_row:
+        cur_sid = pref_row["current_session_id"]
+        order = json.loads(pref_row["session_order"]) if pref_row["session_order"] else []
+        new_order = [s for s in order if s != session_id]
+
+        cur.execute("SELECT id FROM sessions WHERE user_id = ? AND is_archived = 0 ORDER BY sort_order ASC, created_at ASC;", (user_id,))
+        active_ids = [row["id"] for row in cur.fetchall()]
+
+        new_cur_sid = cur_sid
+        if cur_sid == session_id or cur_sid not in active_ids:
+            new_cur_sid = active_ids[0] if active_ids else None
+
+        cur.execute("""
+        UPDATE user_preferences 
+        SET current_session_id = ?, session_order = ? 
+        WHERE user_id = ?;
+        """, (new_cur_sid, json.dumps(new_order), user_id))
+
     conn.commit()
     conn.close()
 
@@ -791,8 +817,22 @@ def archive_user_session(user_id: str, session_id: str):
 def restore_user_session(user_id: str, session_id: str):
     conn = get_db_connection()
     cur = conn.cursor()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cur.execute("UPDATE sessions SET is_archived = 0, updated_at = ? WHERE id = ? AND user_id = ?;",
-                (datetime.now().strftime("%Y-%m-%d %H:%M:%S"), session_id, user_id))
+                (now, session_id, user_id))
+
+    # 恢复后将其设为当前会话，并追加进 session_order
+    cur.execute("SELECT current_session_id, session_order FROM user_preferences WHERE user_id = ?;", (user_id,))
+    pref_row = cur.fetchone()
+    order = json.loads(pref_row["session_order"]) if (pref_row and pref_row["session_order"]) else []
+    if session_id not in order:
+        order.append(session_id)
+    cur.execute("""
+    INSERT INTO user_preferences (user_id, current_session_id, session_order)
+    VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET current_session_id = excluded.current_session_id, session_order = excluded.session_order;
+    """, (user_id, session_id, json.dumps(order)))
+
     conn.commit()
     conn.close()
 

@@ -7,7 +7,7 @@ import json
 import time
 import base64
 import re
-from typing import Generator, Dict, Any, List, Tuple
+from typing import Generator, Dict, Any, List, Tuple, Optional
 from openai import OpenAI
 
 from core.storage import to_chinese_num
@@ -217,15 +217,15 @@ def evaluate_transfer_answer(
             return f"💡 **导师启发指引**\n\n这道变式挑战与刚才的题目暗含着相同的底层约束。面对这个条件，尝试从极端边界切入：{variant_hint}。想一想如果取最简单的边界特例，核心变量会发生怎样的极端约束？"
         # 学生主动索要启发/隐喻或质疑关联，生成针对性的认知搭桥引导，保留关卡未通关状态
         client = get_openai_client(api_config["api_key"], api_config["base_url"])
-        hint_prompt = f"""你是一位富有同理心与启发性的苏格拉底数理导师。
+        hint_prompt = f"""你是一位富有同理心与启发性的苏格拉底认知导师。
 学生在面对当前的变式挑战时感到困惑、抽象或质疑这道题与前序知识的关联：
 【当前挑战题目】：{variant_question}
 【题目考查核心】：{variant_hint}
 【学生的发言/疑问】：{student_answer}
 
 请遵循以下原则提供温和引导：
-1. 若学生提出“这和题目有关吗”等困惑，首先用 1 句话温和说明本变式题正是为了检验相同底层数理规律在更广情境下的迁移。
-2. 肯定学生敏锐的质疑直觉，用 1~2 个最简特例数值或直观几何/物理图景搭桥，指明核心矛盾与约束条件。
+1. 若学生提出“这和题目有关吗”等困惑，首先用 1 句话温和说明本变式题正是为了检验相同底层规律与核心认知机制在更广情境下的迁移。
+2. 肯定学生敏锐的质疑直觉，用 1~2 个最简特例/生动类比或直观图景搭桥，指明核心矛盾与约束条件。
 3. 严禁直接给出最终完整答案或数值计算结果，引导学生在启发下尝试动手写出第一步推导。
 4. 全文控制在 120 字左右，严禁输出任何带有“⚠️ 需再审视条件”或“✅ 成功通关”这种机械生硬的评判帽子！"""
         try:
@@ -352,6 +352,34 @@ def simulate_offline_stream(text: str, delay: float = 0.03) -> Generator[str, No
         time.sleep(delay)
 
 
+def safe_parse_variant_json(raw_text: str) -> Optional[Dict[str, str]]:
+    """安全解析大模型输出的变式题 JSON，支持去除代码块包裹及兼容转义换行"""
+    if not raw_text:
+        return None
+    cleaned = raw_text.strip()
+    if cleaned.startswith("```"):
+        cleaned = re.sub(r"^```(?:json)?\s*", "", cleaned)
+        cleaned = re.sub(r"\s*```$", "", cleaned)
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict) and "title" in data and "question" in data:
+            return data
+    except Exception:
+        pass
+
+    # 备用：基于键名正则提取
+    title_m = re.search(r'"title"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned)
+    q_m = re.search(r'"question"\s*:\s*"(.*?)"\s*,\s*"hint"', cleaned, re.DOTALL)
+    h_m = re.search(r'"hint"\s*:\s*"(.*?)"\s*\}', cleaned, re.DOTALL)
+    if title_m and q_m:
+        return {
+            "title": title_m.group(1).encode('utf-8').decode('unicode_escape', 'ignore') if '\\u' in title_m.group(1) else title_m.group(1),
+            "question": q_m.group(1).replace('\\"', '"'),
+            "hint": h_m.group(1).replace('\\"', '"') if h_m else ""
+        }
+    return None
+
+
 def generate_next_tier_variant(
     question: str,
     dialogue_history: List[Dict[str, Any]],
@@ -385,21 +413,24 @@ def generate_next_tier_variant(
         )
         
         try:
-            response = client.chat.completions.create(
-                model=api_config["model"],
-                messages=[
+            call_params = {
+                "model": api_config["model"],
+                "messages": [
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.4,
-                max_tokens=650
-            )
+                "temperature": 0.4,
+                "max_tokens": 1500
+            }
+            # DeepSeek 支持 json_object 响应格式
+            try:
+                call_params["response_format"] = {"type": "json_object"}
+            except Exception:
+                pass
+
+            response = client.chat.completions.create(**call_params)
             raw_content = response.choices[0].message.content.strip()
-            if raw_content.startswith("```"):
-                raw_content = raw_content.split("\n", 1)[1]
-                if raw_content.endswith("```"):
-                    raw_content = raw_content.rsplit("\n", 1)[0]
-            data = json.loads(raw_content)
-            if "title" in data and "question" in data:
+            data = safe_parse_variant_json(raw_content)
+            if data and "title" in data and "question" in data:
                 raw_title = data["title"].lstrip("#").strip()
                 clean_sub = re.sub(r'^(?:Tier\s*\d+\s*[:：]|第\s*\d+\s*关\s*[:：]|第\s*[一二三四五六七八九十]+\s*关\s*[:：])\s*', '', raw_title)
                 data["title"] = f"第{c_tier}关：{clean_sub}"
@@ -412,8 +443,21 @@ def generate_next_tier_variant(
         except Exception:
             pass
         
-    # 智能高阶备选题库（离线与降级保障）
-    if "动量" in question:
+    # 智能高阶备选题库（离线与降级保障，完全杜绝任何抽象空洞设问，全学科题干完备具体）
+    if any(k in question for k in ["导轨", "金属棒", "导体棒", "双棒", "电磁感应"]):
+        if next_tier == 4:
+            return {
+                "title": "第四关：倾斜导轨重力-安培力非线性阻尼与稳态极值",
+                "question": "将原平行动轨置于倾角为 $\\theta$ 的光滑斜面上，导轨间距为 $L$。空间存在垂直导轨平面向上的匀强磁场 $B$。棒 1（质量 $m_1$、电阻 $R_1$）与棒 2（质量 $m_2$、电阻 $R_2$）由静止同时释放：（1）分析两棒在重力下滑分力与安培阻尼力耦合下的速度差 $\\Delta v(t)$ 演化规律；（2）证明系统最终将达到恒定相对运动速度，求此稳态下的回路电流与系统总焦耳热消耗功率；（3）讨论若棒 2 初始固定，棒 1 下滑到速度 $v_1$ 时释放棒 2，系统最终产生的总焦耳热。",
+                "hint": "建立两棒合外力微分方程，抓住两棒加速度相等时相对速度恒定的动力学稳态特征。"
+            }
+        else:
+            return {
+                "title": f"第{c_tier}关：电容耦合双棒回路与无阻尼电磁震荡演化",
+                "question": f"若在两导轨中间串联一个电容为 $C$ 的无阻电容器，棒 1 以初速度 $v_0$ 释放。试推导两棒相对速度 $\\Delta v(t)$ 满足的简谐振动方程，并求出当电容充放电周期性振荡时两棒的最大分离间距。",
+                "hint": "电容器充放电电流正比于两棒相对加速度，引入等效惯性质量并分析系统的振荡模态。"
+            }
+    elif "动量" in question or any(k in question for k in ["碰撞", "凹槽", "滑块", "受力"]):
         if next_tier == 4:
             return {
                 "title": "第四关：多体碰撞与多重内力极值拓展",
@@ -426,7 +470,7 @@ def generate_next_tier_variant(
                 "question": f"考虑轨道变曲率滑块模型，质量为 $M$ 的轨道可在光滑水平面上自由滑动。质量为 $m$ 的带电小滑块（电量 $+q$）沿轨道由静止滑下，空间存在匀强磁场 $B$。试分析滑块与轨道系统的水平方向动量守恒条件是否依然成立，并给出极端条件下的速度极值论证。",
                 "hint": "考查洛伦兹力作为外力对动量守恒条件的破坏或修正，综合考查电磁场与力学模型的跨学科高阶迁移。"
             }
-    elif "导数" in question:
+    elif "导数" in question or any(k in question for k in ["函数", "极值", "单调", "切线"]):
         if next_tier == 4:
             return {
                 "title": "第四关：双参数耦合与隐零点最值综合",
@@ -439,6 +483,24 @@ def generate_next_tier_variant(
                 "question": f"设函数 $g(x) = \\frac{{\\ln x}}{{x}} - ax$。（1）讨论 $g(x)$ 的零点个数；（2）若 $x_1, x_2$ 为 $g(x)$ 的两个不同零点，证明：$x_1 x_2 > e^2$，且 $x_1 + x_2 > 2e$。",
                 "hint": "对偶对称变换或极值点偏移常用构造方法：令 $t = \\frac{{x_1}}{{x_2}}$ 转化为单变量对数均值不等式。"
             }
+    elif any(k in question for k in ["化学", "平衡", "离子", "水解", "原电池", "电解"]):
+        return {
+            "title": f"第{c_tier}关：多相多重化学平衡耦合与竞争沉淀反应极限",
+            "question": f"在原有弱电解质电离与沉淀溶解平衡体系中，现向溶液中连续滴加沉淀剂与络合剂。已知各阶段平衡常数 $K_1, K_2$。（1）推导溶液中主金属离子浓度随 pH 变化的对数分布函数；（2）若要求目标金属离子沉淀完全而干扰离子不沉淀，计算此时体系的最佳 pH 控制范围区间。",
+            "hint": "联立物料守恒与电荷守恒，利用分步沉淀的溶度积规则求出临界 pH 边界。"
+        }
+    elif any(k in question for k in ["生物", "遗传", "基因", "代谢", "光合", "呼吸", "生态"]):
+        return {
+            "title": f"第{c_tier}关：基因连锁互换非平衡传递与突变演化动力学",
+            "question": f"已知某二倍体植物的两对等位基因控制两对独立性状，雄性不育株系在特定温度下恢复育性。现进行连续杂交实验：（1）分析连锁互换率 $\\theta$ 与自交重组配子比例的数学代数关系；（2）推导经过连续三代杂交后隐性致死突变基因在种群中的衰减曲线方程。",
+            "hint": "运用染色体互换的重组率定义，结合配子棋盘格推导后代基因型与表现型比例。"
+        }
+    elif any(k in question for k in ["技术", "算法", "门电路", "流程图", "二叉树", "循环"]):
+        return {
+            "title": f"第{c_tier}关：时空复杂度权衡与动态规划状态压缩演进",
+            "question": f"针对原问题中的状态转移逻辑，现将数据规模扩大至 $N \\le 10^5$。（1）写出空间复杂度为 $O(1)$ 的滚动数组优化转移方程；（2）证明该算法的最坏时间复杂度为 $O(N)$；（3）讨论若数据流中存在非法输入中断，如何设计状态机回滚机制保证系统一致性。",
+            "hint": "寻找状态转移的无后效性与单调性，利用双指针或哈希表实现常数级时间查找。"
+        }
     elif any(k in question for k in ["洋务", "历史", "史料", "革命", "朝代", "辛亥", "晚清"]):
         if next_tier == 4:
             return {
@@ -467,8 +529,8 @@ def generate_next_tier_variant(
             }
     else:
         return {
-            "title": f"第{c_tier}关：高维复合约束与深度迁移挑战",
-            "question": f"在原模型核心认知机制基础上，引入第{c_tier}维度的边界扰动与深层变量。试分析核心要素之间的相互制约关系，推导临界突变点，并给出自洽的论证结论。",
-            "hint": "透过表面情境差异，抓住底层逻辑的同构不变性。"
+            "title": f"第{c_tier}关：多变量非线性耦合与临界稳态破缺深度推演",
+            "question": f"在原问题所确立的核心平衡模型中，当外部关键参量发生单调漂移并跨越临界阈值时：（1）写出决定系统状态跃迁的特征方程或判别条件；（2）分析系统在突变点前后所表现出的不同稳态特征，并结合具体边界条件给出定量的界限范围；（3）如果引入负反馈调节机制，说明如何在最小干预代价下抑制该突变。",
+            "hint": "紧扣非线性系统的临界分岔条件与动态平衡判据，寻找守恒量或特征不变量作为解析切入点。"
         }
 
