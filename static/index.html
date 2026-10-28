@@ -28,6 +28,11 @@
     })();
   </script>
 
+  <!-- 异步极速字体预解析（非阻塞模式，优先利用操作系统原生高质量字体毫秒级上屏） -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
+
   <!-- 本地 KaTeX 科学公式与 Marked 渲染引擎（优先本地极速加载，配置动态容灾 CDN 兜底） -->
   <link rel="stylesheet" id="katex-css-local" href="static/vendor/katex.min.css">
   <script src="static/vendor/katex.min.js"></script>
@@ -101,9 +106,7 @@
   </script>
 
   <style>
-    /* 全局与字体重置 */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-
+    /* 全局与字体重置：优先使用系统 UI 高性能字体栈，杜绝因外部网络波动产生的白屏或卡顿 */
     *, *::before, *::after {
       box-sizing: border-box;
       margin: 0;
@@ -133,7 +136,7 @@
       box-sizing: border-box;
     }
     body {
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "WenQuanYi Micro Hei", sans-serif;
       -webkit-font-smoothing: antialiased;
       transition: background-color 0.2s ease, color 0.2s ease;
       overflow-x: hidden;
@@ -2650,13 +2653,13 @@
       background: rgba(239, 68, 68, 0.12);
       color: #f87171;
       border: 1px solid rgba(239, 68, 68, 0.25);
-      display: block !important;
+      display: block;
     }
     .auth-alert-box.success {
       background: rgba(16, 185, 129, 0.12);
       color: #34d399;
       border: 1px solid rgba(16, 185, 129, 0.25);
-      display: block !important;
+      display: block;
     }
     .auth-form {
       display: flex;
@@ -3388,8 +3391,8 @@
       <div id="historyListContainer"></div>
     </div>
 
-    <!-- 视图 A: 新会话开题引导区 (Onboarding View - 弹性垂直居中) -->
-    <div id="onboardingView" style="display: none;">
+    <!-- 视图 A: 新会话开题引导区 (Onboarding View - 弹性垂直居中，默认首屏立即可见) -->
+    <div id="onboardingView">
       <div class="onboarding-vertical-center">
         <div class="onboarding-hero">
           <div class="onboarding-icon-box"><svg class="ui-icon ui-icon-hero" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
@@ -3423,7 +3426,7 @@
 
           <!-- 子面板 1: 文字录入 -->
           <div id="onboardTabText">
-            <div id="quotaExhaustedAlert" class="auth-alert-box error" style="margin-bottom: 12px; display: none;">
+            <div id="quotaExhaustedAlert" class="auth-alert-box" style="margin-bottom: 12px; display: none;">
               ⚠️ 今日额度已用尽
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
@@ -5094,55 +5097,85 @@ student04, CogniScaffold123!, 李小明"></textarea>
       }
     }
 
-    // 初始化载入
-    async function initApp() {
+    function persistCachedAppState() {
+      if (!appState) return;
       try {
-        const res = await apiFetch('/api/bootstrap');
-        const data = await res.json();
-        currentUser = data.user || null;
-                updateUserUI();
+        localStorage.setItem('cogni_cached_app_state', JSON.stringify(appState));
+      } catch(e) {}
+    }
 
-        if (currentUser && data.store) {
-          appState = data.store;
-          idbSaveAllSessions(currentUser.id, Object.values(appState.active_sessions || {}));
-          idbSaveAllSessions(currentUser.id, Object.values(appState.archived_sessions || {}));
+    // 初始化载入（经过零延迟优化：首屏即刻就绪，异步热补丁数据）
+    async function initApp() {
+      // 1. 同步即时渲染：0 毫秒首屏呈现，彻底杜绝白屏与卡顿
+      const savedTheme = localStorage.getItem('cogni_theme') || 'dark';
+      applyTheme(savedTheme);
+      initDashboardCollapseState();
+
+      // 本地缓存会话极速热恢复
+      try {
+        const cachedStoreStr = localStorage.getItem('cogni_cached_app_state');
+        if (cachedStoreStr) {
+          appState = JSON.parse(cachedStoreStr);
+          renderTabs();
+          renderCurrentSessionView();
         } else {
           appState = {
             active_sessions: {},
             archived_sessions: {},
             current_session_id: null,
-            theme_mode: 'dark'
+            theme_mode: savedTheme
           };
+          renderCurrentSessionView();
+        }
+      } catch (e) {
+        renderCurrentSessionView();
+      }
+
+      // 2. 异步向服务器请求全量状态与用户凭据
+      try {
+        const res = await apiFetch('/api/bootstrap');
+        const data = await res.json();
+        currentUser = data.user || null;
+        updateUserUI();
+
+        if (currentUser && data.store) {
+          appState = data.store;
+          persistCachedAppState();
+          idbSaveAllSessions(currentUser.id, Object.values(appState.active_sessions || {}));
+          idbSaveAllSessions(currentUser.id, Object.values(appState.archived_sessions || {}));
         }
 
         latexTree = data.latex_presets_tree;
-        const savedTheme = localStorage.getItem('cogni_theme') || appState.theme_mode || 'dark';
         applyTheme(savedTheme);
-        initDashboardCollapseState();
         checkAutoShowGuideTour();
         renderTabs();
         renderCurrentSessionView();
         setupLatexKeyboard();
 
-        // 渲染开题示例公式与预设卡片公式
-        const sampleMathEl = document.getElementById('onboardSampleMath');
-        if (sampleMathEl) {
-          sampleMathEl.innerHTML = (window.katex && katex.renderToString)
-            ? katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false, output: 'html' })
-            : 'f(x) = ln x - ax';
-        }
-        document.querySelectorAll('.preset-card-desc').forEach(el => {
-          const raw = el.getAttribute('data-raw') || el.textContent.trim();
-          el.setAttribute('data-raw', raw);
-          el.innerHTML = formatMarkdown(raw);
-        });
+        // 3. 异步轻量任务渲染开题数学公式与推荐卡片，杜绝主线程卡顿
+        setTimeout(() => {
+          const sampleMathEl = document.getElementById('onboardSampleMath');
+          if (sampleMathEl) {
+            sampleMathEl.innerHTML = (window.katex && katex.renderToString)
+              ? katex.renderToString('f(x) = \\ln x - ax', { displayMode: false, throwOnError: false, output: 'html' })
+              : 'f(x) = ln x - ax';
+          }
+          document.querySelectorAll('.preset-card-desc').forEach(el => {
+            const raw = el.getAttribute('data-raw') || el.textContent.trim();
+            el.setAttribute('data-raw', raw);
+            el.innerHTML = formatMarkdown(raw);
+          });
 
-        if (typeof pickRandomRecommendKeys === 'function') {
-          pickRandomRecommendKeys();
-          filterPresetCards('recommend');
-        }
+          if (typeof pickRandomRecommendKeys === 'function') {
+            pickRandomRecommendKeys();
+            filterPresetCards('recommend');
+          }
 
-        renderLatex(document.body);
+          const obEl = document.getElementById('onboardingView');
+          if (obEl && obEl.style.display !== 'none') {
+            renderLatex(obEl);
+          }
+        }, 10);
       } catch (err) {
         console.error("Bootstrap error:", err);
       }
@@ -5267,10 +5300,6 @@ student04, CogniScaffold123!, 李小明"></textarea>
         }
       } catch (e) {}
     }
-      } else if (type === 'feedback') {
-        openFeedbackModal();
-      }
-    }
 
     async function toggleTheme(theme) {
       applyTheme(theme);
@@ -5294,6 +5323,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
     let draggedTabId = null;
 
     function renderTabs() {
+      persistCachedAppState();
       const scrollArea = document.getElementById('tabsScrollArea');
       scrollArea.innerHTML = "";
       const activeDict = appState.active_sessions || {};
@@ -5548,7 +5578,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
           if (adminNavBtn) adminNavBtn.style.display = 'inline-flex';
           if (menuItemAdmin) menuItemAdmin.style.display = 'flex';
           if (quotaContainer) quotaContainer.style.display = 'none';
-          if (quotaAlert) quotaAlert.style.display = 'none';
+          if (quotaAlert) {
+            quotaAlert.className = 'auth-alert-box';
+            quotaAlert.style.display = 'none';
+          }
           if (tokenCapsule) tokenCapsule.style.display = 'none';
           if (onboardSubmitBtn) {
             onboardSubmitBtn.disabled = false;
@@ -5595,6 +5628,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           if (isExhausted) {
             if (banner) banner.classList.add('exhausted');
             if (quotaAlert) {
+              quotaAlert.className = 'auth-alert-box error';
               quotaAlert.style.display = 'block';
               quotaAlert.textContent = '⚠️ 今日额度已用尽';
             }
@@ -5604,7 +5638,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
             }
           } else {
             if (banner) banner.classList.remove('exhausted');
-            if (quotaAlert) quotaAlert.style.display = 'none';
+            if (quotaAlert) {
+              quotaAlert.className = 'auth-alert-box';
+              quotaAlert.style.display = 'none';
+            }
             if (onboardSubmitBtn) {
               onboardSubmitBtn.disabled = false;
               onboardSubmitBtn.title = "按 Ctrl+Enter 快捷开启";
@@ -5621,7 +5658,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
         if (adminNavBtn) adminNavBtn.style.display = 'none';
         if (menuItemAdmin) menuItemAdmin.style.display = 'none';
         if (quotaContainer) quotaContainer.style.display = 'none';
-        if (quotaAlert) quotaAlert.style.display = 'none';
+        if (quotaAlert) {
+          quotaAlert.className = 'auth-alert-box';
+          quotaAlert.style.display = 'none';
+        }
         if (tokenCapsule) tokenCapsule.style.display = 'none';
       }
 
