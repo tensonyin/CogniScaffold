@@ -2790,6 +2790,253 @@
       to { transform: translateX(0); }
     }
 
+    /* 版本号与更新提醒红点 */
+    .version-link-badge {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      cursor: pointer;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--primary);
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: rgba(99, 102, 241, 0.08);
+      border: 1px solid rgba(99, 102, 241, 0.2);
+      transition: all 0.2s ease;
+      text-decoration: none;
+      user-select: none;
+    }
+    .version-link-badge:hover {
+      background: rgba(99, 102, 241, 0.18);
+      border-color: rgba(99, 102, 241, 0.4);
+      transform: translateY(-1px);
+    }
+    .version-unread-dot {
+      display: none;
+      position: absolute;
+      top: -4px;
+      right: -4px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: #ef4444;
+      box-shadow: 0 0 6px #ef4444;
+      animation: pulseDot 2s infinite;
+    }
+    .feedback-unread-dot {
+      display: none;
+      position: absolute;
+      top: -3px;
+      right: -5px;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background-color: #3b82f6;
+      box-shadow: 0 0 5px #3b82f6;
+    }
+    @keyframes pulseDot {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+
+    /* 意见反馈模态弹窗 */
+    .feedback-modal-card {
+      width: 100%;
+      max-width: 660px;
+      max-height: 85vh;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .feedback-nav-tabs {
+      display: flex;
+      gap: 10px;
+      border-bottom: 1px solid var(--card-border);
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+    .feedback-tab-btn {
+      padding: 6px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
+      transition: all 0.15s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .feedback-tab-btn:hover {
+      color: var(--text-main);
+      background: var(--input-bg);
+    }
+    .feedback-tab-btn.active {
+      color: var(--primary);
+      background: rgba(99, 102, 241, 0.1);
+      border-color: rgba(99, 102, 241, 0.25);
+    }
+    .category-pills-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .cat-pill-btn {
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      border: 1px solid var(--card-border);
+      background: var(--input-bg);
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+    .cat-pill-btn:hover {
+      border-color: var(--primary);
+      color: var(--text-main);
+    }
+    .cat-pill-btn.active {
+      border-color: var(--primary);
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary-hover);
+      font-weight: 600;
+    }
+    .feedback-scroll-body {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 4px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .feedback-card-item {
+      padding: 14px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      transition: border-color 0.15s ease;
+    }
+    .feedback-card-item:hover {
+      border-color: rgba(99, 102, 241, 0.35);
+    }
+    .admin-reply-box {
+      margin-top: 6px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.08);
+      border-left: 3px solid #10b981;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--text-main);
+    }
+
+    /* 版本更新日志模态弹窗 */
+    .changelog-modal-card {
+      width: 100%;
+      max-width: 680px;
+      max-height: 85vh;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .changelog-timeline {
+      flex: 1;
+      overflow-y: auto;
+      padding-right: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      margin-top: 10px;
+    }
+    .changelog-version-card {
+      padding: 16px 18px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      position: relative;
+    }
+    .changelog-version-card.current {
+      border-color: rgba(99, 102, 241, 0.4);
+      background: rgba(99, 102, 241, 0.03);
+    }
+    .changelog-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .changelog-item-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 0.83rem;
+      line-height: 1.55;
+      color: var(--text-sub);
+    }
+    .changelog-item-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+    .badge-feat {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: rgba(99, 102, 241, 0.15);
+      color: var(--primary-hover);
+      flex-shrink: 0;
+    }
+    .badge-opt {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: rgba(16, 185, 129, 0.15);
+      color: #10b981;
+      flex-shrink: 0;
+    }
+    .badge-sec {
+      display: inline-block;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      background: rgba(245, 158, 11, 0.15);
+      color: #f59e0b;
+      flex-shrink: 0;
+    }
+
   </style>
 </head>
 <body data-theme="dark">
@@ -3520,8 +3767,14 @@
         <a class="footer-link-item" onclick="openFooterModal('guide')">使用指引</a>
         <a class="footer-link-item" onclick="openFooterModal('philosophy')">教育理念</a>
         <a class="footer-link-item" onclick="openFooterModal('privacy')">隐私安全</a>
-        <a class="footer-link-item" onclick="openFooterModal('feedback')">反馈入口</a>
-        <span style="opacity: 0.5;">v2.6.0</span>
+        <a class="footer-link-item" onclick="openFeedbackModal()" style="position: relative;">
+          <span>💬 反馈入口</span>
+          <span class="feedback-unread-dot" id="feedbackUnreadDot"></span>
+        </a>
+        <a class="version-link-badge" id="footerVersionBtn" onclick="openChangelogModal()" title="点击查看更新日志与版本特性">
+          <span>v2.7.0</span>
+          <span class="version-unread-dot" id="versionUnreadDot"></span>
+        </a>
       </div>
     </footer>
 
@@ -3842,7 +4095,233 @@ student04, CogniScaffold123!, 李小明"></textarea>
     </div>
   </div>
 
-    <!-- 主题模态弹窗组件 (符合暗色/亮色风格) -->
+  <!-- 意见反馈与答复模态弹窗 -->
+  <div class="theme-modal-backdrop" id="feedbackModal" onclick="closeFeedbackModal()">
+    <div class="theme-modal-card feedback-modal-card" onclick="event.stopPropagation()">
+      <div class="auth-modal-header" style="margin-bottom: 12px;">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">💬</span>
+          <div>
+            <h3 class="auth-title" id="feedbackModalTitle">意见与问题反馈</h3>
+            <p class="auth-subtitle" id="feedbackModalSubtitle">向管理员提交推导疑问或功能建议，管理员回复将在此实时呈现</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeFeedbackModal()">✕</button>
+      </div>
+
+      <div class="feedback-nav-tabs" id="feedbackNavTabs">
+        <button class="feedback-tab-btn active" id="tabBtnNewFeedback" onclick="switchFeedbackTab('submit')">
+          ✍️ 提交新反馈
+        </button>
+        <button class="feedback-tab-btn" id="tabBtnMyFeedback" onclick="switchFeedbackTab('history')">
+          📬 我的反馈与答复 <span id="myFeedbackCountBadge" style="opacity: 0.8; font-size: 0.75rem;"></span>
+        </button>
+      </div>
+
+      <div class="auth-alert-box" id="feedbackAlertBox"></div>
+
+      <!-- 学生提交反馈表单面板 -->
+      <div id="feedbackSubmitPane" style="display: flex; flex-direction: column; gap: 12px; flex: 1; overflow-y: auto;">
+        <div>
+          <label class="auth-label" style="margin-bottom: 6px;">反馈分类</label>
+          <div class="category-pills-row" id="feedbackCategoryPills">
+            <button type="button" class="cat-pill-btn active" data-cat="pedagogical" onclick="selectFeedbackCategory('pedagogical')">💡 答复偏差/启发不当</button>
+            <button type="button" class="cat-pill-btn" data-cat="bug" onclick="selectFeedbackCategory('bug')">🐞 题目漏洞/推导错误</button>
+            <button type="button" class="cat-pill-btn" data-cat="ui" onclick="selectFeedbackCategory('ui')">🖥️ 界面排版/交互问题</button>
+            <button type="button" class="cat-pill-btn" data-cat="feature" onclick="selectFeedbackCategory('feature')">✨ 功能改进/新建议</button>
+            <button type="button" class="cat-pill-btn" data-cat="other" onclick="selectFeedbackCategory('other')">💬 其他问题</button>
+          </div>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">反馈摘要 / 简短标题</label>
+          <input type="text" class="auth-input" id="feedbackTitleInput" placeholder="例如：电磁感应题目第(2)问符号相反、希望增加撤回上一轮功能..." required>
+        </div>
+
+        <div class="auth-input-group" style="flex: 1;">
+          <label class="auth-label">详细情况描述</label>
+          <textarea class="auth-input" id="feedbackContentInput" rows="4" placeholder="请具体描述您在探究中遇到的问题、题目关键步骤，或您期望的启发引导形式..." style="resize: vertical; font-family: inherit; line-height: 1.5;" required></textarea>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">联系方式 (选填)</label>
+          <input type="text" class="auth-input" id="feedbackContactInput" placeholder="QQ / 邮箱 / 微信号，便于我们向您跟进">
+        </div>
+
+        <div class="auth-btn-row" style="margin-top: 6px;">
+          <button type="button" class="auth-cancel-btn" onclick="closeFeedbackModal()">取消</button>
+          <button type="button" class="auth-submit-btn" id="btnSubmitFeedback" onclick="handleFeedbackSubmit()">🚀 提交反馈</button>
+        </div>
+      </div>
+
+      <!-- 我的历史反馈与管理员答复面板 -->
+      <div id="feedbackHistoryPane" class="feedback-scroll-body" style="display: none;">
+        <div id="myFeedbackListContainer" style="display: flex; flex-direction: column; gap: 10px;">
+          <div style="text-align: center; color: var(--text-muted); padding: 30px;">正在载入反馈记录...</div>
+        </div>
+      </div>
+
+      <!-- 管理员专享反馈审阅与回复面板 (当 currentUser.role === 'admin' 时切换) -->
+      <div id="feedbackAdminPane" style="display: none; flex-direction: column; gap: 12px; flex: 1; overflow: hidden;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div class="history-cat-tabs" style="margin-bottom: 0;">
+            <button class="cat-pill active" id="adminFbFilterAll" onclick="filterAdminFeedbacks('all')">全部</button>
+            <button class="cat-pill" id="adminFbFilterPending" onclick="filterAdminFeedbacks('pending')">待回复</button>
+            <button class="cat-pill" id="adminFbFilterReplied" onclick="filterAdminFeedbacks('replied')">已回复</button>
+          </div>
+          <input type="text" id="adminFbSearchInput" class="history-search-line" style="width: 180px; padding: 4px 8px; font-size: 0.8rem;" placeholder="搜索反馈内容..." oninput="handleAdminFbSearch(this.value)">
+        </div>
+
+        <div class="feedback-scroll-body" id="adminFbListContainer">
+          <div style="text-align: center; color: var(--text-muted); padding: 30px;">正在获取学生反馈列表...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 版本更新演进日志模态弹窗 -->
+  <div class="theme-modal-backdrop" id="changelogModal" onclick="closeChangelogModal()">
+    <div class="theme-modal-card changelog-modal-card" onclick="event.stopPropagation()">
+      <div class="auth-modal-header" style="margin-bottom: 8px;">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">🚀</span>
+          <div>
+            <h3 class="auth-title">知阶 CogniScaffold · 系统更新日志</h3>
+            <p class="auth-subtitle">启发式思维跃迁平台的演进历程与特性发布记录</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeChangelogModal()">✕</button>
+      </div>
+
+      <div class="changelog-timeline">
+
+        <!-- v2.7.0 (当前最新版本) -->
+        <div class="changelog-version-card current">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--primary); font-family: monospace;">v2.7.0</span>
+              <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary-hover);">最新上线</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-28</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>意见反馈与互动答复闭环</strong>：学生可随时提交推导疑问或使用建议，管理员可在线审阅并直接给出答复，历史记录持久化展示。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>版本演进日志与首次更新红点提醒</strong>：点击底部版本号随时浏览平台更新历程；新版本发布后自动呈现红点提示，点击即阅。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>快捷提交热键</strong>：输入框全面支持 <code>Ctrl + Enter</code> 极速发送，打磨长文本输入流畅度。</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- v2.6.0 -->
+        <div class="changelog-version-card">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.6.0</span>
+              <span class="changelog-tag" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">管控增强</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-27</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>机构级管理控制台</strong>：支持批量生成学者账号（前缀递增或表格粘贴）、临时/永久账号封禁及违规说明。</span>
+            </li>
+            <li>
+              <span class="badge-sec">安全</span>
+              <span><strong>防沉迷与资源弹性限额</strong>：非管理员单日提问限额（默认15道）、单题深度启发交互限额（默认30轮），支持后台随时调整与一键重置。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>全量会话审计与 Token 成本透视</strong>：按学者筛选会话流，查看解题蓝图与完整交互流，一键导出 Markdown 审计文件。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>安全防护拦截日志与 API 探针</strong>：实时监控违规提问，毫秒级探测 DeepSeek 模型连通性。</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- v2.5.0 -->
+        <div class="changelog-version-card">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.5.0</span>
+              <span class="changelog-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">架构升级</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-26</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-sec">安全</span>
+              <span><strong>封闭式准入体系</strong>：上线专属账号安全核验与基于密码哈希的鉴权机制，拒绝未经授权访问。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>数据多租户隔离与持久化</strong>：各学者收藏夹、探索历史与自定义会话沙箱物理隔离，多端即时同步。</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- v2.4.0 -->
+        <div class="changelog-version-card">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.4.0</span>
+              <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary);">教学跃迁</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-25</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>全学科苏格拉底脚手架</strong>：由单一数理推导扩展至历史因果、哲学伦理、文学美学、政法批判等全学科矩阵。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>动态认知蓝图与反思归因</strong>：模型生成阶梯思维蓝图，自适应匹配高中拔尖与自主探究路径。</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- v2.0.0 -->
+        <div class="changelog-version-card">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.0.0</span>
+              <span class="changelog-tag" style="background: rgba(100, 116, 139, 0.15); color: var(--text-sub);">基座奠定</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-20</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>原生 Chrome 风格多标签工作区</strong>：支持标签自由切换、拖拽排序、状态即时暂存。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>三阶启发式阶梯导航</strong>：四层认知诊断、迁移拓展题阶梯变式生成与完成报告导出。</span>
+            </li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div style="margin-top: 14px; text-align: right;">
+        <button class="btn btn-primary" style="padding: 6px 18px; font-size: 0.85rem;" onclick="closeChangelogModal()">了解完毕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主题模态弹窗组件 (符合暗色/亮色风格) -->
   <div class="theme-modal-backdrop" id="customThemeModal" onclick="closeThemeModal()">
     <div class="theme-modal-card" onclick="event.stopPropagation()">
       <div class="theme-modal-header">
@@ -4322,10 +4801,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div>• <strong>安全合规保障</strong>：系统搭载架构级断路器，严格遵守学术诚信与未成年人安全防护准则。</div>
         `, ICONS.shield);
       } else if (type === 'feedback') {
-        openThemeModal('问题与建议反馈', `
-          <div style="margin-bottom: 8px;">知阶致力于打造真正陪伴高中拔尖与自主探究的启发式全学科工具。如果你发现任何推导逻辑漏洞、史料评判偏差、排版显示问题或有宝贵建议，欢迎随时联系作者：</div>
-          <div style="background: rgba(128,128,128,0.1); padding: 8px 12px; border-radius: 6px; font-family: monospace; user-select: all; color: var(--primary);">tensonyin@outlook.com</div>
-        `, ICONS.mail);
+        openFeedbackModal();
       }
     }
 
@@ -4641,6 +5117,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
         if (quotaContainer) quotaContainer.style.display = 'none';
         if (quotaAlert) quotaAlert.style.display = 'none';
       }
+
+      // 联动检查版本更新红点与未读反馈通知
+      checkVersionChangelogBadge();
+      loadMyFeedbacks();
     }
 
 
@@ -6841,6 +7321,387 @@ student04, CogniScaffold123!, 李小明"></textarea>
       } catch (e) {
         if (btn) btn.disabled = false;
         if (latencyEl) latencyEl.textContent = '探测失败，网络异常';
+      }
+    }
+
+    // ============================================================
+    // 版本更新日志与红点提醒逻辑 (Changelog & Version Dot)
+    // ============================================================
+    const APP_CURRENT_VERSION = 'v2.7.0';
+
+    function checkVersionChangelogBadge() {
+      try {
+        const readVer = localStorage.getItem('cogni_read_changelog_ver');
+        const dot = document.getElementById('versionUnreadDot');
+        if (dot) {
+          if (!readVer || readVer !== APP_CURRENT_VERSION) {
+            dot.style.display = 'block';
+          } else {
+            dot.style.display = 'none';
+          }
+        }
+      } catch (e) {}
+    }
+
+    function openChangelogModal() {
+      const modal = document.getElementById('changelogModal');
+      if (modal) modal.classList.add('show');
+      try {
+        localStorage.setItem('cogni_read_changelog_ver', APP_CURRENT_VERSION);
+        const dot = document.getElementById('versionUnreadDot');
+        if (dot) dot.style.display = 'none';
+      } catch (e) {}
+    }
+
+    function closeChangelogModal() {
+      const modal = document.getElementById('changelogModal');
+      if (modal) modal.classList.remove('show');
+    }
+
+    // ============================================================
+    // 意见反馈互动与管理员回复闭环 (Feedback System)
+    // ============================================================
+    let currentFeedbackCategory = 'pedagogical';
+    let currentAdminFbStatus = 'all';
+    let adminFeedbacksCache = [];
+
+    function openFeedbackModal() {
+      const modal = document.getElementById('feedbackModal');
+      const alertBox = document.getElementById('feedbackAlertBox');
+      if (alertBox) alertBox.className = 'auth-alert-box';
+      if (modal) modal.classList.add('show');
+
+      // 如果当前是管理员，自动切换为管理员审阅模式
+      const isAdmin = currentUser && currentUser.role === 'admin';
+      const navTabs = document.getElementById('feedbackNavTabs');
+      const submitPane = document.getElementById('feedbackSubmitPane');
+      const histPane = document.getElementById('feedbackHistoryPane');
+      const adminPane = document.getElementById('feedbackAdminPane');
+      const titleEl = document.getElementById('feedbackModalTitle');
+      const subEl = document.getElementById('feedbackModalSubtitle');
+
+      if (isAdmin) {
+        if (navTabs) navTabs.style.display = 'none';
+        if (submitPane) submitPane.style.display = 'none';
+        if (histPane) histPane.style.display = 'none';
+        if (adminPane) adminPane.style.display = 'flex';
+        if (titleEl) titleEl.textContent = '🛡️ 反馈审阅与回复中心 (管理员)';
+        if (subEl) subEl.textContent = '查看学者反馈并在线撰写答复，提交后学者端将即时收到回复';
+        loadAdminFeedbacks();
+      } else {
+        if (navTabs) navTabs.style.display = 'flex';
+        if (adminPane) adminPane.style.display = 'none';
+        if (titleEl) titleEl.textContent = '💬 意见与问题反馈';
+        if (subEl) subEl.textContent = '向管理员提交推导疑问或功能建议，管理员回复将在此呈现';
+        switchFeedbackTab('submit');
+        loadMyFeedbacks();
+      }
+    }
+
+    function closeFeedbackModal() {
+      const modal = document.getElementById('feedbackModal');
+      if (modal) modal.classList.remove('show');
+    }
+
+    function selectFeedbackCategory(cat) {
+      currentFeedbackCategory = cat;
+      const pills = document.querySelectorAll('#feedbackCategoryPills .cat-pill-btn');
+      pills.forEach(p => {
+        p.classList.toggle('active', p.getAttribute('data-cat') === cat);
+      });
+    }
+
+    function switchFeedbackTab(tab) {
+      const btnS = document.getElementById('tabBtnNewFeedback');
+      const btnH = document.getElementById('tabBtnMyFeedback');
+      const paneS = document.getElementById('feedbackSubmitPane');
+      const paneH = document.getElementById('feedbackHistoryPane');
+
+      if (btnS) btnS.classList.toggle('active', tab === 'submit');
+      if (btnH) btnH.classList.toggle('active', tab === 'history');
+      if (paneS) paneS.style.display = tab === 'submit' ? 'flex' : 'none';
+      if (paneH) paneH.style.display = tab === 'history' ? 'flex' : 'none';
+
+      if (tab === 'history') {
+        loadMyFeedbacks();
+      }
+    }
+
+    async function handleFeedbackSubmit() {
+      const titleInput = document.getElementById('feedbackTitleInput');
+      const contentInput = document.getElementById('feedbackContentInput');
+      const contactInput = document.getElementById('feedbackContactInput');
+      const alertBox = document.getElementById('feedbackAlertBox');
+      const btn = document.getElementById('btnSubmitFeedback');
+
+      const title = (titleInput?.value || '').trim();
+      const content = (contentInput?.value || '').trim();
+      const contact = (contactInput?.value || '').trim();
+
+      if (!title) {
+        showAuthAlert(alertBox, '请填写反馈摘要或标题', 'error');
+        return;
+      }
+      if (!content) {
+        showAuthAlert(alertBox, '请填写详细问题或建议描述', 'error');
+        return;
+      }
+
+      if (btn) btn.disabled = true;
+      try {
+        const res = await apiFetch('/api/feedbacks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            category: currentFeedbackCategory,
+            title: title,
+            content: content,
+            contact: contact
+          })
+        });
+        const data = await res.json();
+        if (btn) btn.disabled = false;
+
+        if (res.ok && data.status === 'ok') {
+          showAuthAlert(alertBox, '✅ ' + (data.message || '反馈提交成功！'), 'success');
+          if (titleInput) titleInput.value = '';
+          if (contentInput) contentInput.value = '';
+          if (contactInput) contactInput.value = '';
+          setTimeout(() => {
+            switchFeedbackTab('history');
+          }, 1200);
+        } else {
+          showAuthAlert(alertBox, data.detail || '提交失败，请重试', 'error');
+        }
+      } catch (e) {
+        if (btn) btn.disabled = false;
+        showAuthAlert(alertBox, '网络请求异常，请检查连接', 'error');
+      }
+    }
+
+    async function loadMyFeedbacks() {
+      const container = document.getElementById('myFeedbackListContainer');
+      const badge = document.getElementById('myFeedbackCountBadge');
+      if (!container) return;
+
+      try {
+        const res = await apiFetch('/api/feedbacks/my');
+        if (!res.ok) {
+          container.innerHTML = '<div style="text-align: center; color: #f87171; padding: 20px;">反馈记录获取失败</div>';
+          return;
+        }
+        const data = await res.json();
+        const list = data.feedbacks || [];
+        if (badge) badge.textContent = list.length ? `(${list.length})` : '';
+
+        // 检查是否有未读的管理员答复
+        let hasReplied = list.some(item => item.status === 'replied' && item.admin_reply);
+        const fbDot = document.getElementById('feedbackUnreadDot');
+        if (fbDot) fbDot.style.display = hasReplied ? 'block' : 'none';
+
+        if (!list.length) {
+          container.innerHTML = `
+            <div style="text-align: center; color: var(--text-muted); padding: 40px 20px;">
+              <div style="font-size: 2rem; margin-bottom: 8px;">📭</div>
+              <div>暂无已提交的历史反馈</div>
+              <div style="font-size: 0.78rem; margin-top: 6px;">点击上方「✍️ 提交新反馈」向我们提出问题与宝贵建议</div>
+            </div>
+          `;
+          return;
+        }
+
+        const catNames = {
+          pedagogical: '💡 答复偏差/启发不当',
+          bug: '🐞 题目漏洞/推导错误',
+          ui: '🖥️ 界面排版/交互问题',
+          feature: '✨ 功能改进/新建议',
+          other: '💬 其他反馈'
+        };
+
+        container.innerHTML = list.map(item => {
+          const isReplied = item.status === 'replied' && item.admin_reply;
+          const statusTag = isReplied 
+            ? '<span class="sec-badge" style="background: rgba(16,185,129,0.15); color: #10b981;">✅ 管理员已答复</span>'
+            : '<span class="sec-badge" style="background: rgba(245,158,11,0.15); color: #f59e0b;">⏳ 待管理员审阅</span>';
+
+          return `
+            <div class="feedback-card-item">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                  <span class="sec-badge" style="background: rgba(99,102,241,0.12); color: var(--primary); font-size: 0.7rem;">${catNames[item.category] || item.category}</span>
+                  <strong style="font-size: 0.9rem; color: var(--text-main);">${escapeHtml(item.title)}</strong>
+                </div>
+                ${statusTag}
+              </div>
+              <div style="font-size: 0.82rem; color: var(--text-sub); line-height: 1.5; white-space: pre-wrap; background: var(--input-bg); padding: 8px 10px; border-radius: 6px;">${escapeHtml(item.content)}</div>
+              <div style="display: flex; justify-content: space-between; align-items: center; font-size: 0.72rem; color: var(--text-muted);">
+                <span>提交时间: ${item.created_at || '-'}</span>
+                ${item.contact ? `<span>留存联系: ${escapeHtml(item.contact)}</span>` : ''}
+              </div>
+
+              ${isReplied ? `
+                <div class="admin-reply-box">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: 600; color: #10b981; font-size: 0.76rem;">
+                    <span>🛡️ ${escapeHtml(item.replied_by || '管理员')} 的答复：</span>
+                    <span style="font-size: 0.7rem; opacity: 0.8;">${item.replied_at || ''}</span>
+                  </div>
+                  <div style="white-space: pre-wrap;">${escapeHtml(item.admin_reply)}</div>
+                </div>
+              ` : ''}
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        container.innerHTML = '<div style="text-align: center; color: #f87171; padding: 20px;">载入异常，请重试</div>';
+      }
+    }
+
+    async function loadAdminFeedbacks() {
+      const container = document.getElementById('adminFbListContainer');
+      if (!container) return;
+      container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 30px;">正在获取反馈记录...</div>';
+
+      try {
+        let url = `/api/admin/feedbacks?limit=100`;
+        if (currentAdminFbStatus !== 'all') url += `&status=${currentAdminFbStatus}`;
+        const res = await apiFetch(url);
+        if (!res.ok) {
+          container.innerHTML = '<div style="text-align: center; color: #f87171; padding: 20px;">反馈获取失败</div>';
+          return;
+        }
+        const data = await res.json();
+        adminFeedbacksCache = data.feedbacks || [];
+        renderAdminFeedbacksList(adminFeedbacksCache);
+      } catch (e) {
+        container.innerHTML = '<div style="text-align: center; color: #f87171; padding: 20px;">网络异常</div>';
+      }
+    }
+
+    function filterAdminFeedbacks(status) {
+      currentAdminFbStatus = status;
+      const bAll = document.getElementById('adminFbFilterAll');
+      const bPend = document.getElementById('adminFbFilterPending');
+      const bRep = document.getElementById('adminFbFilterReplied');
+
+      if (bAll) bAll.classList.toggle('active', status === 'all');
+      if (bPend) bPend.classList.toggle('active', status === 'pending');
+      if (bRep) bRep.classList.toggle('active', status === 'replied');
+
+      loadAdminFeedbacks();
+    }
+
+    function handleAdminFbSearch(text) {
+      const q = (text || '').toLowerCase().trim();
+      if (!q) {
+        renderAdminFeedbacksList(adminFeedbacksCache);
+        return;
+      }
+      const filtered = adminFeedbacksCache.filter(item => {
+        return (item.title || '').toLowerCase().includes(q) ||
+               (item.content || '').toLowerCase().includes(q) ||
+               (item.username || '').toLowerCase().includes(q) ||
+               (item.display_name || '').toLowerCase().includes(q);
+      });
+      renderAdminFeedbacksList(filtered);
+    }
+
+    function renderAdminFeedbacksList(list) {
+      const container = document.getElementById('adminFbListContainer');
+      if (!container) return;
+
+      if (!list.length) {
+        container.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px;">暂无匹配的反馈记录</div>';
+        return;
+      }
+
+      const catNames = {
+        pedagogical: '💡 答复偏差/启发不当',
+        bug: '🐞 题目漏洞/推导错误',
+        ui: '🖥️ 界面排版/交互问题',
+        feature: '✨ 功能改进/新建议',
+        other: '💬 其他反馈'
+      };
+
+      container.innerHTML = list.map(item => {
+        const isReplied = item.status === 'replied' && item.admin_reply;
+        const uText = item.username ? `${item.username} (${item.display_name || '学者'})` : '访客';
+
+        return `
+          <div class="feedback-card-item" id="adminFbCard_${item.id}">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+              <div>
+                <span class="sec-badge" style="background: rgba(99,102,241,0.12); color: var(--primary); font-size: 0.7rem;">${catNames[item.category] || item.category}</span>
+                <strong style="font-size: 0.9rem; color: var(--text-main); margin-left: 6px;">${escapeHtml(item.title)}</strong>
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
+                  学者: <strong>${escapeHtml(uText)}</strong> | 提交: ${item.created_at || '-'} ${item.contact ? `| 联系: ${escapeHtml(item.contact)}` : ''}
+                </div>
+              </div>
+              <span class="sec-badge" style="background: ${isReplied ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)'}; color: ${isReplied ? '#10b981' : '#f59e0b'};">
+                ${isReplied ? '✅ 已回复' : '⏳ 待回复'}
+              </span>
+            </div>
+
+            <div style="font-size: 0.82rem; color: var(--text-sub); line-height: 1.5; white-space: pre-wrap; background: var(--input-bg); padding: 8px 10px; border-radius: 6px;">${escapeHtml(item.content)}</div>
+
+            ${isReplied ? `
+              <div class="admin-reply-box" style="margin-top: 4px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-weight: 600; color: #10b981; font-size: 0.75rem;">
+                  <span>🛡️ 已于 ${item.replied_at || ''} 回复：</span>
+                  <button class="btn btn-secondary" style="padding: 1px 6px; font-size: 0.7rem;" onclick="toggleAdminEditReply(${item.id})">修改回复</button>
+                </div>
+                <div id="replyText_${item.id}" style="white-space: pre-wrap;">${escapeHtml(item.admin_reply)}</div>
+              </div>
+            ` : ''}
+
+            <div id="replyFormContainer_${item.id}" style="display: ${isReplied ? 'none' : 'flex'}; flex-direction: column; gap: 6px; margin-top: 6px;">
+              <textarea class="auth-input" id="replyInput_${item.id}" rows="2" placeholder="输入向该学者公开展示的答复内容..." style="resize: vertical; font-size: 0.82rem; line-height: 1.4;">${isReplied ? escapeHtml(item.admin_reply) : ''}</textarea>
+              <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                ${isReplied ? `<button type="button" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.75rem;" onclick="toggleAdminEditReply(${item.id})">取消编辑</button>` : ''}
+                <button type="button" class="btn btn-primary" style="padding: 4px 12px; font-size: 0.78rem;" id="btnReplySubmit_${item.id}" onclick="submitAdminFeedbackReply(${item.id})">
+                  ${isReplied ? '💾 保存更新答复' : '✉️ 发送回复给学者'}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function toggleAdminEditReply(id) {
+      const form = document.getElementById(`replyFormContainer_${id}`);
+      if (form) {
+        form.style.display = form.style.display === 'none' ? 'flex' : 'none';
+      }
+    }
+
+    async function submitAdminFeedbackReply(feedbackId) {
+      const input = document.getElementById(`replyInput_${feedbackId}`);
+      const btn = document.getElementById(`btnReplySubmit_${feedbackId}`);
+      const reply = (input?.value || '').trim();
+
+      if (!reply) {
+        alert('请输入回复内容');
+        return;
+      }
+
+      if (btn) btn.disabled = true;
+      try {
+        const res = await apiFetch(`/api/admin/feedbacks/${feedbackId}/reply`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reply: reply, status: 'replied' })
+        });
+        const data = await res.json();
+        if (btn) btn.disabled = false;
+
+        if (res.ok && data.status === 'ok') {
+          loadAdminFeedbacks();
+        } else {
+          alert(data.detail || '回复提交失败');
+        }
+      } catch (e) {
+        if (btn) btn.disabled = false;
+        alert('网络请求异常');
       }
     }
 

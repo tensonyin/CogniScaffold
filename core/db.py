@@ -168,6 +168,25 @@ def init_db():
     );
     """)
 
+    # 10. 用户反馈与管理答复表
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS feedbacks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        username TEXT,
+        category TEXT NOT NULL DEFAULT 'other',
+        title TEXT NOT NULL,
+        content TEXT NOT NULL,
+        contact TEXT,
+        admin_reply TEXT,
+        replied_by TEXT,
+        replied_at TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    );
+    """)
+
     # 索引优化
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_archived ON sessions(user_id, is_archived);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id ASC);")
@@ -175,6 +194,8 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_token_user_date ON token_usage(user_id, date);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage(session_id);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_guardrail_user ON guardrail_logs(user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_feedbacks_user ON feedbacks(user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON feedbacks(status);")
 
     conn.commit()
 
@@ -1541,3 +1562,90 @@ def get_admin_session_detail(session_id: str) -> Optional[Dict[str, Any]]:
 
     sess["messages"] = [dict(m) for m in msg_rows]
     return sess
+
+
+# ============================================================
+# 用户反馈与管理回复 (Feedback & Admin Replies)
+# ============================================================
+
+def submit_user_feedback(user_id: Optional[str], username: Optional[str], category: str, title: str, content: str, contact: str = "") -> Dict[str, Any]:
+    """学生或用户提交反馈"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    INSERT INTO feedbacks (user_id, username, category, title, content, contact, status, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?);
+    """, (user_id, username, category or "other", title.strip(), content.strip(), contact.strip() if contact else "", now, now))
+    fid = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return {
+        "id": fid,
+        "user_id": user_id,
+        "username": username,
+        "category": category,
+        "title": title,
+        "content": content,
+        "contact": contact,
+        "status": "pending",
+        "created_at": now
+    }
+
+
+def get_user_feedbacks(user_id: str) -> List[Dict[str, Any]]:
+    """获取指定用户提交的历史反馈及管理员答复"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT id, user_id, username, category, title, content, contact, admin_reply, replied_by, replied_at, status, created_at, updated_at
+    FROM feedbacks
+    WHERE user_id = ?
+    ORDER BY id DESC;
+    """, (user_id,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_admin_feedbacks(status: Optional[str] = None, search: str = "", limit: int = 100) -> List[Dict[str, Any]]:
+    """管理员全量检索反馈列表"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    sql = """
+    SELECT f.id, f.user_id, f.username, f.category, f.title, f.content, f.contact, 
+           f.admin_reply, f.replied_by, f.replied_at, f.status, f.created_at, f.updated_at,
+           u.display_name
+    FROM feedbacks f
+    LEFT JOIN users u ON f.user_id = u.id
+    WHERE 1=1
+    """
+    params: List[Any] = []
+    if status and status != "all":
+        sql += " AND f.status = ?"
+        params.append(status)
+    if search:
+        sql += " AND (f.title LIKE ? OR f.content LIKE ? OR f.username LIKE ? OR u.display_name LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
+    sql += " ORDER BY CASE WHEN f.status='pending' THEN 0 ELSE 1 END, f.id DESC LIMIT ?;"
+    params.append(limit)
+    cur.execute(sql, tuple(params))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def reply_user_feedback(feedback_id: int, admin_reply: str, admin_name: str, status: str = "replied") -> bool:
+    """管理员回复学生反馈"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    UPDATE feedbacks
+    SET admin_reply = ?, replied_by = ?, replied_at = ?, status = ?, updated_at = ?
+    WHERE id = ?;
+    """, (admin_reply.strip(), admin_name, now, status, now, feedback_id))
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0

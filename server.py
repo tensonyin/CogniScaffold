@@ -72,7 +72,11 @@ from core.db import (
     get_admin_overview,
     get_admin_users_list,
     get_admin_sessions_list,
-    get_admin_session_detail
+    get_admin_session_detail,
+    submit_user_feedback,
+    get_user_feedbacks,
+    get_admin_feedbacks,
+    reply_user_feedback
 )
 from core.auth import (
     verify_password,
@@ -1330,3 +1334,77 @@ async def admin_probe_api(request: Request):
             "base_url": base_url,
             "latency_ms": latency_ms
         }
+
+
+# ============================================================
+# 用户反馈与管理回复接口 (Feedback & Admin Replies API)
+# ============================================================
+
+@app.post("/api/feedbacks")
+@app.post("/cogni-scaffold/api/feedbacks")
+async def create_feedback_endpoint(request: Request, data: dict):
+    user = get_current_user(request)
+    title = (data.get("title") or "").strip()
+    content = (data.get("content") or "").strip()
+    category = data.get("category", "other")
+    contact = (data.get("contact") or "").strip()
+
+    if not title:
+        raise HTTPException(status_code=400, detail="反馈标题不能为空")
+    if not content:
+        raise HTTPException(status_code=400, detail="反馈详细内容不能为空")
+
+    fb = submit_user_feedback(
+        user_id=str(user["id"]) if user else None,
+        username=user["username"] if user else "访客",
+        category=category,
+        title=title,
+        content=content,
+        contact=contact
+    )
+    return {"status": "ok", "message": "感谢您的反馈，管理员审阅后将尽快在此答复！", "feedback": fb}
+
+
+@app.get("/api/feedbacks/my")
+@app.get("/cogni-scaffold/api/feedbacks/my")
+async def get_my_feedbacks_endpoint(request: Request):
+    user = get_current_user(request)
+    if not user:
+        return {"status": "ok", "feedbacks": []}
+    fbs = get_user_feedbacks(str(user["id"]))
+    return {"status": "ok", "feedbacks": fbs}
+
+
+@app.get("/api/admin/feedbacks")
+@app.get("/cogni-scaffold/api/admin/feedbacks")
+async def admin_get_feedbacks_endpoint(
+    request: Request,
+    status: Optional[str] = None,
+    search: Optional[str] = None,
+    limit: int = 100
+):
+    require_admin(request)
+    fbs = get_admin_feedbacks(status=status, search=search or "", limit=limit)
+    return {"status": "ok", "feedbacks": fbs}
+
+
+@app.post("/api/admin/feedbacks/{feedback_id}/reply")
+@app.post("/cogni-scaffold/api/admin/feedbacks/{feedback_id}/reply")
+async def admin_reply_feedback_endpoint(feedback_id: int, request: Request, data: dict):
+    admin = require_admin(request)
+    reply = (data.get("reply") or "").strip()
+    status = data.get("status", "replied")
+
+    if not reply:
+        raise HTTPException(status_code=400, detail="回复内容不能为空")
+
+    success = reply_user_feedback(
+        feedback_id=feedback_id,
+        admin_reply=reply,
+        admin_name=admin.get("username", "管理员"),
+        status=status
+    )
+    if not success:
+        raise HTTPException(status_code=404, detail="反馈记录不存在")
+    return {"status": "ok", "message": "回复成功！"}
+
