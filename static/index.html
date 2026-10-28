@@ -1951,38 +1951,108 @@
     /* 📱 手机端深度适配 (Screen Width <= 768px) */
     @media (max-width: 768px) {
       .app-main-layout {
-        padding: 10px 12px calc(20px + env(safe-area-inset-bottom)) 12px;
+        padding: 8px 10px calc(20px + env(safe-area-inset-bottom)) 10px;
       }
       .chrome-tabbar-container {
-        padding: 0 8px;
-        height: 44px;
+        display: flex;
+        flex-wrap: wrap;
+        height: auto !important;
+        min-height: 82px;
+        padding: 6px 10px 0 10px !important;
+        gap: 4px 0;
+        background: var(--tabbar-bg);
+      }
+      /* 手机端顶层操作行：左侧品牌，右侧控制操作 */
+      .brand-header-badge {
+        order: 1;
+        height: 34px;
+        padding: 4px 8px;
+        margin-right: 0;
       }
       .brand-title-name {
-        display: none !important;
+        display: inline-block !important;
+        font-size: 0.95rem !important;
+        font-weight: 700;
       }
-      .brand-header-badge {
-        padding: 4px 6px;
-        margin-right: 4px;
+      .right-controls {
+        order: 2;
+        margin-left: auto;
+        height: 34px;
+        gap: 6px;
+      }
+      .admin-console-nav-btn {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+      }
+      .history-archive-btn {
+        padding: 4px 8px;
+        font-size: 0.75rem;
       }
       .history-archive-text {
         display: none !important;
       }
-      .history-archive-btn {
-        padding: 5px 8px;
+      .theme-toggle-icon-btn {
+        width: 30px;
+        height: 30px;
       }
+      .user-auth-btn {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+      }
+
+      /* 手机端底层标签行：100% 全宽独立横向平滑滚动区 */
       .tabs-scroll-area {
-        max-width: calc(100% - 120px) !important;
-        gap: 2px;
+        order: 3;
+        flex: 1 1 auto;
+        width: calc(100% - 44px) !important;
+        max-width: none !important;
+        height: 38px !important;
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        gap: 4px;
+        scrollbar-width: none;
+        -webkit-overflow-scrolling: touch;
+        scroll-behavior: smooth;
+        padding-bottom: 1px;
+      }
+      .add-tab-circle {
+        order: 4;
+        width: 32px;
+        height: 32px;
+        margin-left: 6px;
+        margin-bottom: 3px;
+        font-size: 1.1rem;
+        flex-shrink: 0;
       }
       .chrome-tab {
-        min-width: 90px !important;
-        max-width: 135px !important;
-        padding: 0 6px 0 8px !important;
-        font-size: 11.5px !important;
+        min-width: 135px !important;
+        max-width: 190px !important;
+        height: 36px !important;
+        padding: 0 8px 0 10px !important;
+        font-size: 12px !important;
+        border-radius: 8px 8px 0 0 !important;
       }
-      .tab-icon {
-        margin-right: 4px;
-        font-size: 12px;
+      .chrome-tab .tab-icon {
+        margin-right: 5px;
+        font-size: 13px;
+        flex-shrink: 0;
+      }
+      .chrome-tab .tab-title-text {
+        max-width: 115px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 500;
+        font-size: 12px !important;
+      }
+      .chrome-tab .tab-close-icon {
+        width: 18px;
+        height: 18px;
+        margin-left: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
       }
 
       /* 开题引导区 (Onboarding) 手机端流式紧凑排版 */
@@ -3768,7 +3838,7 @@
         <a class="footer-link-item" onclick="openFooterModal('philosophy')">教育理念</a>
         <a class="footer-link-item" onclick="openFooterModal('privacy')">隐私安全</a>
         <a class="footer-link-item" onclick="openFeedbackModal()" style="position: relative;">
-          <span>💬 反馈入口</span>
+          <span>反馈入口</span>
           <span class="feedback-unread-dot" id="feedbackUnreadDot"></span>
         </a>
         <a class="version-link-badge" id="footerVersionBtn" onclick="openChangelogModal()" title="点击查看更新日志与版本特性">
@@ -4081,7 +4151,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main);" id="drawerSessionTitle">会话详情</h3>
           <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;" id="drawerSessionMeta">--</div>
         </div>
-        <div style="display: flex; gap: 8px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <button class="btn btn-secondary" id="btnDrawerBanUser" onclick="openBanModalFromDrawer()" style="padding: 4px 10px; font-size: 0.78rem; color: #f87171; border-color: rgba(239, 68, 68, 0.35);" title="对违规或异常学者实施临时或永久封禁">
+            🚫 封禁该学者
+          </button>
           <button class="btn btn-primary" id="btnDrawerExportMd" onclick="exportCurrentDrawerMarkdown()" style="padding: 4px 10px; font-size: 0.78rem;">
             📥 导出 Markdown
           </button>
@@ -4967,7 +5040,18 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div class="vertical-divider"></div>
         `;
         scrollArea.appendChild(tabEl);
+        if (isActive) {
+          setTimeout(() => {
+            tabEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+          }, 50);
+        }
       });
+
+      const activeCount = Object.keys(activeDict).length;
+      const addBtnEl = document.getElementById('addBtn');
+      if (addBtnEl) {
+        addBtnEl.title = `新建解题探索标签页 (当前共 ${activeCount} 个会话)`;
+      }
 
       const archivedCount = Object.keys(appState.archived_sessions || {}).length;
       document.getElementById('archivedBadge').innerText = archivedCount;
@@ -6181,6 +6265,17 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
       try {
         const response = await apiFetch(`/api/sessions/${curId}/chat/stream?student_text=${encodeURIComponent(text)}`);
+        if (!response.ok) {
+          isStreaming = false;
+          submitBtn.disabled = false;
+          let errMsg = `请求失败 (HTTP ${response.status})`;
+          try {
+            const errData = await response.json();
+            if (errData && errData.detail) errMsg = errData.detail;
+          } catch(e) {}
+          contentBox.innerHTML = `<span style="color: #f87171;">⚠️ ${escapeHtml(errMsg)}</span>`;
+          return;
+        }
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8");
         let buffer = "";
@@ -7088,6 +7183,12 @@ student04, CogniScaffold123!, 李小明"></textarea>
         currentDrawerSession = data.session;
         const s = currentDrawerSession;
 
+        const btnBan = document.getElementById('btnDrawerBanUser');
+        if (btnBan) {
+          const isTargetAdmin = (s.user && s.user.role === 'admin') || (s.role === 'admin');
+          btnBan.style.display = isTargetAdmin ? 'none' : 'inline-block';
+        }
+
         titleEl.textContent = s.title || '探索会话详情';
         const uText = s.user ? `${s.user.username} (${s.user.display_name || ''})` : s.user_id;
         metaEl.textContent = `学者：${uText} | 阶段：${s.current_stage || 1} | 轮次：${s.tutor_turns || 0} 轮 | Token: ${(s.token_usage_total || 0).toLocaleString()} | 时间：${s.created_at || '-'}`;
@@ -7159,6 +7260,14 @@ student04, CogniScaffold123!, 李小明"></textarea>
       const drawer = document.getElementById('adminSessionDrawer');
       if (drawer) drawer.classList.remove('show');
       currentDrawerSession = null;
+    }
+
+    function openBanModalFromDrawer() {
+      if (!currentDrawerSession) return;
+      const s = currentDrawerSession;
+      const uid = s.user ? s.user.id : s.user_id;
+      const uname = s.user ? (s.user.username || s.username) : (s.username || '该学者');
+      openAdminBanModal(uid, uname);
     }
 
     function exportCurrentDrawerMarkdown() {

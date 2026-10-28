@@ -13,7 +13,7 @@ import sqlite3
 import json
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple, Union
 from datetime import datetime
 from core.auth import hash_password, generate_salt, hash_token
 
@@ -1373,7 +1373,7 @@ def get_user_effective_limits(user_id: str) -> Tuple[int, int]:
 
 
 def get_user_today_questions_count(user_id: str) -> int:
-    """获取某用户今日已开题数量"""
+    """获取某用户今日已开题数量（排除预设案例库的演示记录）"""
     today_full = datetime.now().strftime("%Y-%m-%d")
     today_short = datetime.now().strftime("%m-%d")
     conn = get_db_connection()
@@ -1381,7 +1381,9 @@ def get_user_today_questions_count(user_id: str) -> int:
     cur.execute("""
     SELECT COUNT(1) as cnt 
     FROM sessions 
-    WHERE user_id = ? AND is_initialized = 1 AND (created_at LIKE ? OR created_at LIKE ?);
+    WHERE user_id = ? AND is_initialized = 1 
+      AND id NOT LIKE 'preset_%'
+      AND (created_at LIKE ? OR created_at LIKE ?);
     """, (user_id, f"{today_full}%", f"{today_short}%"))
     row = cur.fetchone()
     conn.close()
@@ -1390,19 +1392,32 @@ def get_user_today_questions_count(user_id: str) -> int:
 
 def check_can_create_question(user_id: str, is_admin: bool = False) -> Tuple[bool, int, int]:
     """检查是否允许开题: 返回 (允许与否, 今日已用, 上限)"""
+    if not is_admin:
+        u = get_user_by_id(user_id)
+        if u and u.get("role") == "admin":
+            is_admin = True
+
     if is_admin:
         return True, 0, 99999
+
     daily_limit, _ = get_user_effective_limits(user_id)
     today_count = get_user_today_questions_count(user_id)
     return (today_count < daily_limit), today_count, daily_limit
 
 
-def check_can_continue_chat(user_id: str, session: Dict[str, Any], is_admin: bool = False) -> Tuple[bool, int, int]:
+def check_can_continue_chat(user_id: str, session: Union[Dict[str, Any], int], is_admin: bool = False) -> Tuple[bool, int, int]:
     """检查单题是否已达轮次上限: 返回 (允许与否, 当前轮次, 上限)"""
+    if not is_admin:
+        u = get_user_by_id(user_id)
+        if u and u.get("role") == "admin":
+            is_admin = True
+
+    current_turns = session if isinstance(session, int) else (session.get("tutor_turns", 0) if isinstance(session, dict) else 0)
+
     if is_admin:
-        return True, session.get("tutor_turns", 0), 99999
+        return True, current_turns, 99999
+
     _, turn_limit = get_user_effective_limits(user_id)
-    current_turns = session.get("tutor_turns", 0)
     return (current_turns < turn_limit), current_turns, turn_limit
 
 
@@ -1446,9 +1461,10 @@ def get_admin_overview() -> Dict[str, Any]:
     }
 
 
-def get_admin_users_list(search: str = "", status: str = "") -> List[Dict[str, Any]]:
+def get_admin_users_list(search: str = "", role: str = "", status: str = "", limit: int = 500) -> List[Dict[str, Any]]:
     """管理员账号列表检索与详细聚合"""
     today_str = datetime.now().strftime("%Y-%m-%d")
+    today_short = datetime.now().strftime("%m-%d")
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -1456,23 +1472,28 @@ def get_admin_users_list(search: str = "", status: str = "") -> List[Dict[str, A
     SELECT 
         u.id, u.username, u.display_name, u.role, u.status, u.banned_until, u.ban_reason,
         u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit,
-        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1) as session_count,
-        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND created_at LIKE ?) as today_questions,
+        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%') as session_count,
+        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%' AND (created_at LIKE ? OR created_at LIKE ?)) as today_questions,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id) as total_tokens
     FROM users u
     WHERE 1=1
     """
-    params: List[Any] = [f"{today_str}%"]
+    params: List[Any] = [f"{today_str}%", f"{today_short}%"]
 
     if search:
         sql += " AND (u.username LIKE ? OR u.display_name LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%"])
 
+    if role:
+        sql += " AND u.role = ?"
+        params.append(role)
+
     if status:
         sql += " AND u.status = ?"
         params.append(status)
 
-    sql += " ORDER BY u.role DESC, u.created_at ASC;"
+    sql += " ORDER BY u.role DESC, u.created_at ASC LIMIT ?;"
+    params.append(limit)
 
     cur.execute(sql, tuple(params))
     rows = cur.fetchall()

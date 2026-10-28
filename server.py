@@ -258,7 +258,8 @@ async def get_bootstrap(request: Request):
     user_store = get_user_store(user["id"]) if user else None
     user_info = None
     if user:
-        can_create, cur_q, max_q = check_can_create_question(user["id"])
+        is_admin = (user.get("role") == "admin")
+        can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
         _, max_turns = get_user_effective_limits(user["id"])
         user_info = {
             "id": user["id"],
@@ -267,10 +268,10 @@ async def get_bootstrap(request: Request):
             "role": user["role"],
             "quota": {
                 "can_create": can_create,
-                "today_questions": cur_q,
-                "daily_limit": max_q,
-                "turn_limit": max_turns,
-                "is_admin": user.get("role") == "admin"
+                "today_questions": 0 if is_admin else cur_q,
+                "daily_limit": 99999 if is_admin else max_q,
+                "turn_limit": 99999 if is_admin else max_turns,
+                "is_admin": is_admin
             }
         }
 
@@ -354,7 +355,8 @@ async def auth_login(request: Request, data: dict):
     token = create_auth_token_session(user["id"], ip=client_ip, user_agent=ua)
     log_audit_event(user["id"], "login_success", client_ip, "Success")
 
-    can_create, cur_q, max_q = check_can_create_question(user["id"])
+    is_admin = (user.get("role") == "admin")
+    can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
     _, max_turns = get_user_effective_limits(user["id"])
     user_info = {
         "id": user["id"],
@@ -363,10 +365,10 @@ async def auth_login(request: Request, data: dict):
         "role": user["role"],
         "quota": {
             "can_create": can_create,
-            "today_questions": cur_q,
-            "daily_limit": max_q,
-            "turn_limit": max_turns,
-            "is_admin": user.get("role") == "admin"
+            "today_questions": 0 if is_admin else cur_q,
+            "daily_limit": 99999 if is_admin else max_q,
+            "turn_limit": 99999 if is_admin else max_turns,
+            "is_admin": is_admin
         }
     }
     user_store = get_user_store(user["id"])
@@ -411,7 +413,8 @@ async def auth_me(request: Request):
     user = get_current_user(request)
     if not user:
         return {"user": None}
-    can_create, cur_q, max_q = check_can_create_question(user["id"])
+    is_admin = (user.get("role") == "admin")
+    can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
     _, max_turns = get_user_effective_limits(user["id"])
     return {
         "user": {
@@ -421,10 +424,10 @@ async def auth_me(request: Request):
             "role": user["role"],
             "quota": {
                 "can_create": can_create,
-                "today_questions": cur_q,
-                "daily_limit": max_q,
-                "turn_limit": max_turns,
-                "is_admin": user.get("role") == "admin"
+                "today_questions": 0 if is_admin else cur_q,
+                "daily_limit": 99999 if is_admin else max_q,
+                "turn_limit": 99999 if is_admin else max_turns,
+                "is_admin": is_admin
             }
         }
     }
@@ -636,8 +639,9 @@ async def init_question(request: Request, data: dict):
 
     # 提问额度检测（非管理员账号受单日提问上限约束）
     # 仅当会话未初始化过（即新发起题目）时计入今日额度
-    if not sess.get("is_initialized", False):
-        can_create, cur_count, max_limit = check_can_create_question(user_id)
+    is_admin = (user.get("role") == "admin")
+    if not sess.get("is_initialized", False) and not is_admin:
+        can_create, cur_count, max_limit = check_can_create_question(user_id, is_admin=is_admin)
         if not can_create:
             raise HTTPException(
                 status_code=429,
@@ -859,7 +863,8 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
         raise HTTPException(status_code=404, detail="Session not found")
 
     # 对话轮次限额检测（非管理员账号受单题目轮次上限约束）
-    can_continue, cur_turns, max_turns = check_can_continue_chat(user_id, sess.get("tutor_turns", 0))
+    is_admin = (user.get("role") == "admin")
+    can_continue, cur_turns, max_turns = check_can_continue_chat(user_id, sess.get("tutor_turns", 0), is_admin=is_admin)
     if not can_continue:
         raise HTTPException(
             status_code=429,
@@ -1076,12 +1081,12 @@ async def admin_get_users(
     request: Request,
     search: str = "",
     role: str = "",
-    page: int = 1,
-    page_size: int = 50
+    status: str = "",
+    page_size: int = 500
 ):
     require_admin(request)
-    result = get_admin_users_list(search=search, role=role, page=page, page_size=page_size)
-    return {"status": "ok", **result}
+    users = get_admin_users_list(search=search, role=role, status=status, limit=page_size)
+    return {"status": "ok", "users": users, "total_count": len(users)}
 
 
 @app.post("/api/admin/users/batch")
