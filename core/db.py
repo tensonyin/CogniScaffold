@@ -218,7 +218,7 @@ def init_db():
 
 
 def _migrate_user_columns(conn: sqlite3.Connection):
-    """自动向 users 表迁移新增字段：封禁时间、封禁原因、自定义开题限额、自定义轮次限额"""
+    """自动向 users 表迁移新增字段：封禁时间、封禁原因、自定义开题限额、自定义轮次限额、自定义Token限额"""
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(users);")
     cols = [r["name"] for r in cur.fetchall()]
@@ -230,6 +230,8 @@ def _migrate_user_columns(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE users ADD COLUMN custom_daily_limit INTEGER;")
     if "custom_turn_limit" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN custom_turn_limit INTEGER;")
+    if "custom_daily_token_limit" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_daily_token_limit INTEGER;")
     conn.commit()
 
 
@@ -240,6 +242,7 @@ def _seed_default_configs(conn: sqlite3.Connection):
     defaults = [
         ("daily_question_limit", "15", "非管理员单日允许开题的最多题目数（道）"),
         ("session_turn_limit", "30", "单道题目允许进行的最多思维引导交互轮次（轮）"),
+        ("daily_token_limit", "50000", "非管理员单日允许消耗的最多 Token 数 (Tokens)"),
         ("deepseek_input_price_per_m", "1.0", "DeepSeek 每百万输入 Token 费用 (元)"),
         ("deepseek_output_price_per_m", "2.0", "DeepSeek 每百万输出 Token 费用 (元)")
     ]
@@ -771,7 +774,8 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
         "archived_sessions": archived_sessions,
         "current_session_id": current_session_id,
         "session_counter": len(active_sessions) + len(archived_sessions),
-        "theme": theme
+        "theme": theme,
+        "theme_mode": theme
     }
 
 
@@ -1262,15 +1266,15 @@ def reset_user_password_by_admin(user_id: str, new_password: str, admin_id: Opti
     return True
 
 
-def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: Optional[int]):
+def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: Optional[int], daily_token_limit: Optional[int] = None):
     """设置用户个性化特批限额 (None 则清除恢复全局限额)"""
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
     UPDATE users 
-    SET custom_daily_limit = ?, custom_turn_limit = ?
+    SET custom_daily_limit = ?, custom_turn_limit = ?, custom_daily_token_limit = ?
     WHERE id = ?;
-    """, (daily_limit, turn_limit, str(user_id)))
+    """, (daily_limit, turn_limit, daily_token_limit, str(user_id)))
     conn.commit()
     conn.close()
 
@@ -1352,24 +1356,26 @@ def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
 # 限额判定与门禁 (Quota Check & Enforcement)
 # ============================================================
 
-def get_user_effective_limits(user_id: str) -> Tuple[int, int]:
-    """获取某用户的生效限额：(单日开题上限, 单题轮次上限)"""
+def get_user_effective_limits(user_id: str) -> Tuple[int, int, int]:
+    """获取某用户的生效限额：(单日开题上限, 单题轮次上限, 单日 Token 消耗上限)"""
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT role, custom_daily_limit, custom_turn_limit FROM users WHERE id = ?;", (user_id,))
+    cur.execute("SELECT role, custom_daily_limit, custom_turn_limit, custom_daily_token_limit FROM users WHERE id = ?;", (user_id,))
     row = cur.fetchone()
     conn.close()
 
     if not row or row["role"] == "admin":
-        return 99999, 99999  # 管理员无限制
+        return 99999, 99999, 99999999  # 管理员无限制
 
     default_daily = int(get_system_config("daily_question_limit", "15"))
     default_turns = int(get_system_config("session_turn_limit", "30"))
+    default_tokens = int(get_system_config("daily_token_limit", "50000"))
 
     daily = row["custom_daily_limit"] if (row["custom_daily_limit"] is not None and row["custom_daily_limit"] > 0) else default_daily
     turns = row["custom_turn_limit"] if (row["custom_turn_limit"] is not None and row["custom_turn_limit"] > 0) else default_turns
+    daily_tokens = row["custom_daily_token_limit"] if (row["custom_daily_token_limit"] is not None and row["custom_daily_token_limit"] > 0) else default_tokens
 
-    return daily, turns
+    return daily, turns, daily_tokens
 
 
 def get_user_today_questions_count(user_id: str) -> int:
@@ -1390,6 +1396,36 @@ def get_user_today_questions_count(user_id: str) -> int:
     return row["cnt"] if row else 0
 
 
+def get_user_today_tokens(user_id: str) -> int:
+    """获取某用户今日已消耗的全部 Token 总数"""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT COALESCE(SUM(total_tokens), 0) as cnt 
+    FROM token_usage 
+    WHERE user_id = ? AND date = ?;
+    """, (str(user_id), today_str))
+    row = cur.fetchone()
+    conn.close()
+    return int(row["cnt"]) if row else 0
+
+
+def check_can_consume_tokens(user_id: str, is_admin: bool = False, estimated_tokens: int = 0) -> Tuple[bool, int, int]:
+    """检查是否允许消耗 Token: 返回 (允许与否, 今日已用, 上限)"""
+    if not is_admin:
+        u = get_user_by_id(user_id)
+        if u and u.get("role") == "admin":
+            is_admin = True
+
+    if is_admin:
+        return True, 0, 99999999
+
+    _, _, token_limit = get_user_effective_limits(user_id)
+    today_tokens = get_user_today_tokens(user_id)
+    return (today_tokens + estimated_tokens < token_limit), today_tokens, token_limit
+
+
 def check_can_create_question(user_id: str, is_admin: bool = False) -> Tuple[bool, int, int]:
     """检查是否允许开题: 返回 (允许与否, 今日已用, 上限)"""
     if not is_admin:
@@ -1400,7 +1436,7 @@ def check_can_create_question(user_id: str, is_admin: bool = False) -> Tuple[boo
     if is_admin:
         return True, 0, 99999
 
-    daily_limit, _ = get_user_effective_limits(user_id)
+    daily_limit, _, _ = get_user_effective_limits(user_id)
     today_count = get_user_today_questions_count(user_id)
     return (today_count < daily_limit), today_count, daily_limit
 
@@ -1417,7 +1453,7 @@ def check_can_continue_chat(user_id: str, session: Union[Dict[str, Any], int], i
     if is_admin:
         return True, current_turns, 99999
 
-    _, turn_limit = get_user_effective_limits(user_id)
+    _, turn_limit, _ = get_user_effective_limits(user_id)
     return (current_turns < turn_limit), current_turns, turn_limit
 
 
@@ -1448,6 +1484,7 @@ def get_admin_overview() -> Dict[str, Any]:
     token_stats = get_token_stats_overview()
     daily_limit = int(get_system_config("daily_question_limit", "15"))
     turn_limit = int(get_system_config("session_turn_limit", "30"))
+    daily_tokens = int(get_system_config("daily_token_limit", "50000"))
 
     return {
         "total_students": u_row["total_users"] if u_row else 0,
@@ -1457,6 +1494,7 @@ def get_admin_overview() -> Dict[str, Any]:
         "total_messages": m_row["total_messages"] if m_row else 0,
         "daily_limit_config": daily_limit,
         "turn_limit_config": turn_limit,
+        "daily_token_limit_config": daily_tokens,
         "token_stats": token_stats
     }
 
@@ -1471,14 +1509,15 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
     sql = """
     SELECT 
         u.id, u.username, u.display_name, u.role, u.status, u.banned_until, u.ban_reason,
-        u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit,
+        u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit, u.custom_daily_token_limit,
         (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%') as session_count,
         (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%' AND (created_at LIKE ? OR created_at LIKE ?)) as today_questions,
+        (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id AND date = ?) as today_tokens,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id) as total_tokens
     FROM users u
     WHERE 1=1
     """
-    params: List[Any] = [f"{today_str}%", f"{today_short}%"]
+    params: List[Any] = [f"{today_str}%", f"{today_short}%", today_str]
 
     if search:
         sql += " AND (u.username LIKE ? OR u.display_name LIKE ?)"

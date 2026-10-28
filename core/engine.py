@@ -157,7 +157,9 @@ def stream_tutor_response(
 def generate_diagnostic_report(
     dialogue_history: List[Dict[str, str]],
     question: str,
-    api_config: Dict[str, Any]
+    api_config: Dict[str, Any],
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
 ) -> Dict[str, Any]:
     """
     Diagnostic Agent: 突破后生成结构化思维盲区诊断与三阶变式矩阵 (JSON)
@@ -199,6 +201,19 @@ def generate_diagnostic_report(
             temperature=0.2,
             max_tokens=900
         )
+        if user_id and hasattr(response, "usage") and response.usage:
+            try:
+                from core.db import record_token_usage
+                record_token_usage(
+                    user_id=user_id,
+                    session_id=session_id,
+                    task_type="diagnostic_report",
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens
+                )
+            except Exception as e_tok:
+                print(f"[Token Log Error in diagnostic_report] {e_tok}")
         content = response.choices[0].message.content.strip()
         if content.startswith("```json"):
             content = content[7:]
@@ -236,7 +251,9 @@ def evaluate_transfer_answer(
     variant_question: str,
     variant_hint: str,
     student_answer: str,
-    api_config: Dict[str, Any]
+    api_config: Dict[str, Any],
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
 ) -> str:
     """
     Transfer Evaluator: 变式题智能评判
@@ -278,6 +295,19 @@ def evaluate_transfer_answer(
                 temperature=0.3,
                 max_tokens=220
             )
+            if user_id and hasattr(response, "usage") and response.usage:
+                try:
+                    from core.db import record_token_usage
+                    record_token_usage(
+                        user_id=user_id,
+                        session_id=session_id,
+                        task_type="variant_hint",
+                        prompt_tokens=response.usage.prompt_tokens,
+                        completion_tokens=response.usage.completion_tokens,
+                        total_tokens=response.usage.total_tokens
+                    )
+                except Exception as e_tok:
+                    print(f"[Token Log Error in variant_hint] {e_tok}")
             return "💡 **导师启发指引**\n\n" + response.choices[0].message.content.strip()
         except Exception:
             return f"💡 **导师启发指引**\n\n这道变式挑战与刚才的题目暗含着相同的底层约束。面对这个条件，尝试从极端边界切入：{variant_hint}。想一想如果取最简单的边界特例，核心变量会发生怎样的极端约束？"
@@ -314,6 +344,19 @@ def evaluate_transfer_answer(
             temperature=0.2,
             max_tokens=220
         )
+        if user_id and hasattr(response, "usage") and response.usage:
+            try:
+                from core.db import record_token_usage
+                record_token_usage(
+                    user_id=user_id,
+                    session_id=session_id,
+                    task_type="variant_eval",
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens
+                )
+            except Exception as e_tok:
+                print(f"[Token Log Error in variant_eval] {e_tok}")
         return response.choices[0].message.content.strip()
     except Exception as e:
         return f"⚠️ 评判服务暂不可用：{str(e)}，请稍后重试。"
@@ -353,7 +396,9 @@ def analyze_image_input(
     image_bytes: bytes,
     task_type: str,
     context_question: str,
-    api_config: Dict[str, Any]
+    api_config: Dict[str, Any],
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
 ) -> str:
     """多模态图片识别与纯文本降级"""
     b64_img = base64.b64encode(image_bytes).decode("utf-8")
@@ -379,6 +424,19 @@ def analyze_image_input(
             ],
             max_tokens=300
         )
+        if user_id and hasattr(response, "usage") and response.usage:
+            try:
+                from core.db import record_token_usage
+                record_token_usage(
+                    user_id=user_id,
+                    session_id=session_id,
+                    task_type="photo_ocr",
+                    prompt_tokens=response.usage.prompt_tokens,
+                    completion_tokens=response.usage.completion_tokens,
+                    total_tokens=response.usage.total_tokens
+                )
+            except Exception as e_tok:
+                print(f"[Token Log Error in photo_ocr] {e_tok}")
         return response.choices[0].message.content.strip()
     except Exception:
         if task_type == "question":
@@ -428,7 +486,9 @@ def generate_next_tier_variant(
     dialogue_history: List[Dict[str, Any]],
     diagnostic_result: Dict[str, Any],
     next_tier: int,
-    api_config: Dict[str, Any]
+    api_config: Dict[str, Any],
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
 ) -> Dict[str, str]:
     """
     为已经通关前三阶（或前 N 阶）的学生动态生成更高难度的巅峰变式题
@@ -471,6 +531,19 @@ def generate_next_tier_variant(
                 pass
 
             response = client.chat.completions.create(**call_params)
+            if user_id and hasattr(response, "usage") and response.usage:
+                try:
+                    from core.db import record_token_usage
+                    record_token_usage(
+                        user_id=user_id,
+                        session_id=session_id,
+                        task_type="next_tier_variant",
+                        prompt_tokens=response.usage.prompt_tokens,
+                        completion_tokens=response.usage.completion_tokens,
+                        total_tokens=response.usage.total_tokens
+                    )
+                except Exception as e_tok:
+                    print(f"[Token Log Error in next_tier_variant] {e_tok}")
             raw_content = response.choices[0].message.content.strip()
             data = safe_parse_variant_json(raw_content)
             if data and "title" in data and "question" in data:

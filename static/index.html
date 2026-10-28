@@ -18,6 +18,13 @@
       if (window.location.pathname === '/cogni-scaffold') {
         window.location.replace('/cogni-scaffold/' + window.location.search + window.location.hash);
       }
+      // 3. 极速恢复暗色/亮色模式，彻底杜绝刷新闪烁
+      try {
+        var savedTheme = localStorage.getItem('cogni_theme');
+        if (savedTheme) {
+          document.documentElement.setAttribute('data-theme', savedTheme);
+        }
+      } catch(e) {}
     })();
   </script>
 
@@ -865,16 +872,194 @@
       gap: 2rem;
       align-items: flex-start;
       position: relative;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .col-left {
       flex: 1.5;
       min-width: 0;
       position: relative;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
     .col-right {
       flex: 1.0;
       min-width: 0;
       padding-right: 4px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* 学情认知看板折叠后，对话陪练流居中扩展至 960px */
+    .st-columns.dashboard-collapsed .col-right {
+      display: none !important;
+    }
+    .st-columns.dashboard-collapsed .col-left {
+      flex: 1 1 100% !important;
+      max-width: 960px !important;
+      margin: 0 auto !important;
+      width: 100% !important;
+    }
+    .dashboard-collapse-btn {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .dashboard-collapse-btn:hover {
+      background: var(--input-bg);
+      color: var(--text-main);
+      border-color: var(--input-border);
+    }
+    /* 看板折叠停靠小箭头药丸 */
+    .dashboard-collapsed-pill {
+      display: none;
+      position: fixed;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 100;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-right: none;
+      border-radius: 8px 0 0 8px;
+      padding: 12px 8px;
+      box-shadow: -3px 4px 16px rgba(0, 0, 0, 0.18);
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--primary);
+      writing-mode: vertical-rl;
+      text-orientation: mixed;
+      letter-spacing: 2px;
+      gap: 8px;
+      align-items: center;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .st-columns.dashboard-collapsed ~ .dashboard-collapsed-pill,
+    body.dash-collapsed .dashboard-collapsed-pill {
+      display: flex !important;
+    }
+    .dashboard-collapsed-pill:hover {
+      background: var(--primary);
+      color: #ffffff;
+      padding-right: 12px;
+    }
+    .dashboard-collapsed-pill svg {
+      writing-mode: horizontal-tb;
+    }
+    /* 实时 Token 额度胶囊样式 */
+    .token-capsule-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      background: rgba(59, 130, 246, 0.12);
+      color: var(--primary);
+      border: 1px solid rgba(59, 130, 246, 0.28);
+      user-select: none;
+      cursor: help;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+    }
+    .token-capsule-badge.warning {
+      background: rgba(245, 158, 11, 0.12);
+      color: #f59e0b;
+      border-color: rgba(245, 158, 11, 0.3);
+    }
+    .token-capsule-badge.danger {
+      background: rgba(239, 68, 68, 0.12);
+      color: #ef4444;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+    /* 历史与收藏抽屉分页器样式 */
+    .history-pagination {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 5px;
+      margin-top: 14px;
+      padding-top: 10px;
+      border-top: 1px solid var(--card-border);
+      flex-wrap: wrap;
+    }
+    .history-page-btn {
+      min-width: 26px;
+      height: 26px;
+      padding: 0 6px;
+      border-radius: 5px;
+      border: 1px solid var(--card-border);
+      background: var(--input-bg);
+      color: var(--text-main);
+      font-size: 0.76rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+    }
+    .history-page-btn:hover:not(:disabled) {
+      border-color: var(--primary);
+      color: var(--primary);
+    }
+    .history-page-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+    .history-page-btn:disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+    .history-page-info {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin: 0 4px;
+    }
+    /* 新手详细使用指引模态卡片 */
+    .guide-tour-section {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+    }
+    .guide-tour-section-title {
+      font-size: 0.88rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .guide-step-num {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+    .guide-tour-p {
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: var(--text-sub);
+      margin: 0;
     }
     @media (max-width: 900px) {
       .st-columns {
@@ -3110,6 +3295,14 @@
   </style>
 </head>
 <body data-theme="dark">
+  <script>
+    try {
+      var savedTheme = localStorage.getItem('cogni_theme');
+      if (savedTheme) {
+        document.body.setAttribute('data-theme', savedTheme);
+      }
+    } catch(e) {}
+  </script>
 
   <!-- 1. 顶部 Chrome 标签栏 (品牌标识 + 标签流 + 靠右操作) -->
   <div class="chrome-tabbar-container">
@@ -3128,6 +3321,12 @@
         <span>控制台</span>
       </button>
 
+      <!-- 实时 Token 额度胶囊 -->
+      <div class="token-capsule-badge" id="headerTokenCapsule" style="display: none;" title="今日 Token 额度实时余额">
+        <span class="token-capsule-icon">⚡</span>
+        <span class="token-capsule-text" id="headerTokenText">Token 100%</span>
+      </div>
+
       <!-- 动态用户身份胶囊 -->
       <div class="user-auth-wrapper" id="userAuthWrapper">
         <button class="user-auth-btn" id="userAuthBtn" onclick="handleUserAuthBtnClick(event)">
@@ -3136,6 +3335,10 @@
         </button>
         <div class="user-profile-menu" id="userProfileMenu">
           <div class="user-menu-header" id="userMenuHeader">未登录 (游客试看)</div>
+          <div class="user-menu-item" onclick="openGuideTourModal()" style="color: var(--primary);">
+            <svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            新手使用指引
+          </div>
           <div class="user-menu-item" id="menuItemAdmin" onclick="toggleAdminConsoleView(true)" style="display: none; color: #60a5fa;">
             <svg class="ui-icon" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
             管理控制台
@@ -3221,7 +3424,7 @@
           <!-- 子面板 1: 文字录入 -->
           <div id="onboardTabText">
             <div id="quotaExhaustedAlert" class="auth-alert-box error" style="margin-bottom: 12px; display: none;">
-              ⚠️ 今日提问额度已用尽。如需继续探索，请联系任课教师或管理员提升专属限额。
+              ⚠️ 今日额度已用尽
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
               <span style="font-size: 0.9rem; font-weight: 700; color: var(--text-main);">题目内容</span>
@@ -3455,7 +3658,7 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <input type="text" id="adminUserSearchInput" class="history-search-line" style="width: 180px; padding: 6px 10px; font-size: 0.82rem;" placeholder="搜索用户名或姓名..." oninput="filterAdminUsersTable()">
-              <select id="adminUserRoleFilter" class="history-search-line" style="width: 100px; padding: 6px 8px; font-size: 0.82rem;" onchange="filterAdminUsersTable()">
+              <select id="adminUserRoleFilter" style="width: 110px; padding: 6px 10px; font-size: 0.82rem; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; color: var(--text-main); outline: none; box-sizing: border-box;" onchange="filterAdminUsersTable()">
                 <option value="">全部角色</option>
                 <option value="student">学生</option>
                 <option value="admin">管理员</option>
@@ -3478,8 +3681,8 @@
                   <th>角色</th>
                   <th>当前状态</th>
                   <th>封禁截止 / 原因</th>
-                  <th>专属限额 (日/题)</th>
-                  <th>今日提问数</th>
+                  <th>专属限额 (日/题/Token)</th>
+                  <th>今日提问 / Token</th>
                   <th>最后登录</th>
                   <th style="text-align: right;">操作</th>
                 </tr>
@@ -3555,6 +3758,11 @@
                 <label class="auth-label">单题启发式对话轮次上限 (轮 / 题)</label>
                 <input type="number" id="configSessionTurnLimit" class="auth-input" min="1" max="200" value="30">
                 <span style="font-size: 0.72rem; color: var(--text-muted);">默认建议 30 轮，引导学生聚焦核心推导</span>
+              </div>
+              <div class="auth-input-group">
+                <label class="auth-label">单日 Token 消耗上限 (Tokens / 天)</label>
+                <input type="number" id="configDailyTokenLimit" class="auth-input" min="1000" max="10000000" value="50000">
+                <span style="font-size: 0.72rem; color: var(--text-muted);">默认建议 50,000 Tokens，覆盖会话、蓝图、识图、画像全链路</span>
               </div>
               <button class="btn btn-primary" onclick="saveAdminConfigs()" style="margin-top: 10px; width: 100%;">
                 💾 保存全局限额规则
@@ -3767,7 +3975,7 @@
             </div>
           </div>
 
-          <textarea id="studentThoughtInput" class="student-input" placeholder="输入你的思考、分析逻辑或推导过程（支持 LaTeX 公式与多学科文字，按 Ctrl+Enter 快捷发送）..."></textarea>
+          <textarea id="studentThoughtInput" class="student-input" placeholder="输入你的思考、分析逻辑或推导过程（支持 LaTeX 公式与多学科文字）..."></textarea>
 
           <!-- 实时 LaTeX 公式排版预览 -->
           <div class="latex-preview-card" id="chatPreviewBox" style="display: none;">
@@ -3778,7 +3986,7 @@
           <!-- 底部操作按钮 -->
           <div class="action-button-row">
             <div class="aux-btn-group">
-              <button class="btn btn-secondary" id="verifyBtn" onclick="handleVerifyClick()"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 请求突破校验</button>
+              <button class="btn btn-secondary" id="verifyBtn" onclick="handleVerifyClick()" title="已进行 3 轮以上思考后，点击申请错因深度诊断与同构变式挑战"><svg class="ui-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg> 🔍 申请思维突破与错因诊断</button>
               <button class="btn btn-secondary" id="hintBtn" onclick="handleHintClick()"><svg class="ui-icon" viewBox="0 0 24 24"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg> 换个角度</button>
             </div>
             <button class="btn btn-primary" id="submitBtn" onclick="handleSubmitThought()" title="按 Ctrl+Enter 快捷提交"><svg class="ui-icon" viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> 提交思路</button>
@@ -3786,8 +3994,14 @@
         </div>
 
         <!-- 右侧：学情认知看板 -->
-        <div class="col-right">
-          <h3 class="column-title"><svg class="ui-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> 学情认知看板</h3>
+        <div class="col-right" id="dashboardColRight">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+            <h3 class="column-title" style="margin-bottom: 0;"><svg class="ui-icon" viewBox="0 0 24 24"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg> 学情认知看板</h3>
+            <button class="dashboard-collapse-btn" id="btnCollapseDashboard" onclick="toggleDashboardCollapse(true)" title="收起学情看板，将启发对话区加宽至全屏沉浸模式">
+              <svg class="ui-icon" viewBox="0 0 24 24" style="width: 13px; height: 13px;"><polyline points="9 18 15 12 9 6"/></svg>
+              <span>收起看板</span>
+            </button>
+          </div>
 
           <!-- 1. 阶段进度 Stepper -->
           <div class="stepper-box" id="stepperContainer">
@@ -3826,6 +4040,11 @@
 
         </div>
       </div>
+      <!-- 看板收起停靠小箭头药丸（点击重新展开） -->
+      <div class="dashboard-collapsed-pill" id="dashboardCollapsedPill" onclick="toggleDashboardCollapse(false)" title="点击展开学情认知看板">
+        <svg class="ui-icon" viewBox="0 0 24 24" style="width: 14px; height: 14px;"><polyline points="15 18 9 12 15 6"/></svg>
+        <span>学情认知看板</span>
+      </div>
     </div>
 
     <!-- 3. 全局页面底部辅助信息 -->
@@ -3842,7 +4061,7 @@
           <span class="feedback-unread-dot" id="feedbackUnreadDot"></span>
         </a>
         <a class="version-link-badge" id="footerVersionBtn" onclick="openChangelogModal()" title="点击查看更新日志与版本特性">
-          <span>v2.7.0</span>
+          <span>v2.8.0</span>
           <span class="version-unread-dot" id="versionUnreadDot"></span>
         </a>
       </div>
@@ -4096,6 +4315,12 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <input type="number" class="auth-input" id="customTurnLimitInput" placeholder="留空则沿用全局默认限额">
         </div>
 
+        <div class="auth-input-group">
+          <label class="auth-label">单日 Token 消耗上限 (Tokens / 天)</label>
+          <input type="number" class="auth-input" id="customDailyTokenLimitInput" placeholder="留空则沿用全局默认 (50,000)">
+          <span style="font-size: 0.72rem; color: var(--text-muted);">可为拔尖研究或竞赛学者配置专属高额 Token</span>
+        </div>
+
         <div style="display: flex; align-items: center; gap: 8px; margin-top: 6px;">
           <input type="checkbox" id="resetTodayQuestionsCheckbox" style="cursor: pointer;">
           <label for="resetTodayQuestionsCheckbox" style="font-size: 0.82rem; color: var(--text-main); cursor: pointer;">
@@ -4208,7 +4433,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
         <div class="auth-input-group">
           <label class="auth-label">反馈摘要 / 简短标题</label>
-          <input type="text" class="auth-input" id="feedbackTitleInput" placeholder="例如：电磁感应题目第(2)问符号相反、希望增加撤回上一轮功能..." required>
+          <input type="text" class="auth-input" id="feedbackTitleInput" placeholder="请输入反馈摘要或简短标题..." required>
         </div>
 
         <div class="auth-input-group" style="flex: 1;">
@@ -4261,7 +4486,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <span class="auth-icon-badge">🚀</span>
           <div>
             <h3 class="auth-title">知阶 CogniScaffold · 系统更新日志</h3>
-            <p class="auth-subtitle">启发式思维跃迁平台的演进历程与特性发布记录</p>
+            <p class="auth-subtitle">启发式思维跃迁平台的演进历程与真实 GitHub 发布记录</p>
           </div>
         </div>
         <button class="auth-close-btn" onclick="closeChangelogModal()">✕</button>
@@ -4269,11 +4494,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
       <div class="changelog-timeline">
 
-        <!-- v2.7.0 (当前最新版本) -->
+        <!-- v2.8.0 (当前最新版本) -->
         <div class="changelog-version-card current">
           <div class="changelog-header-row">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.05rem; font-weight: 700; color: var(--primary); font-family: monospace;">v2.7.0</span>
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--primary); font-family: monospace;">v2.8.0</span>
               <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary-hover);">最新上线</span>
             </div>
             <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-28</span>
@@ -4281,15 +4506,52 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>意见反馈与互动答复闭环</strong>：学生可随时提交推导疑问或使用建议，管理员可在线审阅并直接给出答复，历史记录持久化展示。</span>
+              <span><strong>每日 Token 动态限额与实时胶囊</strong>：顶栏实时呈现当前 Token 剩余百分比，支持全局配置与学者专属特批，覆盖会话、蓝图、识图、画像等全链路消耗。</span>
             </li>
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>版本演进日志与首次更新红点提醒</strong>：点击底部版本号随时浏览平台更新历程；新版本发布后自动呈现红点提示，点击即阅。</span>
+              <span><strong>学情认知看板一键折叠与居中沉浸</strong>：右侧看板可平滑收起到屏幕边缘箭头药丸，主交互画框自动拓宽并居中显示，随时一键恢复。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>历史归档与收藏分页导航</strong>：每页 10 个对话，配备搜索引擎式页码控制器（<code>&lt; 1 2 3 ... &gt;</code>），告别长列表堆叠。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>新手使用全景图解引导</strong>：首登自动弹出详细使用引导，详解苏格拉底脚手架机制与操作规范，页脚随时可重新唤起。</span>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>快捷提交热键</strong>：输入框全面支持 <code>Ctrl + Enter</code> 极速发送，打磨长文本输入流畅度。</span>
+              <span><strong>「思维突破与错因诊断」语义明晰化</strong>：明晰按键触发时机（深入思考满 3 轮），提交推导由导师全面核验错因并生成变式。</span>
+            </li>
+            <li>
+              <span class="badge-fix">修复</span>
+              <span><strong>深色/浅色模式持久化与管理端优化</strong>：刷新保持当前主题风格；修复账号筛选文字遮挡与审计抽屉学者身份标记。</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- v2.7.0 -->
+        <div class="changelog-version-card">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.7.0</span>
+              <span class="changelog-tag" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">师生互动</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-28</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>意见反馈互动与答复闭环</strong>：学者可在页面随时提交推导疑问或功能建议，管理员控制台直接在线答复并标记已读。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>版本演进日志与首次更新红点提醒</strong>：底部版本号即时查阅更新历史，新版本发布自动红点微光提示。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>全景审查一键封禁与移动端双层标签</strong>：审计抽屉支持直达封禁；移动端适配双层全宽标签流，间距与标题清晰可触。</span>
             </li>
           </ul>
         </div>
@@ -4299,26 +4561,22 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div class="changelog-header-row">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.6.0</span>
-              <span class="changelog-tag" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">管控增强</span>
+              <span class="changelog-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">机构管控</span>
             </div>
             <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-27</span>
           </div>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>机构级管理控制台</strong>：支持批量生成学者账号（前缀递增或表格粘贴）、临时/永久账号封禁及违规说明。</span>
+              <span><strong>机构级管理控制台</strong>：前缀递增与表格批量建号、临时/永久账号封禁与违规说明管理。</span>
             </li>
             <li>
               <span class="badge-sec">安全</span>
-              <span><strong>防沉迷与资源弹性限额</strong>：非管理员单日提问限额（默认15道）、单题深度启发交互限额（默认30轮），支持后台随时调整与一键重置。</span>
+              <span><strong>防沉迷与开题限额双保底</strong>：单日提问限额（默认15道）、单题深度启发交互限额（默认30轮），支持后台随调与重置。</span>
             </li>
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>全量会话审计与 Token 成本透视</strong>：按学者筛选会话流，查看解题蓝图与完整交互流，一键导出 Markdown 审计文件。</span>
-            </li>
-            <li>
-              <span class="badge-opt">优化</span>
-              <span><strong>安全防护拦截日志与 API 探针</strong>：实时监控违规提问，毫秒级探测 DeepSeek 模型连通性。</span>
+              <span><strong>全量会话审计与成本透视</strong>：按学者筛选会话流，查看解题蓝图与完整交互流，一键导出 Markdown 审计文件。</span>
             </li>
           </ul>
         </div>
@@ -4328,18 +4586,18 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div class="changelog-header-row">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.5.0</span>
-              <span class="changelog-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">架构升级</span>
+              <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary);">准入安全</span>
             </div>
             <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-26</span>
           </div>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-sec">安全</span>
-              <span><strong>封闭式准入体系</strong>：上线专属账号安全核验与基于密码哈希的鉴权机制，拒绝未经授权访问。</span>
+              <span><strong>封闭式准入体系与 SQLite WAL 持久化</strong>：PBKDF2 密码加盐哈希鉴权，高并发 WAL 模式保障数据强一致。</span>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>数据多租户隔离与持久化</strong>：各学者收藏夹、探索历史与自定义会话沙箱物理隔离，多端即时同步。</span>
+              <span><strong>IndexedDB 瞬时同步与防爆破</strong>：客户端秒级本地暂存，防暴力破解与安全断路器全面防护。</span>
             </li>
           </ul>
         </div>
@@ -4349,18 +4607,18 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div class="changelog-header-row">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.4.0</span>
-              <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary);">教学跃迁</span>
+              <span class="changelog-tag" style="background: rgba(16, 185, 129, 0.15); color: #10b981;">全科矩阵</span>
             </div>
             <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-25</span>
           </div>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>全学科苏格拉底脚手架</strong>：由单一数理推导扩展至历史因果、哲学伦理、文学美学、政法批判等全学科矩阵。</span>
+              <span><strong>浙江新高考十门学科 + 综合探究矩阵</strong>：22 套金牌案例库，涵盖数理化生技语英政史地及跨界思维拓展。</span>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>动态认知蓝图与反思归因</strong>：模型生成阶梯思维蓝图，自适应匹配高中拔尖与自主探究路径。</span>
+              <span><strong>文理双轨认知蓝图</strong>：理科极值检验与推导解构，文科史料实证、因果链条与批判性反思。</span>
             </li>
           </ul>
         </div>
@@ -4377,11 +4635,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>原生 Chrome 风格多标签工作区</strong>：支持标签自由切换、拖拽排序、状态即时暂存。</span>
+              <span><strong>原生 Chrome 风格多标签工作区</strong>：标签自由切换、拖拽排序、状态即时暂存。</span>
             </li>
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>三阶启发式阶梯导航</strong>：四层认知诊断、迁移拓展题阶梯变式生成与完成报告导出。</span>
+              <span><strong>三阶启发式阶梯导航与变式挑战</strong>：四层认知画像、维度拓展、逆向对抗与跨界迁移同构挑战。</span>
             </li>
           </ul>
         </div>
@@ -4390,6 +4648,78 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
       <div style="margin-top: 14px; text-align: right;">
         <button class="btn btn-primary" style="padding: 6px 18px; font-size: 0.85rem;" onclick="closeChangelogModal()">了解完毕</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 新手详细使用指引与功能全景图解模态弹窗 -->
+  <div class="theme-modal-backdrop" id="guideTourModal" onclick="closeGuideTourModal()">
+    <div class="theme-modal-card guide-tour-modal-card" onclick="event.stopPropagation()" style="max-width: 680px;">
+      <div class="auth-modal-header" style="margin-bottom: 12px;">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">🧭</span>
+          <div>
+            <h3 class="auth-title">知阶 CogniScaffold · 新手使用与功能图解</h3>
+            <p class="auth-subtitle">不给答案，只给台阶 · 开启深度启发式探究之旅</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeGuideTourModal()">✕</button>
+      </div>
+
+      <div class="guide-tour-body" style="max-height: 65vh; overflow-y: auto; padding-right: 6px;">
+        <!-- 导学核心 -->
+        <div class="guide-tour-section">
+          <div class="guide-tour-section-title"><span class="guide-step-num">1</span> 核心理念：搭建最近发展区 (ZPD) 阶梯</div>
+          <p class="guide-tour-p">
+            知阶<strong>拒绝直接赠予最终答案或套路范文</strong>。系统扮演富有教育温度的苏格拉底认知导师，在你的推导断点处抛出反例检验、极值探讨或跨学科同构，引导你在自主探索中实现思维跃迁。
+          </p>
+        </div>
+
+        <!-- 开题与输入 -->
+        <div class="guide-tour-section">
+          <div class="guide-tour-section-title"><span class="guide-step-num">2</span> 多元开题与全学科科学输入</div>
+          <p class="guide-tour-p">
+            • <strong>文本录入</strong>：支持全学科 LaTeX 数学物理公式（用 $ 包裹），配备全学科悬浮 LaTeX 符号键盘。<br>
+            • <strong>拍照识别</strong>：支持上传草稿纸或试卷照片，AI 智能提取题目与手写推导步骤。<br>
+            • <strong>经典案例库</strong>：内置 22 套覆盖浙江新高考十科（数、物、化、生、技、语、英、政、史、地）及综合探究的金牌范例，一键载入体验。
+          </p>
+        </div>
+
+        <!-- 陪练交互 -->
+        <div class="guide-tour-section">
+          <div class="guide-tour-section-title"><span class="guide-step-num">3</span> 启发式互动与沉浸对话</div>
+          <p class="guide-tour-p">
+            • <strong>快捷发送</strong>：输入你的推导思路后，按 <code>Ctrl + Enter</code> 即可极速发送。<br>
+            • <strong>换个角度</strong>：遇到思维死胡同时，点击「💡 换个角度」，导师将从全新直观图景或简化特例重新启发。<br>
+            • <strong>看板折叠</strong>：点击右侧看板顶部的「收起看板」，界面自动居中并拓宽至全屏沉浸陪练模式；点击右侧边缘小箭头药丸随时恢复看板。
+          </p>
+        </div>
+
+        <!-- 突破校验 -->
+        <div class="guide-tour-section">
+          <div class="guide-tour-section-title"><span class="guide-step-num">4</span> 什么时候申请「思维突破与错因诊断」？</div>
+          <p class="guide-tour-p">
+            当你在导师启发下完成至少 3 轮推导、并给出自己的破题方案后，点击输入区下方的<strong>「🔍 申请思维突破与错因诊断」</strong>按钮。导师将核验你的推导漏洞，自动生成专属思维盲区画像，并解锁<strong>维度拓展、逆向对抗、跨界迁移</strong>的三阶变式同构挑战！
+          </p>
+        </div>
+
+        <!-- 限额与Token保底 -->
+        <div class="guide-tour-section">
+          <div class="guide-tour-section-title"><span class="guide-step-num">5</span> 额度管理与防沉迷保底</div>
+          <p class="guide-tour-p">
+            • <strong>Token 额度</strong>：顶部导航栏实时展示 Token 剩余百分比（如 <code>⚡ Token 85%</code>），覆盖会话、识图、画像等所有大模型消耗。<br>
+            • <strong>对话限额</strong>：单日题目数与单题交互轮次上限作为防沉迷保底，守护专注高效的学习节律。
+          </p>
+        </div>
+      </div>
+
+      <div style="margin-top: 16px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border); padding-top: 12px;">
+        <label style="font-size: 0.8rem; color: var(--text-muted); display: inline-flex; align-items: center; gap: 6px; cursor: pointer;">
+          <input type="checkbox" id="tourDontShowAgainCheck" checked> 不再自动弹出此指引
+        </label>
+        <button class="btn btn-primary" onclick="closeGuideTourModal()" style="padding: 7px 22px; font-size: 0.86rem;">
+          开始探索知阶 🚀
+        </button>
       </div>
     </div>
   </div>
@@ -4786,7 +5116,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
         }
 
         latexTree = data.latex_presets_tree;
-        applyTheme(appState.theme_mode || 'dark');
+        const savedTheme = localStorage.getItem('cogni_theme') || appState.theme_mode || 'dark';
+        applyTheme(savedTheme);
+        initDashboardCollapseState();
+        checkAutoShowGuideTour();
         renderTabs();
         renderCurrentSessionView();
         setupLatexKeyboard();
@@ -4829,6 +5162,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     function applyTheme(theme) {
       document.body.setAttribute('data-theme', theme);
+      try {
+        localStorage.setItem('cogni_theme', theme);
+      } catch (e) {}
       const isLight = (theme === 'light');
       const tIcon = document.getElementById('themeToggleIcon');
       const tBtn = document.getElementById('themeToggleBtn');
@@ -4857,11 +5193,8 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     function openFooterModal(type) {
       if (type === 'guide') {
-        openThemeModal('知阶使用指引', `
-          <div style="margin-bottom: 8px;"><strong>1. 提出你的探究命题</strong>：全面支持浙江新高考十门学科（语文、数学、英语、物理、化学、生物、政治、历史、地理、技术）及通用思维拓展，在此输入题目内容或一键载入经典案例。</div>
-          <div style="margin-bottom: 8px;"><strong>2. 文理双轨苏格拉底启发</strong>：拒绝直接馈赠答案或现成范文！数理技术轨注重极端特例检验与公式逻辑解构；人文社科轨注重史料实证、多维因果与反事实思辨，搭设层层递进的认知脚手架。</div>
-          <div><strong>3. 深度思维画像与三阶变式对抗</strong>：完成突破后自动生成概念盲区画像，并解锁维度拓展、逆向对抗与跨界迁移的三阶同构变式挑战。</div>
-        `, ICONS.bookOpen);
+        openGuideTourModal();
+        return;
       } else if (type === 'philosophy') {
         openThemeModal('教育理念与脚手架理论', `
           <div style="margin-bottom: 8px;">知阶的设计源自维果茨基<strong>最近发展区 (ZPD)</strong> 理论与苏格拉底<strong>产婆术</strong>。</div>
@@ -4873,6 +5206,67 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div style="margin-bottom: 8px;">• <strong>会话沙箱隔离</strong>：题目与交互思考过程仅保存在你当前的探索会话沙箱中。</div>
           <div>• <strong>安全合规保障</strong>：系统搭载架构级断路器，严格遵守学术诚信与未成年人安全防护准则。</div>
         `, ICONS.shield);
+      } else if (type === 'feedback') {
+        openFeedbackModal();
+      }
+    }
+
+    // ============================================================
+    // 🧭 新手使用指引模态弹窗控制 (Onboarding Tour)
+    // ============================================================
+    function openGuideTourModal() {
+      const modal = document.getElementById('guideTourModal');
+      if (modal) modal.classList.add('show');
+    }
+
+    function closeGuideTourModal() {
+      const modal = document.getElementById('guideTourModal');
+      if (modal) modal.classList.remove('show');
+      const check = document.getElementById('tourDontShowAgainCheck');
+      if (check && check.checked) {
+        try { localStorage.setItem('cogni_guide_tour_seen', '1'); } catch (e) {}
+      }
+    }
+
+    function checkAutoShowGuideTour() {
+      try {
+        const seen = localStorage.getItem('cogni_guide_tour_seen');
+        if (!seen) {
+          setTimeout(() => {
+            openGuideTourModal();
+          }, 600);
+        }
+      } catch (e) {}
+    }
+
+    // ============================================================
+    // 🎛️ 学情认知看板折叠 / 展开状态控制 (Dashboard Collapse)
+    // ============================================================
+    function toggleDashboardCollapse(collapsed) {
+      const cols = document.querySelector('.st-columns');
+      const pill = document.getElementById('dashboardCollapsedPill');
+      if (!cols) return;
+      if (collapsed) {
+        cols.classList.add('dashboard-collapsed');
+        document.body.classList.add('dash-collapsed');
+        if (pill) pill.style.display = 'flex';
+        try { localStorage.setItem('cogni_dash_collapsed', '1'); } catch (e) {}
+      } else {
+        cols.classList.remove('dashboard-collapsed');
+        document.body.classList.remove('dash-collapsed');
+        if (pill) pill.style.display = 'none';
+        try { localStorage.setItem('cogni_dash_collapsed', '0'); } catch (e) {}
+      }
+    }
+
+    function initDashboardCollapseState() {
+      try {
+        const collapsed = localStorage.getItem('cogni_dash_collapsed') === '1';
+        if (collapsed) {
+          toggleDashboardCollapse(true);
+        }
+      } catch (e) {}
+    }
       } else if (type === 'feedback') {
         openFeedbackModal();
       }
@@ -5139,6 +5533,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
       const quotaAlert = document.getElementById('quotaExhaustedAlert');
       const onboardSubmitBtn = document.getElementById('onboardSubmitBtn');
 
+      const tokenCapsule = document.getElementById('headerTokenCapsule');
+      const tokenText = document.getElementById('headerTokenText');
+
       if (currentUser) {
         if (userNameText) userNameText.textContent = currentUser.username;
         if (userAuthBtn) userAuthBtn.classList.add('logged-in');
@@ -5152,6 +5549,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           if (menuItemAdmin) menuItemAdmin.style.display = 'flex';
           if (quotaContainer) quotaContainer.style.display = 'none';
           if (quotaAlert) quotaAlert.style.display = 'none';
+          if (tokenCapsule) tokenCapsule.style.display = 'none';
           if (onboardSubmitBtn) {
             onboardSubmitBtn.disabled = false;
             onboardSubmitBtn.title = "按 Ctrl+Enter 快捷开启";
@@ -5160,12 +5558,31 @@ student04, CogniScaffold123!, 李小明"></textarea>
           if (adminNavBtn) adminNavBtn.style.display = 'none';
           if (menuItemAdmin) menuItemAdmin.style.display = 'none';
 
-          // 呈现学生限额指示
+          // 呈现学生限额指示与实时 Token 状态
           const q = currentUser.quota || {};
           const dailyLimit = q.daily_limit || 15;
           const todayQ = q.today_questions || 0;
           const remaining = Math.max(0, dailyLimit - todayQ);
           const turnLimit = q.turn_limit || 30;
+
+          const dailyTokenLimit = q.daily_token_limit || 50000;
+          const todayTokens = q.today_tokens || 0;
+          const tokenRemaining = Math.max(0, dailyTokenLimit - todayTokens);
+          const tokenPct = Math.max(0, Math.min(100, Math.round((tokenRemaining / dailyTokenLimit) * 100)));
+
+          if (tokenCapsule) {
+            tokenCapsule.style.display = 'inline-flex';
+            tokenCapsule.classList.remove('exhausted', 'warning');
+            if (tokenPct <= 0) {
+              tokenCapsule.classList.add('exhausted');
+            } else if (tokenPct <= 15) {
+              tokenCapsule.classList.add('warning');
+            }
+            tokenCapsule.title = `今日 Token 额度：已用 ${todayTokens.toLocaleString()} / 上限 ${dailyTokenLimit.toLocaleString()} (剩余 ${tokenPct}%)`;
+          }
+          if (tokenText) {
+            tokenText.textContent = `Token ${tokenPct}%`;
+          }
 
           if (quotaContainer) quotaContainer.style.display = 'block';
           if (quotaRemaining) quotaRemaining.textContent = remaining;
@@ -5173,12 +5590,17 @@ student04, CogniScaffold123!, 李小明"></textarea>
           if (quotaTurn) quotaTurn.textContent = turnLimit;
 
           const banner = document.getElementById('studentQuotaBanner');
-          if (remaining <= 0) {
+          const isExhausted = (remaining <= 0) || (tokenRemaining <= 0);
+
+          if (isExhausted) {
             if (banner) banner.classList.add('exhausted');
-            if (quotaAlert) quotaAlert.style.display = 'block';
+            if (quotaAlert) {
+              quotaAlert.style.display = 'block';
+              quotaAlert.textContent = '⚠️ 今日额度已用尽';
+            }
             if (onboardSubmitBtn) {
               onboardSubmitBtn.disabled = true;
-              onboardSubmitBtn.title = "今日提问额度已用尽，请联系管理员";
+              onboardSubmitBtn.title = "今日额度已用尽";
             }
           } else {
             if (banner) banner.classList.remove('exhausted');
@@ -5200,6 +5622,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
         if (menuItemAdmin) menuItemAdmin.style.display = 'none';
         if (quotaContainer) quotaContainer.style.display = 'none';
         if (quotaAlert) quotaAlert.style.display = 'none';
+        if (tokenCapsule) tokenCapsule.style.display = 'none';
       }
 
       // 联动检查版本更新红点与未读反馈通知
@@ -5466,14 +5889,18 @@ student04, CogniScaffold123!, 李小明"></textarea>
     let activeHistoryTab = 'starred';
     let historySearchQuery = '';
     let activeCatFilter = 'all';
+    let historyCurrentPage = 1;
+    const HISTORY_PAGE_SIZE = 10;
 
     function handleHistorySearch(val) {
       historySearchQuery = (val || '').trim().toLowerCase();
+      historyCurrentPage = 1;
       renderHistoryList(activeHistoryTab);
     }
 
     function switchHistoryTab(tab) {
       activeHistoryTab = tab;
+      historyCurrentPage = 1;
       const btnStarred = document.getElementById('historyTabStarredBtn');
       const btnArchived = document.getElementById('historyTabArchivedBtn');
       if (btnStarred && btnArchived) {
@@ -5486,7 +5913,15 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     function selectCatFilter(catKey) {
       activeCatFilter = catKey;
+      historyCurrentPage = 1;
       renderHistoryList(activeHistoryTab);
+    }
+
+    function gotoHistoryPage(page) {
+      historyCurrentPage = page;
+      renderHistoryList(activeHistoryTab);
+      const container = document.getElementById('historyListContainer');
+      if (container) container.scrollTop = 0;
     }
 
     // 学科分类归类判定器 (统一 Emoji+学科 规范：涵盖高考十科与综合探索)
@@ -5593,9 +6028,16 @@ student04, CogniScaffold123!, 李小明"></textarea>
         return;
       }
 
+      // 计算分页数据 (每页 10 个对话)
+      const totalPages = Math.max(1, Math.ceil(list.length / HISTORY_PAGE_SIZE));
+      if (historyCurrentPage > totalPages) historyCurrentPage = totalPages;
+      if (historyCurrentPage < 1) historyCurrentPage = 1;
+      const startIndex = (historyCurrentPage - 1) * HISTORY_PAGE_SIZE;
+      const pagedList = list.slice(startIndex, startIndex + HISTORY_PAGE_SIZE);
+
       // 按学科分组归类
       const groups = {};
-      list.forEach(item => {
+      pagedList.forEach(item => {
         const cat = categorizeSession(item);
         if (!groups[cat.key]) {
           groups[cat.key] = { label: cat.fullLabel, order: cat.order, items: [] };
@@ -5643,6 +6085,46 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
         container.appendChild(groupEl);
       });
+
+      // 渲染搜索引擎风格分页栏
+      if (totalPages > 1 || list.length > 0) {
+        const pagEl = document.createElement('div');
+        pagEl.className = 'history-pagination';
+
+        let pagHtml = `
+          <button class="history-page-btn" ${historyCurrentPage <= 1 ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : ''} onclick="gotoHistoryPage(${historyCurrentPage - 1})" title="上一页">◀</button>
+        `;
+
+        let pageNumbers = [];
+        if (totalPages <= 7) {
+          for (let p = 1; p <= totalPages; p++) pageNumbers.push(p);
+        } else {
+          pageNumbers.push(1);
+          if (historyCurrentPage > 3) pageNumbers.push('...');
+          const start = Math.max(2, historyCurrentPage - 1);
+          const end = Math.min(totalPages - 1, historyCurrentPage + 1);
+          for (let p = start; p <= end; p++) pageNumbers.push(p);
+          if (historyCurrentPage < totalPages - 2) pageNumbers.push('...');
+          pageNumbers.push(totalPages);
+        }
+
+        pageNumbers.forEach(p => {
+          if (p === '...') {
+            pagHtml += `<span style="padding: 0 4px; color: var(--text-muted); font-size: 0.75rem;">...</span>`;
+          } else {
+            const isActive = (p === historyCurrentPage);
+            pagHtml += `<button class="history-page-btn ${isActive ? 'active' : ''}" style="${isActive ? 'background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 700;' : ''}" onclick="gotoHistoryPage(${p})">${p}</button>`;
+          }
+        });
+
+        pagHtml += `
+          <button class="history-page-btn" ${historyCurrentPage >= totalPages ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : ''} onclick="gotoHistoryPage(${historyCurrentPage + 1})" title="下一页">▶</button>
+          <span style="font-size: 0.72rem; color: var(--text-muted); margin-left: 6px;">第 ${historyCurrentPage}/${totalPages} 页 (共 ${list.length} 条)</span>
+        `;
+
+        pagEl.innerHTML = pagHtml;
+        container.appendChild(pagEl);
+      }
 
       // 对生成的题目 KaTeX 进行批量排版
       renderLatex(container);
@@ -5890,19 +6372,23 @@ student04, CogniScaffold123!, 李小明"></textarea>
       const verifyBtn = document.getElementById('verifyBtn');
       if (currStage < 3 && currTurns >= 3) {
         verifyBtn.disabled = false;
-        verifyBtn.innerText = "🎯 请求突破校验";
+        verifyBtn.innerText = "🔍 申请思维突破与错因诊断";
+        verifyBtn.title = "已满 3 轮推导，点击核验当前思路是否存在认知断点或生成思维画像与同构变式";
         verifyBtn.className = "btn btn-primary";
       } else if (allDone) {
         verifyBtn.disabled = false;
-        verifyBtn.innerText = `🔥 再来一题 (第${toChineseNum(maxTier + 1)}关)`;
+        verifyBtn.innerText = `🔥 挑战进阶同构题 (第${toChineseNum(maxTier + 1)}关)`;
+        verifyBtn.title = "已通关当前关卡，生成更高阶同构变式挑战";
         verifyBtn.className = "btn btn-primary";
       } else if (currStage >= 3) {
         verifyBtn.disabled = true;
-        verifyBtn.innerText = "✅ 认知画像已解锁";
+        verifyBtn.innerText = "✅ 诊断画像与变式已生成";
+        verifyBtn.title = "当前会话的错因归因与变式挑战已生成，请在右侧看板查看";
         verifyBtn.className = "btn btn-secondary";
       } else {
         verifyBtn.disabled = true;
-        verifyBtn.innerText = `🔒 突破校验 (需思考${3 - currTurns}轮)`;
+        verifyBtn.innerText = `🔒 申请突破诊断 (深入思考需${3 - currTurns}轮)`;
+        verifyBtn.title = `为了达到认知最近发展区效果，请先在左侧输入你的思考并与导师互动至少 3 轮（还需 ${3 - currTurns} 轮）`;
         verifyBtn.className = "btn btn-secondary";
       }
     }
@@ -6780,7 +7266,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
         const isLocked = u.status === 'locked';
         const isMe = currentUser && currentUser.id === u.id;
         const banInfo = isLocked ? `<span style="color: #f87171; font-weight: 600;">${u.banned_until === 'permanent' ? '永久' : u.banned_until}</span><br><span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(u.ban_reason || '违规')}</span>` : '<span style="color: var(--text-muted);">-</span>';
-        const quotaInfo = (u.role === 'admin') ? '<span style="color: #60a5fa;">管理员无限制</span>' : `日: ${u.custom_daily_limit != null ? u.custom_daily_limit : '默认15'} / 题: ${u.custom_turn_limit != null ? u.custom_turn_limit : '默认30'}`;
+        const quotaInfo = (u.role === 'admin') ? '<span style="color: #60a5fa;">管理员无限制</span>' : `日: ${u.custom_daily_limit != null ? u.custom_daily_limit : '默认15'} / 题: ${u.custom_turn_limit != null ? u.custom_turn_limit : '默认30'}<br><span style="font-size: 0.72rem; color: var(--text-muted);">Token: ${u.custom_daily_token_limit != null ? u.custom_daily_token_limit.toLocaleString() : '默认50k'}</span>`;
 
         return `
           <tr>
@@ -6793,7 +7279,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             <td><span class="user-status-badge ${u.status}">${isLocked ? '🚫 临时封禁' : '🟢 正常'}</span></td>
             <td>${banInfo}</td>
             <td style="font-size: 0.78rem;">${quotaInfo}</td>
-            <td style="font-family: monospace; font-weight: 600;">${u.today_questions_count != null ? u.today_questions_count : 0} 道</td>
+            <td style="font-family: monospace; font-weight: 600;">${u.today_questions != null ? u.today_questions : (u.today_questions_count != null ? u.today_questions_count : 0)} 道<br><span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">${(u.today_tokens != null ? u.today_tokens : 0).toLocaleString()} Tokens</span></td>
             <td style="font-size: 0.75rem; color: var(--text-muted);">${u.last_login_at || '未登录过'}</td>
             <td>
               <div class="admin-action-btn-group" style="justify-content: flex-end;">
@@ -6802,7 +7288,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
                 ` : `
                   ${!isMe ? `<button class="admin-btn-sm danger" onclick="openAdminBanModal('${u.id}', '${escapeHtml(u.username)}')">临时封禁</button>` : ''}
                 `}
-                <button class="admin-btn-sm" onclick="openAdminQuotaModal('${u.id}', '${escapeHtml(u.username)}', ${u.custom_daily_limit != null ? u.custom_daily_limit : "''"}, ${u.custom_turn_limit != null ? u.custom_turn_limit : "''"})">限额</button>
+                <button class="admin-btn-sm" onclick="openAdminQuotaModal('${u.id}', '${escapeHtml(u.username)}', ${u.custom_daily_limit != null ? u.custom_daily_limit : "''"}, ${u.custom_turn_limit != null ? u.custom_turn_limit : "''"}, ${u.custom_daily_token_limit != null ? u.custom_daily_token_limit : "''"})">限额</button>
                 <button class="admin-btn-sm" onclick="openAdminResetPwdModal('${u.id}', '${escapeHtml(u.username)}')">改密</button>
                 <button class="admin-btn-sm" onclick="viewUserSessions('${u.id}')">查记录</button>
               </div>
@@ -7017,11 +7503,13 @@ student04, CogniScaffold123!, 李小明"></textarea>
     }
 
     // --- 专属特批限额弹窗逻辑 ---
-    function openAdminQuotaModal(userId, username, curDaily, curTurn) {
+    function openAdminQuotaModal(userId, username, curDaily, curTurn, curToken) {
       document.getElementById('quotaUserId').value = userId;
       document.getElementById('quotaModalTargetText').textContent = `目标学者: ${username} (ID: ${userId})`;
       document.getElementById('customDailyLimitInput').value = curDaily || '';
       document.getElementById('customTurnLimitInput').value = curTurn || '';
+      const tokenInput = document.getElementById('customDailyTokenLimitInput');
+      if (tokenInput) tokenInput.value = curToken || '';
       document.getElementById('resetTodayQuestionsCheckbox').checked = false;
       document.getElementById('adminQuotaAlertBox').className = 'auth-alert-box';
       document.getElementById('adminQuotaModal').classList.add('show');
@@ -7036,6 +7524,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
       const userId = document.getElementById('quotaUserId').value;
       const customDaily = document.getElementById('customDailyLimitInput').value.trim();
       const customTurn = document.getElementById('customTurnLimitInput').value.trim();
+      const customToken = document.getElementById('customDailyTokenLimitInput')?.value.trim() || '';
       const resetToday = document.getElementById('resetTodayQuestionsCheckbox').checked;
       const alertBox = document.getElementById('adminQuotaAlertBox');
 
@@ -7047,6 +7536,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             user_id: userId,
             custom_daily_limit: customDaily !== '' ? parseInt(customDaily, 10) : null,
             custom_turn_limit: customTurn !== '' ? parseInt(customTurn, 10) : null,
+            custom_daily_token_limit: customToken !== '' ? parseInt(customToken, 10) : null,
             reset_today: resetToday
           })
         });
@@ -7224,7 +7714,8 @@ student04, CogniScaffold123!, 李小明"></textarea>
               return `<div style="text-align: center; color: var(--primary-hover); font-size: 0.75rem; margin: 10px 0; border-top: 1px dashed var(--card-border); padding-top: 8px;">⚡ ${escapeHtml(m.content)}</div>`;
             }
             const isUser = m.role === 'user';
-            const roleName = isUser ? '学者' : (m.role === 'assistant_variant' ? '变式挑战' : '导师');
+            const studentUName = s.user ? `${s.user.username} (${s.user.display_name || '学者'})` : (s.user_id || '学者');
+            const roleName = isUser ? `👤 学者 [${studentUName}]` : (m.role === 'assistant_variant' ? '🎯 变式挑战' : '🧭 导师');
             const bg = isUser ? 'var(--input-bg)' : 'rgba(59,130,246,0.06)';
             const borderCol = isUser ? 'var(--card-border)' : 'rgba(59,130,246,0.2)';
             return `
@@ -7327,6 +7818,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
         if (cfgs.session_turn_limit) {
           document.getElementById('configSessionTurnLimit').value = cfgs.session_turn_limit.value || 30;
         }
+        if (cfgs.daily_token_limit && document.getElementById('configDailyTokenLimit')) {
+          document.getElementById('configDailyTokenLimit').value = cfgs.daily_token_limit.value || 50000;
+        }
         if (cfgs.deepseek_input_price_per_m) {
           document.getElementById('configInputPrice').value = cfgs.deepseek_input_price_per_m.value || 1.0;
         }
@@ -7341,6 +7835,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
     async function saveAdminConfigs() {
       const daily = document.getElementById('configDailyQuestionLimit').value;
       const turn = document.getElementById('configSessionTurnLimit').value;
+      const dailyTokens = document.getElementById('configDailyTokenLimit')?.value || 50000;
       const inPrice = document.getElementById('configInputPrice').value;
       const outPrice = document.getElementById('configOutputPrice').value;
 
@@ -7352,6 +7847,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             configs: {
               daily_question_limit: daily,
               session_turn_limit: turn,
+              daily_token_limit: dailyTokens,
               deepseek_input_price_per_m: inPrice,
               deepseek_output_price_per_m: outPrice
             }
@@ -7436,7 +7932,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
     // ============================================================
     // 版本更新日志与红点提醒逻辑 (Changelog & Version Dot)
     // ============================================================
-    const APP_CURRENT_VERSION = 'v2.7.0';
+    const APP_CURRENT_VERSION = 'v2.8.0';
 
     function checkVersionChangelogBadge() {
       try {

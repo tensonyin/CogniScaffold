@@ -10,7 +10,7 @@ import os
 import re
 import json
 import uuid
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
@@ -86,7 +86,9 @@ def generate_session_title(
     diagnostic_result: Any,
     current_title: str,
     title_stage: int,
-    api_config: Dict[str, Any]
+    api_config: Dict[str, Any],
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
 ) -> str:
     """
     两段式 AI 标题生成：
@@ -150,6 +152,19 @@ def generate_session_title(
                 temperature=0.2,
                 timeout=6.0
             )
+            if user_id and hasattr(resp, "usage") and resp.usage:
+                try:
+                    from core.db import record_token_usage
+                    record_token_usage(
+                        user_id=user_id,
+                        session_id=session_id,
+                        task_type="session_title",
+                        prompt_tokens=resp.usage.prompt_tokens,
+                        completion_tokens=resp.usage.completion_tokens,
+                        total_tokens=resp.usage.total_tokens
+                    )
+                except Exception as e_tok:
+                    print(f"[Token Log Error in session_title] {e_tok}")
             ai_title = resp.choices[0].message.content.strip().replace('"', '').replace("'", '').replace("【", "").replace("】", "")
             ai_title = ai_title.split("\n")[0].strip()
 

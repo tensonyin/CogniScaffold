@@ -67,8 +67,10 @@ from core.db import (
     batch_create_users,
     get_user_effective_limits,
     get_user_today_questions_count,
+    get_user_today_tokens,
     check_can_create_question,
     check_can_continue_chat,
+    check_can_consume_tokens,
     get_admin_overview,
     get_admin_users_list,
     get_admin_sessions_list,
@@ -209,11 +211,14 @@ def dispatch_variant_tier_data(session: dict, tier_num: int):
     return prompt_msg
 
 
-def trigger_diagnosis_for_session(session: dict):
+def trigger_diagnosis_for_session(session: dict, user_id: Optional[str] = None):
+    s_id = session.get("id")
     session["diagnostic_result"] = generate_diagnostic_report(
         session["dialogue_history"],
         session["question"],
-        api_config
+        api_config,
+        user_id=user_id,
+        session_id=s_id
     )
     session["current_stage"] = 4
     session["current_variant_tier"] = 1
@@ -225,12 +230,44 @@ def trigger_diagnosis_for_session(session: dict):
             session["diagnostic_result"],
             session.get("title", "会话"),
             title_stage=2,
-            api_config=api_config
+            api_config=api_config,
+            user_id=user_id,
+            session_id=s_id
         )
         session["title"] = new_title
         session["title_stage"] = 2
     
     dispatch_variant_tier_data(session, 1)
+
+
+def build_user_response_info(user: dict) -> dict:
+    """构建统一的用户概要与额度信息结构"""
+    is_admin = (user.get("role") == "admin")
+    can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
+    _, max_turns, max_tokens = get_user_effective_limits(user["id"])
+    can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user["id"], is_admin=is_admin)
+    remaining_tokens = max(0, limit_tokens - used_tokens) if not is_admin else 99999999
+    remaining_pct = round((remaining_tokens / limit_tokens) * 100) if (not is_admin and limit_tokens > 0) else 100
+    remaining_pct = max(0, min(100, remaining_pct))
+
+    return {
+        "id": user["id"],
+        "username": user["username"],
+        "display_name": user["display_name"],
+        "role": user["role"],
+        "quota": {
+            "can_create": can_create and can_tokens,
+            "can_chat": can_tokens,
+            "today_questions": 0 if is_admin else cur_q,
+            "daily_limit": 99999 if is_admin else max_q,
+            "turn_limit": 99999 if is_admin else max_turns,
+            "today_tokens": 0 if is_admin else used_tokens,
+            "daily_tokens": 99999999 if is_admin else limit_tokens,
+            "remaining_tokens": remaining_tokens,
+            "token_remaining_pct": remaining_pct,
+            "is_admin": is_admin
+        }
+    }
 
 
 # ============================================================
@@ -256,24 +293,7 @@ async def serve_index():
 async def get_bootstrap(request: Request):
     user = get_current_user(request)
     user_store = get_user_store(user["id"]) if user else None
-    user_info = None
-    if user:
-        is_admin = (user.get("role") == "admin")
-        can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
-        _, max_turns = get_user_effective_limits(user["id"])
-        user_info = {
-            "id": user["id"],
-            "username": user["username"],
-            "display_name": user["display_name"],
-            "role": user["role"],
-            "quota": {
-                "can_create": can_create,
-                "today_questions": 0 if is_admin else cur_q,
-                "daily_limit": 99999 if is_admin else max_q,
-                "turn_limit": 99999 if is_admin else max_turns,
-                "is_admin": is_admin
-            }
-        }
+    user_info = build_user_response_info(user) if user else None
 
     return {
         "user": user_info,
@@ -355,22 +375,7 @@ async def auth_login(request: Request, data: dict):
     token = create_auth_token_session(user["id"], ip=client_ip, user_agent=ua)
     log_audit_event(user["id"], "login_success", client_ip, "Success")
 
-    is_admin = (user.get("role") == "admin")
-    can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
-    _, max_turns = get_user_effective_limits(user["id"])
-    user_info = {
-        "id": user["id"],
-        "username": user["username"],
-        "display_name": user["display_name"],
-        "role": user["role"],
-        "quota": {
-            "can_create": can_create,
-            "today_questions": 0 if is_admin else cur_q,
-            "daily_limit": 99999 if is_admin else max_q,
-            "turn_limit": 99999 if is_admin else max_turns,
-            "is_admin": is_admin
-        }
-    }
+    user_info = build_user_response_info(user)
     user_store = get_user_store(user["id"])
 
     response = JSONResponse(content={
@@ -413,24 +418,7 @@ async def auth_me(request: Request):
     user = get_current_user(request)
     if not user:
         return {"user": None}
-    is_admin = (user.get("role") == "admin")
-    can_create, cur_q, max_q = check_can_create_question(user["id"], is_admin=is_admin)
-    _, max_turns = get_user_effective_limits(user["id"])
-    return {
-        "user": {
-            "id": user["id"],
-            "username": user["username"],
-            "display_name": user["display_name"],
-            "role": user["role"],
-            "quota": {
-                "can_create": can_create,
-                "today_questions": 0 if is_admin else cur_q,
-                "daily_limit": 99999 if is_admin else max_q,
-                "turn_limit": 99999 if is_admin else max_turns,
-                "is_admin": is_admin
-            }
-        }
-    }
+    return {"user": build_user_response_info(user)}
 
 
 @app.post("/api/auth/change_password")
@@ -637,10 +625,18 @@ async def init_question(request: Request, data: dict):
         active[sess["id"]] = sess
         s_id = sess["id"]
 
-    # 提问额度检测（非管理员账号受单日提问上限约束）
-    # 仅当会话未初始化过（即新发起题目）时计入今日额度
+    # 提问额度与 Token 门禁检测（非管理员账号受约束）
     is_admin = (user.get("role") == "admin")
-    if not sess.get("is_initialized", False) and not is_admin:
+    if not is_admin:
+        can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user_id, is_admin=is_admin)
+        if not can_tokens:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
+            )
+
+    # 仅当会话未初始化过（即新发起题目）时计入今日开题额度（预设案例不计入每日开题限额，但在后续对话计入Token与轮次）
+    if not sess.get("is_initialized", False) and not is_admin and not preset_key:
         can_create, cur_count, max_limit = check_can_create_question(user_id, is_admin=is_admin)
         if not can_create:
             raise HTTPException(
@@ -686,7 +682,9 @@ async def init_question(request: Request, data: dict):
             diagnostic_result=None,
             current_title=sess.get("title", "会话"),
             title_stage=1,
-            api_config=api_config
+            api_config=api_config,
+            user_id=user_id,
+            session_id=s_id
         )
         sess["solver_blueprint"] = generate_solver_blueprint(
             question_text,
@@ -757,7 +755,16 @@ async def verify_session(request: Request, data: dict):
         sess = store.get("active_sessions", {}).get(s_id)
         if sess.get("diagnostic_result"):
             return {"status": "ok", "store": store}
-        trigger_diagnosis_for_session(sess)
+        
+        is_admin = (user.get("role") == "admin")
+        if not is_admin:
+            can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user_id, is_admin=is_admin)
+            if not can_tokens:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
+                )
+        trigger_diagnosis_for_session(sess, user_id=user_id)
         save_user_session(user_id, sess)
         return {"status": "ok", "store": get_user_store(user_id)}
 
@@ -795,13 +802,24 @@ async def next_tier(request: Request, data: dict):
         if curr_tier <= max_t:
             return {"status": "ok", "store": store}
 
+        is_admin = (user.get("role") == "admin")
+        if not is_admin:
+            can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user_id, is_admin=is_admin)
+            if not can_tokens:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
+                )
+
         next_t = max_t + 1
         new_variant = generate_next_tier_variant(
             sess.get("question", ""),
             sess.get("dialogue_history", []),
             diag,
             next_t,
-            api_config
+            api_config,
+            user_id=user_id,
+            session_id=s_id
         )
         diag[f"tier{next_t}_variant"] = new_variant
         sess["diagnostic_result"] = diag
@@ -827,6 +845,15 @@ async def upload_image(
     if image.content_type and image.content_type.lower() not in ALLOWED_IMAGE_TYPES:
         raise HTTPException(status_code=400, detail="不支持的图片格式，仅支持 JPG、PNG、WebP 图片")
 
+    is_admin = (user.get("role") == "admin")
+    if not is_admin:
+        can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user["id"], is_admin=is_admin)
+        if not can_tokens:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
+            )
+
     try:
         content = await image.read(MAX_UPLOAD_SIZE + 1)
         if len(content) > MAX_UPLOAD_SIZE:
@@ -834,7 +861,7 @@ async def upload_image(
 
         # 过滤与截断题目上下文，防范 Prompt 注入
         safe_context = question_context[:500].strip()
-        recognized_text = analyze_image_input(content, mode, safe_context, api_config)
+        recognized_text = analyze_image_input(content, mode, safe_context, api_config, user_id=user["id"])
         return {"status": "ok", "text": recognized_text}
     except HTTPException:
         raise
@@ -862,8 +889,16 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # 对话轮次限额检测（非管理员账号受单题目轮次上限约束）
+    # 对话轮次与 Token 门禁检测（非管理员账号受单题目轮次及当日Token限额约束）
     is_admin = (user.get("role") == "admin")
+    if not is_admin:
+        can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user_id, is_admin=is_admin)
+        if not can_tokens:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
+            )
+
     can_continue, cur_turns, max_turns = check_can_continue_chat(user_id, sess.get("tutor_turns", 0), is_admin=is_admin)
     if not can_continue:
         raise HTTPException(
@@ -950,7 +985,9 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                         sess.get("dialogue_history", []),
                         diag,
                         next_t,
-                        api_config
+                        api_config,
+                        user_id=user_id,
+                        session_id=session_id
                     )
                     diag[f"tier{next_t}_variant"] = new_variant
                     sess["diagnostic_result"] = diag
@@ -972,7 +1009,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 var_q = tier_data.get("question", "变式题")
                 var_h = tier_data.get("hint", "")
 
-                eval_text = evaluate_transfer_answer(var_q, var_h, student_text, api_config)
+                eval_text = evaluate_transfer_answer(var_q, var_h, student_text, api_config, user_id=user_id, session_id=session_id)
                 
                 chunk_size = 8
                 for i in range(0, len(eval_text), chunk_size):
@@ -1032,7 +1069,9 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                         None,
                         sess.get("title", ""),
                         title_stage=1,
-                        api_config=api_config
+                        api_config=api_config,
+                        user_id=user_id,
+                        session_id=session_id
                     )
                     sess["title"] = new_title
                     sess["title_stage"] = 1
@@ -1046,7 +1085,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 )
 
                 if can_trigger_diagnosis:
-                    trigger_diagnosis_for_session(sess)
+                    trigger_diagnosis_for_session(sess, user_id=user_id)
 
                 save_user_session(user_id, sess)
                 yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
@@ -1226,6 +1265,7 @@ async def admin_set_quota(request: Request, data: dict):
 
     custom_daily = data.get("custom_daily_limit")
     custom_turn = data.get("custom_turn_limit")
+    custom_token = data.get("custom_daily_token_limit")
     reset_today = data.get("reset_today", False)
 
     if custom_daily is not None and custom_daily != "":
@@ -1238,7 +1278,12 @@ async def admin_set_quota(request: Request, data: dict):
     else:
         custom_turn = None
 
-    set_user_custom_quota(str(user_id), custom_daily, custom_turn)
+    if custom_token is not None and custom_token != "":
+        custom_token = int(custom_token)
+    else:
+        custom_token = None
+
+    set_user_custom_quota(str(user_id), custom_daily, custom_turn, custom_token)
     if reset_today:
         reset_user_today_questions(str(user_id))
 
