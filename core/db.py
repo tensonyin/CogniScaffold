@@ -129,12 +129,60 @@ def init_db():
     );
     """)
 
+    # 7. 系统配置表 (全局限额、资费单价等)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS system_configs (
+        config_key TEXT PRIMARY KEY,
+        config_value TEXT NOT NULL,
+        description TEXT,
+        updated_at TEXT NOT NULL
+    );
+    """)
+
+    # 8. Token 消耗统计明细表
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS token_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        session_id TEXT,
+        task_type TEXT NOT NULL,
+        prompt_tokens INTEGER DEFAULT 0,
+        completion_tokens INTEGER DEFAULT 0,
+        total_tokens INTEGER DEFAULT 0,
+        date TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    """)
+
+    # 9. 敏感与违规拦截日志表
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS guardrail_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        username TEXT NOT NULL,
+        session_id TEXT,
+        matched_pattern TEXT NOT NULL,
+        input_snippet TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    """)
+
     # 索引优化
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_archived ON sessions(user_id, is_archived);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id ASC);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_tokens_expires ON auth_tokens(expires_at);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_token_user_date ON token_usage(user_id, date);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage(session_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_guardrail_user ON guardrail_logs(user_id);")
 
     conn.commit()
+
+    # 检查并扩展 users 表新字段
+    _migrate_user_columns(conn)
+
+    # 检查并初始化系统全局配置
+    _seed_default_configs(conn)
 
     # 检查并创建内置账号
     _seed_default_users(conn)
@@ -146,6 +194,42 @@ def init_db():
     _seed_student01_golden_presets(conn)
 
     conn.close()
+
+
+def _migrate_user_columns(conn: sqlite3.Connection):
+    """自动向 users 表迁移新增字段：封禁时间、封禁原因、自定义开题限额、自定义轮次限额"""
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(users);")
+    cols = [r["name"] for r in cur.fetchall()]
+    if "banned_until" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN banned_until TEXT;")
+    if "ban_reason" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN ban_reason TEXT;")
+    if "custom_daily_limit" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_daily_limit INTEGER;")
+    if "custom_turn_limit" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_turn_limit INTEGER;")
+    conn.commit()
+
+
+def _seed_default_configs(conn: sqlite3.Connection):
+    """初始化全局限额与资费配置"""
+    cur = conn.cursor()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    defaults = [
+        ("daily_question_limit", "15", "非管理员单日允许开题的最多题目数（道）"),
+        ("session_turn_limit", "30", "单道题目允许进行的最多思维引导交互轮次（轮）"),
+        ("deepseek_input_price_per_m", "1.0", "DeepSeek 每百万输入 Token 费用 (元)"),
+        ("deepseek_output_price_per_m", "2.0", "DeepSeek 每百万输出 Token 费用 (元)")
+    ]
+    for key, val, desc in defaults:
+        cur.execute("SELECT config_key FROM system_configs WHERE config_key = ?;", (key,))
+        if not cur.fetchone():
+            cur.execute("""
+            INSERT INTO system_configs (config_key, config_value, description, updated_at)
+            VALUES (?, ?, ?, ?);
+            """, (key, val, desc, now))
+    conn.commit()
 
 
 def _seed_default_users(conn: sqlite3.Connection):
@@ -415,8 +499,21 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE username = ?;", (username,))
     row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    d = dict(row)
+    # 自动解封检查
+    if d.get("status") == "locked" and d.get("banned_until") and d.get("banned_until") != "permanent":
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if now_str >= d["banned_until"]:
+            cur.execute("UPDATE users SET status = 'active', banned_until = NULL, ban_reason = NULL WHERE id = ?;", (d["id"],))
+            conn.commit()
+            d["status"] = "active"
+            d["banned_until"] = None
+            d["ban_reason"] = None
     conn.close()
-    return dict(row) if row else None
+    return d
 
 
 def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
@@ -424,8 +521,21 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE id = ?;", (user_id,))
     row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+    d = dict(row)
+    # 自动解封检查
+    if d.get("status") == "locked" and d.get("banned_until") and d.get("banned_until") != "permanent":
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if now_str >= d["banned_until"]:
+            cur.execute("UPDATE users SET status = 'active', banned_until = NULL, ban_reason = NULL WHERE id = ?;", (d["id"],))
+            conn.commit()
+            d["status"] = "active"
+            d["banned_until"] = None
+            d["ban_reason"] = None
     conn.close()
-    return dict(row) if row else None
+    return d
 
 
 def create_user(username: str, plain_password: str, display_name: str = "", role: str = "student") -> Dict[str, Any]:
@@ -696,6 +806,15 @@ def save_user_session(user_id: str, session_data: Dict[str, Any]):
     diag_json = json.dumps(session_data.get("diagnostic_result")) if session_data.get("diagnostic_result") else None
     eval_json = json.dumps(session_data.get("transfer_eval_result")) if session_data.get("transfer_eval_result") else None
 
+    raw_created = session_data.get("created_at")
+    if not raw_created:
+        created_at_db = now
+    elif len(raw_created) <= 12 and "-" in raw_created:  # e.g. "10-28 13:45"
+        year = datetime.now().strftime("%Y")
+        created_at_db = f"{year}-{raw_created}:00"
+    else:
+        created_at_db = raw_created
+
     cur.execute("""
     INSERT INTO sessions (
         id, user_id, title, is_starred, is_initialized, question,
@@ -730,7 +849,7 @@ def save_user_session(user_id: str, session_data: Dict[str, Any]):
         eval_json,
         session_data.get("current_variant_tier", 1),
         session_data.get("title_stage", 0),
-        session_data.get("created_at", now),
+        created_at_db,
         now
     ))
 
@@ -858,3 +977,567 @@ def toggle_user_session_star(user_id: str, session_id: str) -> bool:
     conn.commit()
     conn.close()
     return bool(new_starred)
+
+
+# ============================================================
+# 系统全局配置管理 (System Configurations)
+# ============================================================
+
+def get_system_config(key: str, default: str = "") -> str:
+    """获取指定系统配置"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT config_value FROM system_configs WHERE config_key = ?;", (key,))
+    row = cur.fetchone()
+    conn.close()
+    return row["config_value"] if row else default
+
+
+def get_all_system_configs() -> Dict[str, Any]:
+    """获取全部系统配置字典"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT config_key, config_value, description, updated_at FROM system_configs;")
+    rows = cur.fetchall()
+    conn.close()
+    return {r["config_key"]: {"value": r["config_value"], "desc": r["description"], "updated_at": r["updated_at"]} for r in rows}
+
+
+def set_system_config(key: str, value: str, description: str = ""):
+    """设置系统配置项"""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    INSERT INTO system_configs (config_key, config_value, description, updated_at)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(config_key) DO UPDATE SET 
+        config_value = excluded.config_value,
+        description = CASE WHEN excluded.description != '' THEN excluded.description ELSE system_configs.description END,
+        updated_at = excluded.updated_at;
+    """, (key, str(value), description, now))
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
+# Token 消耗追踪与成本统计 (Token Usage & Cost Analytics)
+# ============================================================
+
+def record_token_usage(
+    user_id: str,
+    session_id: Optional[str] = None,
+    task_type: str = "chat_tutor",
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    total_tokens: int = 0,
+    model_name: str = "",
+    call_type: Optional[str] = None,
+    **kwargs
+):
+    """记录一次大模型调用的 Token 消耗"""
+    if call_type and not task_type:
+        task_type = call_type
+    elif call_type:
+        task_type = call_type
+
+    if total_tokens <= 0:
+        total_tokens = prompt_tokens + completion_tokens
+    now_dt = datetime.now()
+    now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
+    today_str = now_dt.strftime("%Y-%m-%d")
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    INSERT INTO token_usage (user_id, session_id, task_type, prompt_tokens, completion_tokens, total_tokens, date, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+    """, (str(user_id), session_id, task_type, prompt_tokens, completion_tokens, total_tokens, today_str, now_str))
+    conn.commit()
+    conn.close()
+
+
+def get_token_stats_overview() -> Dict[str, Any]:
+    """汇总今日 Token、总 Token、估算费用与学生消耗排行"""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    # 今日总消耗
+    cur.execute("""
+    SELECT 
+        COALESCE(SUM(prompt_tokens), 0) as today_prompt,
+        COALESCE(SUM(completion_tokens), 0) as today_completion,
+        COALESCE(SUM(total_tokens), 0) as today_total
+    FROM token_usage WHERE date = ?;
+    """, (today_str,))
+    today_row = cur.fetchone()
+
+    # 历史全量总消耗
+    cur.execute("""
+    SELECT 
+        COALESCE(SUM(prompt_tokens), 0) as total_prompt,
+        COALESCE(SUM(completion_tokens), 0) as total_completion,
+        COALESCE(SUM(total_tokens), 0) as all_total
+    FROM token_usage;
+    """)
+    all_row = cur.fetchone()
+
+    # 资费单价 (默认 DeepSeek 现行资费: 输入 1元/1M, 输出 2元/1M)
+    input_price = float(get_system_config("deepseek_input_price_per_m", "1.0"))
+    output_price = float(get_system_config("deepseek_output_price_per_m", "2.0"))
+
+    today_cost = (today_row["today_prompt"] * input_price / 1_000_000) + (today_row["today_completion"] * output_price / 1_000_000)
+    all_cost = (all_row["total_prompt"] * input_price / 1_000_000) + (all_row["total_completion"] * output_price / 1_000_000)
+
+    # Top 10 学生排行
+    cur.execute("""
+    SELECT u.id, u.username, u.display_name, u.status,
+           COALESCE(SUM(t.total_tokens), 0) as student_total_tokens,
+           COUNT(DISTINCT t.session_id) as session_count
+    FROM users u
+    LEFT JOIN token_usage t ON u.id = t.user_id
+    WHERE u.role != 'admin'
+    GROUP BY u.id
+    ORDER BY student_total_tokens DESC
+    LIMIT 10;
+    """)
+    top_students = [dict(r) for r in cur.fetchall()]
+
+    conn.close()
+    return {
+        "today_tokens": today_row["today_total"],
+        "today_prompt": today_row["today_prompt"],
+        "today_completion": today_row["today_completion"],
+        "today_cost_rmb": round(today_cost, 4),
+        "all_tokens": all_row["all_total"],
+        "all_prompt": all_row["total_prompt"],
+        "all_completion": all_row["total_completion"],
+        "all_cost_rmb": round(all_cost, 4),
+        "top_students": top_students
+    }
+
+
+# ============================================================
+# 敏感违规与合规审计日志 (Guardrail Logging)
+# ============================================================
+
+def record_guardrail_log(
+    user_id: str,
+    username: str = "",
+    session_id: Optional[str] = None,
+    matched_pattern: str = "",
+    input_snippet: str = "",
+    input_text: str = "",
+    **kwargs
+):
+    """记录学生触发敏感合规拦截的日志"""
+    snippet = input_snippet or input_text
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    if not username:
+        cur.execute("SELECT username FROM users WHERE id = ?;", (str(user_id),))
+        row = cur.fetchone()
+        if row:
+            username = row["username"]
+    cur.execute("""
+    INSERT INTO guardrail_logs (user_id, username, session_id, matched_pattern, input_snippet, created_at)
+    VALUES (?, ?, ?, ?, ?, ?);
+    """, (str(user_id), username, session_id, matched_pattern, snippet[:300], now))
+    conn.commit()
+    conn.close()
+
+
+def get_guardrail_logs(limit: int = 50) -> List[Dict[str, Any]]:
+    """获取最近的违规拦截日志"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT id, user_id, username, session_id, matched_pattern, input_snippet, created_at
+    FROM guardrail_logs
+    ORDER BY id DESC LIMIT ?;
+    """, (limit,))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+# ============================================================
+# 账号封禁、特批限额与管理员重置密码
+# ============================================================
+
+def check_user_ban_status(user_id: str) -> Tuple[bool, str, Optional[str]]:
+    """
+    检查指定用户是否处于封禁状态
+    返回: (is_banned: bool, ban_reason: str, banned_until: Optional[str])
+    若临时封禁已到期，自动解除封禁并恢复 active
+    """
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT status, banned_until, ban_reason FROM users WHERE id = ?;", (user_id,))
+    row = cur.fetchone()
+    if not row or row["status"] != "locked":
+        conn.close()
+        return False, "", None
+
+    b_until = row["banned_until"]
+    reason = row["ban_reason"] or "管理员封禁"
+
+    if b_until and b_until != "permanent":
+        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        if now_str >= b_until:
+            # 自动解封
+            cur.execute("UPDATE users SET status = 'active', banned_until = NULL, ban_reason = NULL WHERE id = ?;", (user_id,))
+            conn.commit()
+            conn.close()
+            return False, "", None
+
+    conn.close()
+    return True, reason, b_until
+
+
+def ban_user(user_id: str, banned_until: Optional[str] = "permanent", reason: str = "违规使用", admin_id: Optional[str] = None):
+    """封禁指定用户，并立即清退其全部在线 Token"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    UPDATE users 
+    SET status = 'locked', ban_reason = ?, banned_until = ?
+    WHERE id = ?;
+    """, (reason, banned_until or "permanent", str(user_id)))
+    # 吊销全部在线 token
+    cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (str(user_id),))
+    conn.commit()
+    conn.close()
+
+
+def unban_user(user_id: str):
+    """解除用户封禁"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    UPDATE users 
+    SET status = 'active', ban_reason = NULL, banned_until = NULL
+    WHERE id = ?;
+    """, (str(user_id),))
+    conn.commit()
+    conn.close()
+
+
+def reset_user_password_by_admin(user_id: str, new_password: str, admin_id: Optional[str] = None):
+    """管理员强制重置用户密码"""
+    new_salt = generate_salt()
+    new_hash = hash_password(new_password, new_salt)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    UPDATE users SET password_hash = ?, salt = ? WHERE id = ?;
+    """, (new_hash, new_salt, str(user_id)))
+    # 密码修改后将该用户所有旧令牌注销
+    cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (str(user_id),))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: Optional[int]):
+    """设置用户个性化特批限额 (None 则清除恢复全局限额)"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    UPDATE users 
+    SET custom_daily_limit = ?, custom_turn_limit = ?
+    WHERE id = ?;
+    """, (daily_limit, turn_limit, str(user_id)))
+    conn.commit()
+    conn.close()
+
+
+def reset_user_today_questions(user_id: str):
+    """管理员特批：一键重置某学生今日已用开题次数"""
+    today_full = datetime.now().strftime("%Y-%m-%d")
+    today_short = datetime.now().strftime("%m-%d")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    # 将今日创建的会话 created_at 日期前移一天，从而绕过当日 00:00 计数
+    cur.execute("""
+    UPDATE sessions 
+    SET created_at = '2000-01-01 00:00:00'
+    WHERE user_id = ? AND (created_at LIKE ? OR created_at LIKE ?);
+    """, (str(user_id), f"{today_full}%", f"{today_short}%"))
+    conn.commit()
+    conn.close()
+
+
+# ============================================================
+# 批量创建账号 (Batch Account Creation)
+# ============================================================
+
+def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
+    """
+    批量添加账号
+    user_list: [{"username": "...", "password": "...", "display_name": "..."}]
+    """
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    created = []
+    skipped = []
+    errors = []
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    for item in user_list:
+        uname = (item.get("username") or "").strip()
+        pwd = (item.get("password") or "").strip()
+        disp = (item.get("display_name") or uname).strip()
+
+        if not uname or not pwd:
+            errors.append(f"账号或密码为空：{uname}")
+            continue
+
+        # 检查是否重复
+        cur.execute("SELECT id FROM users WHERE username = ?;", (uname,))
+        if cur.fetchone():
+            skipped.append(uname)
+            continue
+
+        salt = generate_salt()
+        pwd_hash = hash_password(pwd, salt)
+        u_id = str(uuid.uuid4())[:8]
+
+        try:
+            cur.execute("""
+            INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
+            VALUES (?, ?, ?, ?, ?, 'student', 'active', ?);
+            """, (u_id, uname, pwd_hash, salt, disp, now))
+            created.append(uname)
+        except Exception as e:
+            errors.append(f"{uname}: {str(e)}")
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "success_count": len(created),
+        "skipped_count": len(skipped),
+        "created_users": created,
+        "skipped_users": skipped,
+        "errors": errors
+    }
+
+
+# ============================================================
+# 限额判定与门禁 (Quota Check & Enforcement)
+# ============================================================
+
+def get_user_effective_limits(user_id: str) -> Tuple[int, int]:
+    """获取某用户的生效限额：(单日开题上限, 单题轮次上限)"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT role, custom_daily_limit, custom_turn_limit FROM users WHERE id = ?;", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+
+    if not row or row["role"] == "admin":
+        return 99999, 99999  # 管理员无限制
+
+    default_daily = int(get_system_config("daily_question_limit", "15"))
+    default_turns = int(get_system_config("session_turn_limit", "30"))
+
+    daily = row["custom_daily_limit"] if (row["custom_daily_limit"] is not None and row["custom_daily_limit"] > 0) else default_daily
+    turns = row["custom_turn_limit"] if (row["custom_turn_limit"] is not None and row["custom_turn_limit"] > 0) else default_turns
+
+    return daily, turns
+
+
+def get_user_today_questions_count(user_id: str) -> int:
+    """获取某用户今日已开题数量"""
+    today_full = datetime.now().strftime("%Y-%m-%d")
+    today_short = datetime.now().strftime("%m-%d")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT COUNT(1) as cnt 
+    FROM sessions 
+    WHERE user_id = ? AND is_initialized = 1 AND (created_at LIKE ? OR created_at LIKE ?);
+    """, (user_id, f"{today_full}%", f"{today_short}%"))
+    row = cur.fetchone()
+    conn.close()
+    return row["cnt"] if row else 0
+
+
+def check_can_create_question(user_id: str, is_admin: bool = False) -> Tuple[bool, int, int]:
+    """检查是否允许开题: 返回 (允许与否, 今日已用, 上限)"""
+    if is_admin:
+        return True, 0, 99999
+    daily_limit, _ = get_user_effective_limits(user_id)
+    today_count = get_user_today_questions_count(user_id)
+    return (today_count < daily_limit), today_count, daily_limit
+
+
+def check_can_continue_chat(user_id: str, session: Dict[str, Any], is_admin: bool = False) -> Tuple[bool, int, int]:
+    """检查单题是否已达轮次上限: 返回 (允许与否, 当前轮次, 上限)"""
+    if is_admin:
+        return True, session.get("tutor_turns", 0), 99999
+    _, turn_limit = get_user_effective_limits(user_id)
+    current_turns = session.get("tutor_turns", 0)
+    return (current_turns < turn_limit), current_turns, turn_limit
+
+
+# ============================================================
+# 管理员数据大屏与列表查询聚合
+# ============================================================
+
+def get_admin_overview() -> Dict[str, Any]:
+    """控制台概览总指标"""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("SELECT COUNT(1) as total_users, SUM(CASE WHEN status='locked' THEN 1 ELSE 0 END) as locked_users FROM users WHERE role != 'admin';")
+    u_row = cur.fetchone()
+
+    cur.execute("SELECT COUNT(1) as total_sessions FROM sessions WHERE is_initialized = 1;")
+    s_row = cur.fetchone()
+
+    cur.execute("SELECT COUNT(1) as today_sessions FROM sessions WHERE is_initialized = 1 AND created_at LIKE ?;", (f"{today_str}%",))
+    ts_row = cur.fetchone()
+
+    cur.execute("SELECT COUNT(1) as total_messages FROM messages;")
+    m_row = cur.fetchone()
+
+    conn.close()
+
+    token_stats = get_token_stats_overview()
+    daily_limit = int(get_system_config("daily_question_limit", "15"))
+    turn_limit = int(get_system_config("session_turn_limit", "30"))
+
+    return {
+        "total_students": u_row["total_users"] if u_row else 0,
+        "locked_students": u_row["locked_users"] if u_row else 0,
+        "total_sessions": s_row["total_sessions"] if s_row else 0,
+        "today_sessions": ts_row["today_sessions"] if ts_row else 0,
+        "total_messages": m_row["total_messages"] if m_row else 0,
+        "daily_limit_config": daily_limit,
+        "turn_limit_config": turn_limit,
+        "token_stats": token_stats
+    }
+
+
+def get_admin_users_list(search: str = "", status: str = "") -> List[Dict[str, Any]]:
+    """管理员账号列表检索与详细聚合"""
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    sql = """
+    SELECT 
+        u.id, u.username, u.display_name, u.role, u.status, u.banned_until, u.ban_reason,
+        u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit,
+        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1) as session_count,
+        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND created_at LIKE ?) as today_questions,
+        (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id) as total_tokens
+    FROM users u
+    WHERE 1=1
+    """
+    params: List[Any] = [f"{today_str}%"]
+
+    if search:
+        sql += " AND (u.username LIKE ? OR u.display_name LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%"])
+
+    if status:
+        sql += " AND u.status = ?"
+        params.append(status)
+
+    sql += " ORDER BY u.role DESC, u.created_at ASC;"
+
+    cur.execute(sql, tuple(params))
+    rows = cur.fetchall()
+    conn.close()
+
+    res = []
+    for r in rows:
+        d = dict(r)
+        # 自动校验解封状态
+        b_until = d.get("banned_until")
+        if d["status"] == "locked" and b_until and b_until != "permanent":
+            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if now_str >= b_until:
+                d["status"] = "active"
+                d["banned_until"] = None
+                d["ban_reason"] = None
+        res.append(d)
+    return res
+
+
+def get_admin_sessions_list(user_id: Optional[str] = None, search: str = "", limit: int = 100) -> List[Dict[str, Any]]:
+    """全局会话时间流或指定学生会话列表"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    sql = """
+    SELECT 
+        s.id, s.user_id, s.title, s.question, s.current_stage, s.tutor_turns,
+        s.is_starred, s.is_archived, s.created_at, s.updated_at,
+        u.username, u.display_name,
+        (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE session_id = s.id) as session_tokens
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.is_initialized = 1
+    """
+    params: List[Any] = []
+
+    if user_id:
+        sql += " AND s.user_id = ?"
+        params.append(user_id)
+
+    if search:
+        sql += " AND (s.title LIKE ? OR s.question LIKE ? OR u.username LIKE ? OR u.display_name LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
+
+    sql += " ORDER BY s.updated_at DESC LIMIT ?;"
+    params.append(limit)
+
+    cur.execute(sql, tuple(params))
+    rows = cur.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
+def get_admin_session_detail(session_id: str) -> Optional[Dict[str, Any]]:
+    """获取单个会话的完整审计详情与对话记录"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+    SELECT 
+        s.*, u.username, u.display_name,
+        (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE session_id = s.id) as session_tokens
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.id = ?;
+    """, (session_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    sess = _assemble_session_dict(conn, row)
+    sess["username"] = row["username"]
+    sess["display_name"] = row["display_name"]
+    sess["user"] = {
+        "id": sess.get("user_id"),
+        "username": row["username"],
+        "display_name": row["display_name"]
+    }
+    sess["session_tokens"] = row["session_tokens"]
+
+    # 查每条消息明细
+    cur.execute("SELECT id, role, content, timestamp, metadata, created_at FROM messages WHERE session_id = ? ORDER BY id ASC;", (session_id,))
+    msg_rows = cur.fetchall()
+    conn.close()
+
+    sess["messages"] = [dict(m) for m in msg_rows]
+    return sess

@@ -52,6 +52,14 @@ def check_input_guardrail(text: str) -> Tuple[bool, Optional[str]]:
     return False, None
 
 
+def get_matched_guardrail_pattern(text: str) -> Optional[str]:
+    """获取命中的敏感词模式或关键词片段，供审计日志使用"""
+    if not text or not isinstance(text, str):
+        return None
+    m = _COMPILED_SENSITIVE.search(text.strip())
+    return m.group(0) if m else None
+
+
 def check_output_refusal(model_output: str) -> bool:
     """
     断路器 2：后置大模型安全拒答熔断器 (Output Guardrail)

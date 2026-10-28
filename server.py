@@ -3,6 +3,7 @@ import re
 import json
 import asyncio
 import mimetypes
+from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
@@ -29,7 +30,7 @@ from core.engine import (
     analyze_image_input
 )
 from core.latex_presets import LATEX_PRESETS_TREE
-from core.guardrails import check_input_guardrail, check_output_refusal
+from core.guardrails import check_input_guardrail, check_output_refusal, get_matched_guardrail_pattern
 from core.intent import classify_user_intent
 
 # 导入 SQLite 持久化与认证安全模块
@@ -49,7 +50,29 @@ from core.db import (
     archive_user_session,
     restore_user_session,
     delete_archived_user_session,
-    toggle_user_session_star
+    toggle_user_session_star,
+    get_system_config,
+    get_all_system_configs,
+    set_system_config,
+    record_token_usage,
+    get_token_stats_overview,
+    record_guardrail_log,
+    get_guardrail_logs,
+    check_user_ban_status,
+    ban_user,
+    unban_user,
+    reset_user_password_by_admin,
+    set_user_custom_quota,
+    reset_user_today_questions,
+    batch_create_users,
+    get_user_effective_limits,
+    get_user_today_questions_count,
+    check_can_create_question,
+    check_can_continue_chat,
+    get_admin_overview,
+    get_admin_users_list,
+    get_admin_sessions_list,
+    get_admin_session_detail
 )
 from core.auth import (
     verify_password,
@@ -130,6 +153,16 @@ def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
     if not token:
         return None
     return get_user_from_token(token)
+
+
+def require_admin(request: Request) -> Dict[str, Any]:
+    """校验当前请求是否为具有管理员身份的用户，否则直接阻断抛出 403"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录管理员账号")
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="无权访问管理员后台功能")
+    return user
 
 
 def dispatch_variant_tier_data(session: dict, tier_num: int):
@@ -219,12 +252,23 @@ async def serve_index():
 async def get_bootstrap(request: Request):
     user = get_current_user(request)
     user_store = get_user_store(user["id"]) if user else None
-    user_info = {
-        "id": user["id"],
-        "username": user["username"],
-        "display_name": user["display_name"],
-        "role": user["role"]
-    } if user else None
+    user_info = None
+    if user:
+        can_create, cur_q, max_q = check_can_create_question(user["id"])
+        _, max_turns = get_user_effective_limits(user["id"])
+        user_info = {
+            "id": user["id"],
+            "username": user["username"],
+            "display_name": user["display_name"],
+            "role": user["role"],
+            "quota": {
+                "can_create": can_create,
+                "today_questions": cur_q,
+                "daily_limit": max_q,
+                "turn_limit": max_turns,
+                "is_admin": user.get("role") == "admin"
+            }
+        }
 
     return {
         "user": user_info,
@@ -270,8 +314,18 @@ async def auth_login(request: Request, data: dict):
             content={"status": "error", "message": f"尝试次数过多，账号已临时锁定，请等待 {remaining} 秒后再试"}
         )
 
-    # 2. 查询用户并校验密码（PBKDF2-HMAC 常量时间比对）
+    # 2. 查询用户并校验封禁状态与密码（PBKDF2-HMAC 常量时间比对）
     user = get_user_by_username(username)
+    if user:
+        is_banned, ban_reason, banned_until = check_user_ban_status(user["id"])
+        if is_banned:
+            log_audit_event(user["id"], "login_banned_attempt", client_ip, f"banned_until: {banned_until}")
+            until_desc = "永久封禁" if banned_until == "permanent" else f"封禁至 {banned_until}"
+            return JSONResponse(
+                status_code=403,
+                content={"status": "error", "message": f"该账号已被限制登录（{until_desc}）。封禁原因：{ban_reason or '违反使用规范'}"}
+            )
+
     if not user or user.get("status") != "active" or not verify_password(password, user["salt"], user["password_hash"]):
         is_now_locked, attempts, lock_sec = record_failed_attempt(f"user:{username}")
         record_failed_attempt(f"ip:{client_ip}")
@@ -296,11 +350,20 @@ async def auth_login(request: Request, data: dict):
     token = create_auth_token_session(user["id"], ip=client_ip, user_agent=ua)
     log_audit_event(user["id"], "login_success", client_ip, "Success")
 
+    can_create, cur_q, max_q = check_can_create_question(user["id"])
+    _, max_turns = get_user_effective_limits(user["id"])
     user_info = {
         "id": user["id"],
         "username": user["username"],
         "display_name": user["display_name"],
-        "role": user["role"]
+        "role": user["role"],
+        "quota": {
+            "can_create": can_create,
+            "today_questions": cur_q,
+            "daily_limit": max_q,
+            "turn_limit": max_turns,
+            "is_admin": user.get("role") == "admin"
+        }
     }
     user_store = get_user_store(user["id"])
 
@@ -344,12 +407,21 @@ async def auth_me(request: Request):
     user = get_current_user(request)
     if not user:
         return {"user": None}
+    can_create, cur_q, max_q = check_can_create_question(user["id"])
+    _, max_turns = get_user_effective_limits(user["id"])
     return {
         "user": {
             "id": user["id"],
             "username": user["username"],
             "display_name": user["display_name"],
-            "role": user["role"]
+            "role": user["role"],
+            "quota": {
+                "can_create": can_create,
+                "today_questions": cur_q,
+                "daily_limit": max_q,
+                "turn_limit": max_turns,
+                "is_admin": user.get("role") == "admin"
+            }
         }
     }
 
@@ -558,6 +630,16 @@ async def init_question(request: Request, data: dict):
         active[sess["id"]] = sess
         s_id = sess["id"]
 
+    # 提问额度检测（非管理员账号受单日提问上限约束）
+    # 仅当会话未初始化过（即新发起题目）时计入今日额度
+    if not sess.get("is_initialized", False):
+        can_create, cur_count, max_limit = check_can_create_question(user_id)
+        if not can_create:
+            raise HTTPException(
+                status_code=429,
+                detail=f"今日提问额度已达上限（今日已提问 {cur_count}/{max_limit} 道）。若有学习需要，请联系教师或管理员增加额度。"
+            )
+
     if preset_key and preset_key in GOLDEN_PRESETS:
         preset = GOLDEN_PRESETS[preset_key]
         sess["title"] = preset.get("title", "🧩 探索·思维引导突破")
@@ -598,7 +680,12 @@ async def init_question(request: Request, data: dict):
             title_stage=1,
             api_config=api_config
         )
-        sess["solver_blueprint"] = generate_solver_blueprint(question_text, api_config)
+        sess["solver_blueprint"] = generate_solver_blueprint(
+            question_text,
+            api_config,
+            user_id=user_id,
+            session_id=s_id
+        )
 
     save_user_session(user_id, sess)
     set_user_current_session(user_id, s_id)
@@ -767,6 +854,14 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
 
+    # 对话轮次限额检测（非管理员账号受单题目轮次上限约束）
+    can_continue, cur_turns, max_turns = check_can_continue_chat(user_id, sess.get("tutor_turns", 0))
+    if not can_continue:
+        raise HTTPException(
+            status_code=429,
+            detail=f"当前题目的对话轮次已达上限（已完成 {cur_turns}/{max_turns} 轮）。请根据现有导学总结推导，或开启新题目继续探索。"
+        )
+
     lock = get_session_lock(session_id)
     if lock.locked():
         raise HTTPException(status_code=429, detail="当前会话已有正在进行的流式推理，请等待上一轮完成")
@@ -781,6 +876,14 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
             # 【断路器 1：前置安全与合规检测】
             is_blocked, refusal_text = check_input_guardrail(student_text)
             if is_blocked:
+                matched_p = get_matched_guardrail_pattern(student_text)
+                record_guardrail_log(
+                    user_id=user_id,
+                    session_id=session_id,
+                    input_text=student_text,
+                    matched_pattern=matched_p or "keyword_match",
+                    action_taken="blocked"
+                )
                 chunk_size = 12
                 for i in range(0, len(refusal_text), chunk_size):
                     chunk = refusal_text[i:i+chunk_size]
@@ -886,8 +989,9 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 # 阶段 1~3：启发式引导
                 full_response = ""
                 temp_history = list(sess["dialogue_history"])
+                usage_dict = {}
                 
-                for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config):
+                for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config, usage_dict=usage_dict):
                     if await request.is_disconnected():
                         print(f"[Chat Stream] Client disconnected prematurely for session {session_id}")
                         break
@@ -900,6 +1004,17 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 clean_full = full_response.replace("[TRIGGER_DIAGNOSIS]", "").strip()
                 sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
                 sess["tutor_turns"] += 1
+
+                if usage_dict:
+                    record_token_usage(
+                        user_id=user_id,
+                        session_id=session_id,
+                        prompt_tokens=usage_dict.get("prompt_tokens", 0),
+                        completion_tokens=usage_dict.get("completion_tokens", 0),
+                        total_tokens=usage_dict.get("total_tokens", 0),
+                        model_name=api_config.get("model", "deepseek-chat"),
+                        call_type="chat_tutor"
+                    )
 
                 if sess.get("title_stage", 0) == 0:
                     new_title = generate_session_title(
@@ -937,3 +1052,281 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 lock.release()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+# ============================================================
+# 管理员控制台 API (仅限 admin 角色访问，违规直接 403 阻断)
+# ============================================================
+
+@app.get("/api/admin/overview")
+@app.get("/cogni-scaffold/api/admin/overview")
+async def admin_get_overview(request: Request):
+    require_admin(request)
+    overview = get_admin_overview()
+    return {"status": "ok", "overview": overview}
+
+
+@app.get("/api/admin/users")
+@app.get("/cogni-scaffold/api/admin/users")
+async def admin_get_users(
+    request: Request,
+    search: str = "",
+    role: str = "",
+    page: int = 1,
+    page_size: int = 50
+):
+    require_admin(request)
+    result = get_admin_users_list(search=search, role=role, page=page, page_size=page_size)
+    return {"status": "ok", **result}
+
+
+@app.post("/api/admin/users/batch")
+@app.post("/cogni-scaffold/api/admin/users/batch")
+async def admin_batch_users(request: Request, data: dict):
+    require_admin(request)
+    mode = data.get("mode", "pattern")
+    users_to_create = []
+
+    if mode == "pattern":
+        prefix = data.get("prefix", "student").strip()
+        start = int(data.get("start", 1))
+        end = int(data.get("end", 10))
+        default_pwd = data.get("default_password", "CogniScaffold123!").strip()
+        role = data.get("role", "student")
+
+        if end < start:
+            raise HTTPException(status_code=400, detail="结束编号不能小于起始编号")
+        if (end - start + 1) > 200:
+            raise HTTPException(status_code=400, detail="单次批量生成账号数量不能超过 200 个")
+        
+        valid_pwd, pwd_err = validate_password_strength(default_pwd)
+        if not valid_pwd:
+            raise HTTPException(status_code=400, detail=f"默认密码不符合强度要求：{pwd_err}")
+
+        pad_len = max(2, len(str(end)))
+        for i in range(start, end + 1):
+            num_str = str(i).zfill(pad_len)
+            uname = f"{prefix}{num_str}"
+            dname = f"学生{num_str}" if role == "student" else f"用户{num_str}"
+            users_to_create.append({
+                "username": uname,
+                "password": default_pwd,
+                "display_name": dname,
+                "role": role
+            })
+    elif mode == "table":
+        table_text = data.get("table_text", "").strip()
+        if not table_text:
+            raise HTTPException(status_code=400, detail="粘贴文本内容不能为空")
+        
+        lines = [line.strip() for line in table_text.splitlines() if line.strip()]
+        for line in lines:
+            parts = [p.strip() for p in re.split(r'[\t,，|]+', line)]
+            if len(parts) < 2:
+                continue
+            uname = parts[0]
+            pwd = parts[1]
+            dname = parts[2] if len(parts) > 2 else uname
+            role = parts[3] if len(parts) > 3 and parts[3] in ["student", "admin"] else "student"
+            users_to_create.append({
+                "username": uname,
+                "password": pwd,
+                "display_name": dname,
+                "role": role
+            })
+    else:
+        raise HTTPException(status_code=400, detail="未知的批量创建模式")
+
+    if not users_to_create:
+        raise HTTPException(status_code=400, detail="未解析到有效的用户数据，请检查输入格式")
+
+    results = batch_create_users(users_to_create)
+    return {"status": "ok", "results": results}
+
+
+@app.post("/api/admin/users/ban")
+@app.post("/cogni-scaffold/api/admin/users/ban")
+async def admin_ban_user(request: Request, data: dict):
+    admin = require_admin(request)
+    user_id = data.get("user_id")
+    duration = data.get("duration", "permanent")
+    custom_until = data.get("custom_until", "")
+    reason = data.get("reason", "管理员临时封禁")
+
+    if not user_id:
+        raise HTTPException(status_code=400, detail="缺少 user_id 参数")
+    if str(user_id) == str(admin["id"]):
+        raise HTTPException(status_code=400, detail="管理员不可封禁自己的账号")
+
+    now = datetime.now()
+    if duration == "1d":
+        banned_until = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
+    elif duration == "3d":
+        banned_until = (now + timedelta(days=3)).strftime("%Y-%m-%d %H:%M:%S")
+    elif duration == "7d":
+        banned_until = (now + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
+    elif duration == "custom":
+        if not custom_until:
+            raise HTTPException(status_code=400, detail="自定义封禁时间不能为空")
+        banned_until = custom_until
+    else:
+        banned_until = "permanent"
+
+    ban_user(str(user_id), banned_until, reason, admin_id=str(admin["id"]))
+    return {"status": "ok", "message": f"用户已被限制登录（{banned_until}）"}
+
+
+@app.post("/api/admin/users/unban")
+@app.post("/cogni-scaffold/api/admin/users/unban")
+async def admin_unban_user(request: Request, data: dict):
+    require_admin(request)
+    user_id = data.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="缺少 user_id 参数")
+    unban_user(str(user_id))
+    return {"status": "ok", "message": "用户已成功解除封禁"}
+
+
+@app.post("/api/admin/users/reset_password")
+@app.post("/cogni-scaffold/api/admin/users/reset_password")
+async def admin_reset_password(request: Request, data: dict):
+    admin = require_admin(request)
+    user_id = data.get("user_id")
+    new_password = data.get("new_password", "").strip()
+
+    if not user_id or not new_password:
+        raise HTTPException(status_code=400, detail="缺少 user_id 或新密码")
+
+    valid, err_msg = validate_password_strength(new_password)
+    if not valid:
+        raise HTTPException(status_code=400, detail=f"新密码不符合安全要求：{err_msg}")
+
+    success = reset_user_password_by_admin(str(user_id), new_password, admin_id=str(admin["id"]))
+    if not success:
+        raise HTTPException(status_code=404, detail="目标用户不存在")
+    return {"status": "ok", "message": "用户密码重置成功，原登录会话已全部注销"}
+
+
+@app.post("/api/admin/users/quota")
+@app.post("/cogni-scaffold/api/admin/users/quota")
+async def admin_set_quota(request: Request, data: dict):
+    require_admin(request)
+    user_id = data.get("user_id")
+    if not user_id:
+        raise HTTPException(status_code=400, detail="缺少 user_id 参数")
+
+    custom_daily = data.get("custom_daily_limit")
+    custom_turn = data.get("custom_turn_limit")
+    reset_today = data.get("reset_today", False)
+
+    if custom_daily is not None and custom_daily != "":
+        custom_daily = int(custom_daily)
+    else:
+        custom_daily = None
+
+    if custom_turn is not None and custom_turn != "":
+        custom_turn = int(custom_turn)
+    else:
+        custom_turn = None
+
+    set_user_custom_quota(str(user_id), custom_daily, custom_turn)
+    if reset_today:
+        reset_user_today_questions(str(user_id))
+
+    return {"status": "ok", "message": "用户专属额度配置已更新"}
+
+
+@app.get("/api/admin/sessions")
+@app.get("/cogni-scaffold/api/admin/sessions")
+async def admin_get_sessions(
+    request: Request,
+    user_id: Optional[str] = None,
+    search: Optional[str] = None,
+    page_size: int = 100
+):
+    require_admin(request)
+    sessions = get_admin_sessions_list(user_id=user_id, search=search or "", limit=page_size)
+    return {"status": "ok", "sessions": sessions, "total_count": len(sessions)}
+
+
+@app.get("/api/admin/sessions/{session_id}")
+@app.get("/cogni-scaffold/api/admin/sessions/{session_id}")
+async def admin_get_session_detail_endpoint(session_id: str, request: Request):
+    require_admin(request)
+    detail = get_admin_session_detail(session_id)
+    if not detail:
+        raise HTTPException(status_code=404, detail="会话记录不存在")
+    return {"status": "ok", "session": detail}
+
+
+@app.get("/api/admin/configs")
+@app.get("/cogni-scaffold/api/admin/configs")
+async def admin_get_configs(request: Request):
+    require_admin(request)
+    configs = get_all_system_configs()
+    return {"status": "ok", "configs": configs}
+
+
+@app.post("/api/admin/configs")
+@app.post("/cogni-scaffold/api/admin/configs")
+async def admin_set_configs(request: Request, data: dict):
+    require_admin(request)
+    configs = data.get("configs", {})
+    for k, v in configs.items():
+        set_system_config(k, v)
+    return {"status": "ok", "message": "系统全局配置已更新", "configs": get_all_system_configs()}
+
+
+@app.get("/api/admin/guardrail_logs")
+@app.get("/cogni-scaffold/api/admin/guardrail_logs")
+async def admin_get_guardrail_logs(request: Request, limit: int = 100):
+    require_admin(request)
+    logs = get_guardrail_logs(limit=limit)
+    return {"status": "ok", "logs": logs}
+
+
+@app.get("/api/admin/probe")
+@app.get("/cogni-scaffold/api/admin/probe")
+async def admin_probe_api(request: Request):
+    require_admin(request)
+    import time
+    from openai import OpenAI
+    start_time = time.time()
+    model = api_config.get("model", "deepseek-chat")
+    base_url = api_config.get("base_url", "https://api.deepseek.com")
+    api_key = api_config.get("api_key", "")
+
+    if not api_key:
+        return {
+            "status": "error",
+            "message": "未配置 OPENAI_API_KEY",
+            "model": model,
+            "base_url": base_url,
+            "latency_ms": None
+        }
+
+    try:
+        client = OpenAI(api_key=api_key, base_url=base_url, timeout=10.0)
+        res = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "ping"}],
+            max_tokens=1
+        )
+        latency_ms = int((time.time() - start_time) * 1000)
+        return {
+            "status": "ok",
+            "message": "API 连通正常",
+            "model": model,
+            "base_url": base_url,
+            "latency_ms": latency_ms,
+            "response_text": res.choices[0].message.content if res.choices else ""
+        }
+    except Exception as e:
+        latency_ms = int((time.time() - start_time) * 1000)
+        return {
+            "status": "error",
+            "message": f"探测失败：{type(e).__name__}: {str(e)}",
+            "model": model,
+            "base_url": base_url,
+            "latency_ms": latency_ms
+        }

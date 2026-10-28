@@ -44,7 +44,12 @@ def get_openai_client(api_key: str, base_url: str) -> OpenAI:
     return _CLIENT_CACHE[key]
 
 
-def generate_solver_blueprint(question: str, api_config: Dict[str, Any]) -> str:
+def generate_solver_blueprint(
+    question: str,
+    api_config: Dict[str, Any],
+    user_id: Optional[str] = None,
+    session_id: Optional[str] = None
+) -> str:
     """
     Solver Agent: 一次性生成题目的真实解题基准与思维陷阱图谱
     供后续 Tutor Agent 作为内部知识底座参考（支持文理双轨自动识别）
@@ -65,6 +70,16 @@ def generate_solver_blueprint(question: str, api_config: Dict[str, Any]) -> str:
             temperature=0.2,
             max_tokens=650
         )
+        if user_id and hasattr(response, "usage") and response.usage:
+            from core.db import record_token_usage
+            record_token_usage(
+                user_id=user_id,
+                session_id=session_id,
+                task_type="solver_blueprint",
+                prompt_tokens=response.usage.prompt_tokens,
+                completion_tokens=response.usage.completion_tokens,
+                total_tokens=response.usage.total_tokens
+            )
         return response.choices[0].message.content or "（未能生成解题底座）"
     except Exception as e:
         return f"（解题基准生成异常: {str(e)}）"
@@ -73,7 +88,8 @@ def generate_solver_blueprint(question: str, api_config: Dict[str, Any]) -> str:
 def stream_tutor_response(
     dialogue_history: List[Dict[str, str]],
     solver_blueprint: str,
-    api_config: Dict[str, Any]
+    api_config: Dict[str, Any],
+    usage_dict: Optional[Dict[str, Any]] = None
 ) -> Generator[str, None, None]:
     """
     Tutor Agent: 极速流式启发引导
@@ -96,17 +112,44 @@ def stream_tutor_response(
             messages.append({"role": msg["role"], "content": msg["content"]})
 
     try:
-        response_stream = client.chat.completions.create(
-            model=api_config["model"],
-            messages=messages,
-            temperature=0.3,
-            max_tokens=400,
-            stream=True
-        )
+        call_params = {
+            "model": api_config["model"],
+            "messages": messages,
+            "temperature": 0.3,
+            "max_tokens": 400,
+            "stream": True
+        }
+        try:
+            call_params["stream_options"] = {"include_usage": True}
+        except Exception:
+            pass
+
+        response_stream = client.chat.completions.create(**call_params)
+        has_usage = False
+        completion_chars = 0
+
         for chunk in response_stream:
-            delta = chunk.choices[0].delta.content if chunk.choices else ""
-            if delta:
-                yield delta
+            if hasattr(chunk, "usage") and chunk.usage:
+                u = chunk.usage
+                has_usage = True
+                if usage_dict is not None:
+                    usage_dict["prompt_tokens"] = getattr(u, "prompt_tokens", 0)
+                    usage_dict["completion_tokens"] = getattr(u, "completion_tokens", 0)
+                    usage_dict["total_tokens"] = getattr(u, "total_tokens", 0)
+            if chunk.choices and chunk.choices[0].delta:
+                delta = chunk.choices[0].delta.content or ""
+                if delta:
+                    completion_chars += len(delta)
+                    yield delta
+
+        # 若模型流式未携带 usage，基于中英字符比率精确估算
+        if not has_usage and usage_dict is not None:
+            prompt_chars = sum(len(m.get("content", "")) for m in messages)
+            pt = int(prompt_chars * 0.7) + 50
+            ct = int(completion_chars * 0.7)
+            usage_dict["prompt_tokens"] = pt
+            usage_dict["completion_tokens"] = ct
+            usage_dict["total_tokens"] = pt + ct
     except Exception as e:
         yield f"【网络或接口响应异常: {str(e)}】"
 
