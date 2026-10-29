@@ -24,11 +24,11 @@ git pull origin main && \\
 sudo docker build -t cogni-scaffold-app:latest . && \\
 sudo docker stop cogni-scaffold && \\
 sudo docker rm cogni-scaffold && \\
-sudo docker run -d --name cogni-scaffold --restart unless-stopped -p 8501:8501 --env-file .env -v /home/tensonyin/cogni-scaffold/data:/app/data cogni-scaffold-app:latest && \\
-sleep 5 && \\
+sudo docker run -d --name cogni-scaffold --restart unless-stopped -p 172.17.0.1:8501:8501 -p 127.0.0.1:8501:8501 --env-file .env -v /home/tensonyin/cogni-scaffold/data:/app/data cogni-scaffold-app:latest && \\
+sleep 8 && \\
 sudo docker ps | grep cogni-scaffold && \\
-curl -s http://127.0.0.1:8501/ | grep -o 'feedbackModal' && \\
-curl -s http://127.0.0.1:8501/ | grep -o 'v2.8.0' && \\
+curl -s http://127.0.0.1:8501/ | grep -o 'firstLoginSecurityModal' && \\
+curl -s http://127.0.0.1:8501/ | grep -o 'forgotPasswordModal' && \\
 echo 'GCP deployment verified successfully!'
 """
     res = run_ssh(deploy_cmd)

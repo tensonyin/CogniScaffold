@@ -115,7 +115,7 @@ docker build -t cogni-scaffold-app:latest .
 
 # 2. 运行容器（挂载外部持久化数据目录与配置文件）
 docker run -d --name cogni-scaffold \
-  -p 8501:8501 \
+  -p 127.0.0.1:8501:8501 \
   --env-file .env \
   -v $(pwd)/.env:/app/.env:ro \
   -v $(pwd)/data:/app/data \

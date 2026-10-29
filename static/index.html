@@ -5032,6 +5032,14 @@ student04, CogniScaffold123!, 李小明"></textarea>
       } catch (e) {}
     }
 
+    // 统一的认证/反馈提示条渲染（纯文本写入，避免把服务端消息当 HTML 执行）
+    function showAuthAlert(el, message, type) {
+      if (!el) return;
+      el.className = 'auth-alert-box' + (type ? ' ' + type : '');
+      el.style.display = 'block';
+      el.textContent = message;
+    }
+
     // HTML 实体编码工具，防御 DOM XSS 注入
     function escapeHtml(str) {
       if (!str) return "";
@@ -5041,6 +5049,51 @@ student04, CogniScaffold123!, 李小明"></textarea>
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#39;");
+    }
+
+    // 基于 DOMParser 的白名单清洗：解析（不执行）Markdown 生成的 HTML，
+    // 移除脚本类标签、内联事件、危险协议与可覆盖界面的 id/style，抵御模型输出/用户输入注入。
+    const SANITIZE_BLOCKED_TAGS = new Set([
+      'SCRIPT', 'IFRAME', 'OBJECT', 'EMBED', 'LINK', 'META', 'BASE', 'FORM',
+      'INPUT', 'BUTTON', 'TEXTAREA', 'SELECT', 'OPTION', 'SVG', 'MATH',
+      'TEMPLATE', 'STYLE', 'NOSCRIPT', 'VIDEO', 'AUDIO', 'SOURCE', 'TRACK'
+    ]);
+
+    function sanitizeRenderedHtml(html) {
+      if (!html) return "";
+      if (typeof DOMParser === 'undefined') return escapeHtml(html);
+      try {
+        const doc = new DOMParser().parseFromString('<div id="__sanitize_root">' + html + '</div>', 'text/html');
+        const root = doc.getElementById('__sanitize_root');
+        if (!root) return "";
+        root.querySelectorAll('*').forEach((el) => {
+          if (SANITIZE_BLOCKED_TAGS.has(el.tagName)) {
+            el.remove();
+            return;
+          }
+          Array.from(el.attributes).forEach((attr) => {
+            const name = attr.name.toLowerCase();
+            const value = attr.value || '';
+            if (name.startsWith('on') || name === 'srcdoc' || name === 'formaction' ||
+                name === 'id' || name === 'style') {
+              el.removeAttribute(attr.name);
+              return;
+            }
+            if (['href', 'src', 'xlink:href', 'action', 'poster', 'background', 'data'].includes(name)) {
+              const compact = value.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+              const safeScheme = /^(https?:|mailto:|tel:|\/|\.\/|\.\.\/|#|\?)/.test(compact);
+              const safeImageData = name === 'src' && /^data:image\/(png|jpe?g|gif|webp|bmp);base64,/.test(compact);
+              if (!safeScheme && !safeImageData) {
+                el.removeAttribute(attr.name);
+              }
+            }
+          });
+        });
+        return root.innerHTML;
+      } catch (e) {
+        console.warn('sanitizeRenderedHtml fallback:', e);
+        return escapeHtml(html);
+      }
     }
 
     // 格式化对话 Markdown 并规范化 LaTeX 公式，预渲染 KaTeX 防 Markdown 解析破坏
@@ -5153,6 +5206,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
       } catch(e) {
         html = t;
       }
+
+      // 对 Markdown 渲染结果做 DOM 白名单清洗，再回填可信的 KaTeX 预渲染公式
+      html = sanitizeRenderedHtml(html);
 
       // 将预渲染的 KaTeX HTML 完美复原，split.join 确保老旧平板/移动端 Opera 100% 兼容无抛错
       mathPlaceholders.forEach(({ placeholder, rendered }) => {
@@ -5393,7 +5449,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
     // 主题切换
         function navigateToHome() {
       // 寻找是否存在未初始化的空白开题会话
-      const activeDict = appState.active_sessions || {};
+      const activeDict = (appState && appState.active_sessions) || {};
       const emptySessId = Object.keys(activeDict).find(id => !activeDict[id].is_initialized && !activeDict[id].question);
       if (emptySessId) {
         switchTab(emptySessId);
@@ -6114,7 +6170,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           if (modal) modal.classList.remove('show');
           updateUserUI();
           renderTabs();
-          showOnboardingView();
+          navigateToHome();
         } else {
           alertBox.className = 'auth-alert-box error';
           alertBox.style.display = 'block';
@@ -6931,7 +6987,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           const divEl = document.createElement('div');
           divEl.className = 'variant-divider-card';
           divEl.innerHTML = `
-            <div class="variant-divider-title">${msg.content}</div>
+            <div class="variant-divider-title">${escapeHtml(msg.content)}</div>
             <div class="variant-divider-sub">⚠️ 杜绝死记硬背 · 循序渐进闯关 · 深度认知迁移</div>
           `;
           container.appendChild(divEl);
@@ -7089,10 +7145,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
       diagArea.innerHTML = `
         <div class="diag-card">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <span class="diag-title">错因定性：#${bType}</span>
+            <span class="diag-title">错因定性：#${escapeHtml(bType)}</span>
           </div>
-          <div class="diag-item-perf"><span class="diag-lbl">• 诊断：</span>${bDetail}</div>
-          <div class="diag-item-break"><span class="diag-lbl">• 突破点：</span>${bBreak}</div>
+          <div class="diag-item-perf"><span class="diag-lbl">• 诊断：</span>${escapeHtml(bDetail)}</div>
+          <div class="diag-item-break"><span class="diag-lbl">• 突破点：</span>${escapeHtml(bBreak)}</div>
         </div>
       `;
 
@@ -7117,11 +7173,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
         const stars = "⭐".repeat(Math.min(tNum, 4));
 
         if (currTier > tNum) {
-          rowsHtml += `<div class="tier-row-item tier-row-done"><span>${stars} <strong>${title}</strong></span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.check} 已通关</span></div>`;
+          rowsHtml += `<div class="tier-row-item tier-row-done"><span>${stars} <strong>${escapeHtml(title)}</strong></span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.check} 已通关</span></div>`;
         } else if (currTier === tNum) {
-          rowsHtml += `<div class="tier-row-item tier-row-active"><span>${stars} <strong>${title}</strong></span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.flame} 挑战中</span></div>`;
+          rowsHtml += `<div class="tier-row-item tier-row-active"><span>${stars} <strong>${escapeHtml(title)}</strong></span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.flame} 挑战中</span></div>`;
         } else {
-          rowsHtml += `<div class="tier-row-item tier-row-locked"><span>★ ${title}</span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.lock} 待解锁</span></div>`;
+          rowsHtml += `<div class="tier-row-item tier-row-locked"><span>★ ${escapeHtml(title)}</span><span style="display: inline-flex; align-items: center; gap: 4px;">${ICONS.lock} 待解锁</span></div>`;
         }
       });
 
@@ -7412,7 +7468,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
       let streamedText = "";
 
       try {
-        const response = await apiFetch(`/api/sessions/${curId}/chat/stream?student_text=${encodeURIComponent(text)}`);
+        const response = await apiFetch(`/api/sessions/${curId}/chat/stream`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({student_text: text})
+        });
         if (!response.ok) {
           isStreaming = false;
           submitBtn.disabled = false;
@@ -7933,7 +7993,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
       tbody.innerHTML = filtered.map(u => {
         const isLocked = u.status === 'locked';
         const isMe = currentUser && currentUser.id === u.id;
-        const banInfo = isLocked ? `<span style="color: #f87171; font-weight: 600;">${u.banned_until === 'permanent' ? '永久' : u.banned_until}</span><br><span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(u.ban_reason || '违规')}</span>` : '<span style="color: var(--text-muted);">-</span>';
+        const banInfo = isLocked ? `<span style="color: #f87171; font-weight: 600;">${escapeHtml(u.banned_until === 'permanent' ? '永久' : u.banned_until)}</span><br><span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(u.ban_reason || '违规')}</span>` : '<span style="color: var(--text-muted);">-</span>';
         const quotaInfo = (u.role === 'admin') ? '<span style="color: #60a5fa;">管理员无限制</span>' : `日: ${u.custom_daily_limit != null ? u.custom_daily_limit : '默认15'} / 题: ${u.custom_turn_limit != null ? u.custom_turn_limit : '默认30'}<br><span style="font-size: 0.72rem; color: var(--text-muted);">Token: ${u.custom_daily_token_limit != null ? u.custom_daily_token_limit.toLocaleString() : '默认50k'}</span>`;
 
         return `
@@ -7952,12 +8012,12 @@ student04, CogniScaffold123!, 李小明"></textarea>
             <td>
               <div class="admin-action-btn-group" style="justify-content: flex-end;">
                 ${isLocked ? `
-                  <button class="admin-btn-sm" style="color: #34d399; border-color: rgba(16, 185, 129, 0.3);" onclick="handleAdminUnban('${u.id}', '${escapeHtml(u.username)}')">解除封禁</button>
+                  <button class="admin-btn-sm" style="color: #34d399; border-color: rgba(16, 185, 129, 0.3);" onclick="handleAdminUnban('${u.id}')">解除封禁</button>
                 ` : `
-                  ${!isMe ? `<button class="admin-btn-sm danger" onclick="openAdminBanModal('${u.id}', '${escapeHtml(u.username)}')">临时封禁</button>` : ''}
+                  ${!isMe ? `<button class="admin-btn-sm danger" onclick="openAdminBanModal('${u.id}')">临时封禁</button>` : ''}
                 `}
-                <button class="admin-btn-sm" onclick="openAdminQuotaModal('${u.id}', '${escapeHtml(u.username)}', ${u.custom_daily_limit != null ? u.custom_daily_limit : "''"}, ${u.custom_turn_limit != null ? u.custom_turn_limit : "''"}, ${u.custom_daily_token_limit != null ? u.custom_daily_token_limit : "''"})">限额</button>
-                <button class="admin-btn-sm" onclick="openAdminResetPwdModal('${u.id}', '${escapeHtml(u.username)}')">改密</button>
+                <button class="admin-btn-sm" onclick="openAdminQuotaModal('${u.id}')">限额</button>
+                <button class="admin-btn-sm" onclick="openAdminResetPwdModal('${u.id}')">改密</button>
                 <button class="admin-btn-sm" onclick="viewUserSessions('${u.id}')">查记录</button>
               </div>
             </td>
@@ -8098,7 +8158,13 @@ student04, CogniScaffold123!, 李小明"></textarea>
     }
 
     // --- 账号封禁与解封弹窗逻辑 ---
+    function getCachedAdminUser(userId) {
+      return (adminUsersCache || []).find(x => String(x.id) === String(userId)) || {};
+    }
+
     function openAdminBanModal(userId, username) {
+      const target = getCachedAdminUser(userId);
+      username = username || target.username || String(userId);
       document.getElementById('banUserId').value = userId;
       document.getElementById('banModalTargetText').textContent = `目标用户: ${username} (ID: ${userId})`;
       document.getElementById('banDuration').value = '1d';
@@ -8152,6 +8218,8 @@ student04, CogniScaffold123!, 李小明"></textarea>
     }
 
     async function handleAdminUnban(userId, username) {
+      const target = getCachedAdminUser(userId);
+      username = username || target.username || String(userId);
       if (!confirm(`确定要为学者 ${username} 解除封禁，恢复正常登录与问答权限吗？`)) return;
       try {
         const res = await apiFetch('/api/admin/users/unban', {
@@ -8172,6 +8240,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     // --- 专属特批限额弹窗逻辑 ---
     function openAdminQuotaModal(userId, username, curDaily, curTurn, curToken) {
+      const target = getCachedAdminUser(userId);
+      if (username === undefined || username === null || username === '') username = target.username || String(userId);
+      if (curDaily === undefined) curDaily = target.custom_daily_limit;
+      if (curTurn === undefined) curTurn = target.custom_turn_limit;
+      if (curToken === undefined) curToken = target.custom_daily_token_limit;
       document.getElementById('quotaUserId').value = userId;
       document.getElementById('quotaModalTargetText').textContent = `目标学者: ${username} (ID: ${userId})`;
       document.getElementById('customDailyLimitInput').value = curDaily || '';
@@ -8225,10 +8298,22 @@ student04, CogniScaffold123!, 李小明"></textarea>
     }
 
     // --- 管理员重置密码弹窗逻辑 ---
+    function generateStrongPassword() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+      const digits = '23456789';
+      let core = '';
+      const rnd = new Uint8Array(10);
+      (window.crypto || window.msCrypto).getRandomValues(rnd);
+      for (let i = 0; i < 8; i++) core += chars[rnd[i] % chars.length];
+      return `Cogni-${core}${digits[rnd[8] % digits.length]}${digits[rnd[9] % digits.length]}!`;
+    }
+
     function openAdminResetPwdModal(userId, username) {
+      const target = getCachedAdminUser(userId);
+      username = username || target.username || String(userId);
       document.getElementById('resetPwdUserId').value = userId;
       document.getElementById('resetPwdModalTargetText').textContent = `目标用户: ${username} (ID: ${userId})`;
-      document.getElementById('adminNewPasswordInput').value = 'CogniScaffold123!';
+      document.getElementById('adminNewPasswordInput').value = generateStrongPassword();
       document.getElementById('adminResetPwdAlertBox').className = 'auth-alert-box';
       document.getElementById('adminResetPwdModal').classList.add('show');
     }
@@ -8395,8 +8480,8 @@ student04, CogniScaffold123!, 李小明"></textarea>
             return `
               <div style="background: ${bg}; border: 1px solid ${borderCol}; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
                 <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-muted); margin-bottom: 4px;">
-                  <span style="font-weight: 600; color: ${isUser ? 'var(--text-main)' : 'var(--primary-hover)'};">${roleName}</span>
-                  <span>${m.timestamp || ''}</span>
+                  <span style="font-weight: 600; color: ${isUser ? 'var(--text-main)' : 'var(--primary-hover)'};">${escapeHtml(roleName)}</span>
+                  <span>${escapeHtml(m.timestamp || '')}</span>
                 </div>
                 <div style="font-size: 0.84rem; line-height: 1.5; color: var(--text-main);">${formatMarkdown(m.content || '')}</div>
               </div>
@@ -8807,7 +8892,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             <div class="feedback-card-item">
               <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
                 <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
-                  <span class="sec-badge" style="background: rgba(99,102,241,0.12); color: var(--primary); font-size: 0.7rem;">${catNames[item.category] || item.category}</span>
+                  <span class="sec-badge" style="background: rgba(99,102,241,0.12); color: var(--primary); font-size: 0.7rem;">${escapeHtml(catNames[item.category] || item.category)}</span>
                   <strong style="font-size: 0.9rem; color: var(--text-main);">${escapeHtml(item.title)}</strong>
                 </div>
                 ${statusTag}
@@ -8909,7 +8994,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div class="feedback-card-item" id="adminFbCard_${item.id}">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
               <div>
-                <span class="sec-badge" style="background: rgba(99,102,241,0.12); color: var(--primary); font-size: 0.7rem;">${catNames[item.category] || item.category}</span>
+                <span class="sec-badge" style="background: rgba(99,102,241,0.12); color: var(--primary); font-size: 0.7rem;">${escapeHtml(catNames[item.category] || item.category)}</span>
                 <strong style="font-size: 0.9rem; color: var(--text-main); margin-left: 6px;">${escapeHtml(item.title)}</strong>
                 <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 2px;">
                   学者: <strong>${escapeHtml(uText)}</strong> | 提交: ${item.created_at || '-'} ${item.contact ? `| 联系: ${escapeHtml(item.contact)}` : ''}

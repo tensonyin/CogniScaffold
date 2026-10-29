@@ -6,3 +6,13 @@ __pycache__
 .git
 .DS_Store
 release_*.zip
+*.tar.gz
+*.tar
+# 运行期用户数据与本地调试产物绝不能打进镜像
+data/
+scratch/
+tests/
+.agents/
+AGENTS.md
+skills-lock.json
+buildfuture.tech.conf

@@ -23,6 +23,23 @@ from core.auth import hash_password, generate_salt, hash_token
 # ============================================================
 TZ_EAST8 = timezone(timedelta(hours=8))
 
+def _safe_int(value: Any, default: int, minimum: int = 1) -> int:
+    """容错解析整数配置，避免管理员写入脏数据后整个站点 500"""
+    try:
+        parsed = int(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed >= minimum else default
+
+
+def _safe_float(value: Any, default: float, minimum: float = 0.0) -> float:
+    try:
+        parsed = float(str(value).strip())
+    except (TypeError, ValueError):
+        return default
+    return parsed if parsed >= minimum else default
+
+
 def now_east8() -> datetime:
     """获取东八区（UTC+8）当前 datetime 对象"""
     return datetime.now(timezone.utc).astimezone(TZ_EAST8)
@@ -205,6 +222,18 @@ def init_db():
     );
     """)
 
+    # 11. 开题事件流水表 (用于精确统计每日开题次数，含同会话换题)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS question_submissions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        session_id TEXT,
+        created_at TEXT NOT NULL,
+        date TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
+    """)
+
     # 索引优化
     cur.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_archived ON sessions(user_id, is_archived);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id, id ASC);")
@@ -213,6 +242,7 @@ def init_db():
     cur.execute("CREATE INDEX IF NOT EXISTS idx_token_session ON token_usage(session_id);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_guardrail_user ON guardrail_logs(user_id);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_feedbacks_user ON feedbacks(user_id);")
+    cur.execute("CREATE INDEX IF NOT EXISTS idx_question_sub_user_date ON question_submissions(user_id, date);")
     cur.execute("CREATE INDEX IF NOT EXISTS idx_feedbacks_status ON feedbacks(status);")
 
     conn.commit()
@@ -258,6 +288,8 @@ def _migrate_user_columns(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT;")
     if "security_answer_salt" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN security_answer_salt TEXT;")
+    if "quota_reset_at" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN quota_reset_at TEXT;")
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -299,21 +331,25 @@ def _seed_default_users(conn: sqlite3.Connection):
     # 1. 管理员 admin / Admin@Cogni2026!
     cur.execute("SELECT id FROM users WHERE username = 'admin';")
     if not cur.fetchone():
+        admin_initial_pwd = os.environ.get("ADMIN_INITIAL_PASSWORD", "Admin@Cogni2026!")
         salt_admin = generate_salt()
-        pwd_hash_admin = hash_password("Admin@Cogni2026!", salt_admin)
-        admin_id = str(uuid.uuid4())[:8]
+        pwd_hash_admin = hash_password(admin_initial_pwd, salt_admin)
+        admin_id = str(uuid.uuid4().hex[:16])
+        must_change = 1 if "ADMIN_INITIAL_PASSWORD" not in os.environ else 0
         cur.execute("""
-        INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-        """, (admin_id, "admin", pwd_hash_admin, salt_admin, "系统管理员", "admin", "active", now))
+        INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at, must_change_password)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+        """, (admin_id, "admin", pwd_hash_admin, salt_admin, "系统管理员", "admin", "active", now, must_change))
         print("Initialized user: admin")
+        if "ADMIN_INITIAL_PASSWORD" not in os.environ:
+            print("SECURITY WARNING: default admin credentials were created; change the password immediately in production.")
 
     # 2. 学生 student01 / Student@2026!
     cur.execute("SELECT id FROM users WHERE username = 'student01';")
     if not cur.fetchone():
         salt_stu = generate_salt()
         pwd_hash_stu = hash_password("Student@2026!", salt_stu)
-        stu_id = str(uuid.uuid4())[:8]
+        stu_id = str(uuid.uuid4().hex[:16])
         cur.execute("""
         INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?);
@@ -325,7 +361,7 @@ def _seed_default_users(conn: sqlite3.Connection):
     if not cur.fetchone():
         salt_stu2 = generate_salt()
         pwd_hash_stu2 = hash_password("Student@2026!", salt_stu2)
-        stu2_id = str(uuid.uuid4())[:8]
+        stu2_id = str(uuid.uuid4().hex[:16])
         cur.execute("""
         INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?);
@@ -502,7 +538,7 @@ def _seed_student01_golden_presets(conn: sqlite3.Connection):
 
 def _insert_session_record(conn: sqlite3.Connection, user_id: str, s: Dict[str, Any], is_archived: int, sort_order: int):
     cur = conn.cursor()
-    s_id = s.get("id") or str(uuid.uuid4())[:8]
+    s_id = s.get("id") or str(uuid.uuid4().hex[:16])
     now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     cur.execute("""
@@ -600,7 +636,7 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
 def create_user(username: str, plain_password: str, display_name: str = "", role: str = "student", must_change_password: int = 0) -> Dict[str, Any]:
     salt = generate_salt()
     pwd_hash = hash_password(plain_password, salt)
-    user_id = str(uuid.uuid4())[:8]
+    user_id = str(uuid.uuid4().hex[:12])
     now = now_east8_str("%Y-%m-%d %H:%M:%S")
     disp = display_name if display_name else f"知阶学者 {username}"
 
@@ -690,19 +726,22 @@ def verify_security_answer(username: str, answer: str) -> Tuple[bool, Optional[s
 
 
 def create_password_reset_token(user_id: str, ttl_seconds: int = 600) -> str:
-    """为通过密保验证的用户签发 10 分钟一次性密码重置凭据"""
+    """为通过密保验证的用户签发 10 分钟一次性密码重置凭据（数据库仅保存哈希）"""
     import secrets
     token = secrets.token_urlsafe(32)
+    token_hash = hash_token(token)
     now_ts = int(time.time())
     expires_at = now_ts + ttl_seconds
     now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     conn = get_db_connection()
     cur = conn.cursor()
+    # 顺带清理过期凭据，避免表无限增长
+    cur.execute("DELETE FROM password_reset_tokens WHERE expires_at < ?;", (now_ts,))
     cur.execute("""
     INSERT INTO password_reset_tokens (token, user_id, expires_at, created_at)
     VALUES (?, ?, ?, ?);
-    """, (token, user_id, expires_at, now_str))
+    """, (token_hash, user_id, expires_at, now_str))
     conn.commit()
     conn.close()
     return token
@@ -711,24 +750,25 @@ def create_password_reset_token(user_id: str, ttl_seconds: int = 600) -> str:
 def verify_password_reset_token(token: str) -> Optional[str]:
     """验证并消耗重置凭据，成功则返回 user_id"""
     now_ts = int(time.time())
+    token_hash = hash_token(token)
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
     SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?;
-    """, (token,))
+    """, (token_hash,))
     row = cur.fetchone()
     if not row:
         conn.close()
         return None
 
     if row["expires_at"] < now_ts:
-        cur.execute("DELETE FROM password_reset_tokens WHERE token = ?;", (token,))
+        cur.execute("DELETE FROM password_reset_tokens WHERE token = ?;", (token_hash,))
         conn.commit()
         conn.close()
         return None
 
     user_id = row["user_id"]
-    cur.execute("DELETE FROM password_reset_tokens WHERE token = ?;", (token,))
+    cur.execute("DELETE FROM password_reset_tokens WHERE token = ?;", (token_hash,))
     conn.commit()
     conn.close()
     return user_id
@@ -869,7 +909,7 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
     # 若当前无任何活跃会话，为该用户创建 1 个默认的新探索会话
     if not active_sessions:
         default_sess = {
-            "id": str(uuid.uuid4())[:8],
+            "id": str(uuid.uuid4().hex[:16]),
             "title": "🧩 探索·新建会话",
             "is_starred": False,
             "is_initialized": False,
@@ -930,11 +970,18 @@ def _assemble_session_dict(conn: sqlite3.Connection, r: sqlite3.Row) -> Dict[str
                 pass
         history.append(item)
 
-    diag = json.loads(r["diagnostic_result"]) if r["diagnostic_result"] else None
-    eval_res = json.loads(r["transfer_eval_result"]) if r["transfer_eval_result"] else None
+    try:
+        diag = json.loads(r["diagnostic_result"]) if r["diagnostic_result"] else None
+    except Exception:
+        diag = None
+    try:
+        eval_res = json.loads(r["transfer_eval_result"]) if r["transfer_eval_result"] else None
+    except Exception:
+        eval_res = None
 
     return {
         "id": s_id,
+        "user_id": r["user_id"] if "user_id" in r.keys() else None,
         "title": r["title"],
         "is_starred": bool(r["is_starred"]),
         "is_initialized": bool(r["is_initialized"]),
@@ -953,14 +1000,24 @@ def _assemble_session_dict(conn: sqlite3.Connection, r: sqlite3.Row) -> Dict[str
 
 
 def save_user_session(user_id: str, session_data: Dict[str, Any]):
-    """保存或更新单个会话数据"""
+    """保存或更新单个会话数据（严格校验会话归属，避免 ID 冲突时跨账号覆写）"""
     conn = get_db_connection()
     cur = conn.cursor()
-    s_id = session_data["id"]
+    s_id = session_data.get("id")
+    if not s_id:
+        conn.close()
+        raise ValueError("session id is required")
     now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
-    diag_json = json.dumps(session_data.get("diagnostic_result")) if session_data.get("diagnostic_result") else None
-    eval_json = json.dumps(session_data.get("transfer_eval_result")) if session_data.get("transfer_eval_result") else None
+    # 归属校验：若该 ID 已被其他用户占用，绝不能借着 UPSERT 改写对方的会话与消息
+    cur.execute("SELECT user_id FROM sessions WHERE id = ?;", (s_id,))
+    owner_row = cur.fetchone()
+    if owner_row and owner_row["user_id"] != user_id:
+        conn.close()
+        raise ValueError("session id collision detected")
+
+    diag_json = json.dumps(session_data.get("diagnostic_result"), ensure_ascii=False) if session_data.get("diagnostic_result") else None
+    eval_json = json.dumps(session_data.get("transfer_eval_result"), ensure_ascii=False) if session_data.get("transfer_eval_result") else None
 
     raw_created = session_data.get("created_at")
     if not raw_created:
@@ -1240,8 +1297,8 @@ def get_token_stats_overview() -> Dict[str, Any]:
     all_row = cur.fetchone()
 
     # 资费单价 (默认 DeepSeek 现行资费: 输入 1元/1M, 输出 2元/1M)
-    input_price = float(get_system_config("deepseek_input_price_per_m", "1.0"))
-    output_price = float(get_system_config("deepseek_output_price_per_m", "2.0"))
+    input_price = _safe_float(get_system_config("deepseek_input_price_per_m", "1.0"), 1.0)
+    output_price = _safe_float(get_system_config("deepseek_output_price_per_m", "2.0"), 2.0)
 
     today_cost = (today_row["today_prompt"] * input_price / 1_000_000) + (today_row["today_completion"] * output_price / 1_000_000)
     all_cost = (all_row["total_prompt"] * input_price / 1_000_000) + (all_row["total_completion"] * output_price / 1_000_000)
@@ -1313,7 +1370,7 @@ def get_guardrail_logs(limit: int = 50) -> List[Dict[str, Any]]:
     SELECT id, user_id, username, session_id, matched_pattern, input_snippet, created_at
     FROM guardrail_logs
     ORDER BY id DESC LIMIT ?;
-    """, (limit,))
+    """, (max(1, min(int(limit), 1000)),))
     rows = cur.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -1390,14 +1447,15 @@ def reset_user_password_by_admin(user_id: str, new_password: str, admin_id: Opti
     cur.execute("""
     UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1 WHERE id = ?;
     """, (new_hash, new_salt, str(user_id)))
+    updated = cur.rowcount > 0
     # 密码修改后将该用户所有旧令牌注销
     cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (str(user_id),))
     conn.commit()
     conn.close()
-    return True
+    return updated
 
 
-def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: Optional[int], daily_token_limit: Optional[int] = None):
+def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: Optional[int], daily_token_limit: Optional[int] = None) -> bool:
     """设置用户个性化特批限额 (None 则清除恢复全局限额)"""
     conn = get_db_connection()
     cur = conn.cursor()
@@ -1406,22 +1464,18 @@ def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: 
     SET custom_daily_limit = ?, custom_turn_limit = ?, custom_daily_token_limit = ?
     WHERE id = ?;
     """, (daily_limit, turn_limit, daily_token_limit, str(user_id)))
+    updated = cur.rowcount > 0
     conn.commit()
     conn.close()
+    return updated
 
 
 def reset_user_today_questions(user_id: str):
-    """管理员特批：一键重置某学生今日已用开题次数"""
-    today_full = today_east8_str()
-    today_short = now_east8_str("%m-%d")
+    """管理员特批：一键重置某学生今日已用开题次数（保留真实创建时间，仅移动计数基线）"""
+    now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cur = conn.cursor()
-    # 将今日创建的会话 created_at 日期前移一天，从而绕过当日 00:00 计数
-    cur.execute("""
-    UPDATE sessions 
-    SET created_at = '2000-01-01 00:00:00'
-    WHERE user_id = ? AND (created_at LIKE ? OR created_at LIKE ?);
-    """, (str(user_id), f"{today_full}%", f"{today_short}%"))
+    cur.execute("UPDATE users SET quota_reset_at = ? WHERE id = ?;", (now_str, str(user_id)))
     conn.commit()
     conn.close()
 
@@ -1446,10 +1500,16 @@ def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
     for item in user_list:
         uname = (item.get("username") or "").strip()
         pwd = (item.get("password") or "").strip()
-        disp = (item.get("display_name") or uname).strip()
+        disp = (item.get("display_name") or uname).strip()[:40]
+        role = (item.get("role") or "student").strip()
+        if role not in ("student", "admin"):
+            role = "student"
 
         if not uname or not pwd:
             errors.append(f"账号或密码为空：{uname}")
+            continue
+        if len(uname) > 32 or len(pwd) > 256:
+            errors.append(f"账号或密码过长：{uname[:32]}")
             continue
 
         # 检查是否重复
@@ -1460,13 +1520,13 @@ def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
 
         salt = generate_salt()
         pwd_hash = hash_password(pwd, salt)
-        u_id = str(uuid.uuid4())[:8]
+        u_id = str(uuid.uuid4().hex[:12])
 
         try:
             cur.execute("""
             INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at, must_change_password)
-            VALUES (?, ?, ?, ?, ?, 'student', 'active', ?, 1);
-            """, (u_id, uname, pwd_hash, salt, disp, now))
+            VALUES (?, ?, ?, ?, ?, ?, 'active', ?, 1);
+            """, (u_id, uname, pwd_hash, salt, disp, role, now))
             created.append(uname)
         except Exception as e:
             errors.append(f"{uname}: {str(e)}")
@@ -1498,9 +1558,9 @@ def get_user_effective_limits(user_id: str) -> Tuple[int, int, int]:
     if not row or row["role"] == "admin":
         return 99999, 99999, 99999999  # 管理员无限制
 
-    default_daily = int(get_system_config("daily_question_limit", "15"))
-    default_turns = int(get_system_config("session_turn_limit", "30"))
-    default_tokens = int(get_system_config("daily_token_limit", "50000"))
+    default_daily = _safe_int(get_system_config("daily_question_limit", "15"), 15)
+    default_turns = _safe_int(get_system_config("session_turn_limit", "30"), 30)
+    default_tokens = _safe_int(get_system_config("daily_token_limit", "50000"), 50000)
 
     daily = row["custom_daily_limit"] if (row["custom_daily_limit"] is not None and row["custom_daily_limit"] > 0) else default_daily
     turns = row["custom_turn_limit"] if (row["custom_turn_limit"] is not None and row["custom_turn_limit"] > 0) else default_turns
@@ -1510,21 +1570,45 @@ def get_user_effective_limits(user_id: str) -> Tuple[int, int, int]:
 
 
 def get_user_today_questions_count(user_id: str) -> int:
-    """获取某用户今日已开题数量（排除预设案例库的演示记录）"""
+    """获取某用户今日已开题数量（含同会话换题事件，排除预设案例演示记录，并尊重管理员重置基线）"""
     today_full = today_east8_str()
     today_short = now_east8_str("%m-%d")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-    SELECT COUNT(1) as cnt 
-    FROM sessions 
-    WHERE user_id = ? AND is_initialized = 1 
-      AND id NOT LIKE 'preset_%'
-      AND (created_at LIKE ? OR created_at LIKE ?);
-    """, (user_id, f"{today_full}%", f"{today_short}%"))
+    SELECT
+      (SELECT COUNT(1)
+         FROM question_submissions q
+         JOIN users u ON u.id = q.user_id
+        WHERE q.user_id = ? AND q.date = ?
+          AND (u.quota_reset_at IS NULL OR u.quota_reset_at < ? OR q.created_at >= u.quota_reset_at))
+      +
+      (SELECT COUNT(1)
+         FROM sessions s
+         JOIN users u ON u.id = s.user_id
+        WHERE s.user_id = ? AND s.is_initialized = 1
+          AND s.id NOT LIKE 'preset_%'
+          AND (s.created_at LIKE ? OR s.created_at LIKE ?)
+          AND (u.quota_reset_at IS NULL OR u.quota_reset_at < ? OR s.created_at >= u.quota_reset_at)
+          AND NOT EXISTS (SELECT 1 FROM question_submissions q2 WHERE q2.session_id = s.id))
+      AS cnt;
+    """, (user_id, today_full, today_full, user_id, f"{today_full}%", f"{today_short}%", today_full))
     row = cur.fetchone()
     conn.close()
-    return row["cnt"] if row else 0
+    return int(row["cnt"]) if row else 0
+
+
+def record_question_submission(user_id: str, session_id: Optional[str] = None) -> None:
+    """记录一次新开题事件（用于每日开题额度精确计数）"""
+    now_dt = now_east8()
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    INSERT INTO question_submissions (user_id, session_id, created_at, date)
+    VALUES (?, ?, ?, ?);
+    """, (str(user_id), session_id, now_dt.strftime("%Y-%m-%d %H:%M:%S"), now_dt.strftime("%Y-%m-%d")))
+    conn.commit()
+    conn.close()
 
 
 def get_user_today_tokens(user_id: str) -> int:
@@ -1613,9 +1697,9 @@ def get_admin_overview() -> Dict[str, Any]:
     conn.close()
 
     token_stats = get_token_stats_overview()
-    daily_limit = int(get_system_config("daily_question_limit", "15"))
-    turn_limit = int(get_system_config("session_turn_limit", "30"))
-    daily_tokens = int(get_system_config("daily_token_limit", "50000"))
+    daily_limit = _safe_int(get_system_config("daily_question_limit", "15"), 15)
+    turn_limit = _safe_int(get_system_config("session_turn_limit", "30"), 30)
+    daily_tokens = _safe_int(get_system_config("daily_token_limit", "50000"), 50000)
 
     return {
         "total_students": u_row["total_users"] if u_row else 0,
@@ -1642,13 +1726,16 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
         u.id, u.username, u.display_name, u.role, u.status, u.banned_until, u.ban_reason,
         u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit, u.custom_daily_token_limit,
         (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%') as session_count,
-        (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%' AND (created_at LIKE ? OR created_at LIKE ?)) as today_questions,
+        (SELECT COUNT(1) FROM question_submissions q WHERE q.user_id = u.id AND q.date = ? AND (u.quota_reset_at IS NULL OR u.quota_reset_at < ? OR q.created_at >= u.quota_reset_at))
+        +
+        (SELECT COUNT(1) FROM sessions s WHERE s.user_id = u.id AND s.is_initialized = 1 AND s.id NOT LIKE 'preset_%' AND (s.created_at LIKE ? OR s.created_at LIKE ?) AND (u.quota_reset_at IS NULL OR u.quota_reset_at < ? OR s.created_at >= u.quota_reset_at) AND NOT EXISTS (SELECT 1 FROM question_submissions q2 WHERE q2.session_id = s.id))
+        as today_questions,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id AND date = ?) as today_tokens,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id) as total_tokens
     FROM users u
     WHERE 1=1
     """
-    params: List[Any] = [f"{today_str}%", f"{today_short}%", today_str]
+    params: List[Any] = [today_str, today_str, f"{today_str}%", f"{today_short}%", today_str, today_str]
 
     if search:
         sql += " AND (u.username LIKE ? OR u.display_name LIKE ?)"
@@ -1663,7 +1750,7 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
         params.append(status)
 
     sql += " ORDER BY u.role DESC, u.created_at ASC LIMIT ?;"
-    params.append(limit)
+    params.append(max(1, min(int(limit), 500)))
 
     cur.execute(sql, tuple(params))
     rows = cur.fetchall()
@@ -1710,7 +1797,7 @@ def get_admin_sessions_list(user_id: Optional[str] = None, search: str = "", lim
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
 
     sql += " ORDER BY s.updated_at DESC LIMIT ?;"
-    params.append(limit)
+    params.append(max(1, min(int(limit), 500)))
 
     cur.execute(sql, tuple(params))
     rows = cur.fetchall()
@@ -1831,7 +1918,7 @@ def get_admin_feedbacks(status: Optional[str] = None, search: str = "", limit: i
         sql += " AND (f.title LIKE ? OR f.content LIKE ? OR f.username LIKE ? OR u.display_name LIKE ?)"
         params.extend([f"%{search}%", f"%{search}%", f"%{search}%", f"%{search}%"])
     sql += " ORDER BY CASE WHEN f.status='pending' THEN 0 ELSE 1 END, f.id DESC LIMIT ?;"
-    params.append(limit)
+    params.append(max(1, min(int(limit), 500)))
     cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     conn.close()

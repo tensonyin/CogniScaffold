@@ -58,7 +58,7 @@ def create_new_session_data(title: str = None, question: str = "", is_initialize
     default_title = title if title else "🧩 探索·新建会话"
 
     return {
-        "id": str(uuid.uuid4())[:8],
+        "id": str(uuid.uuid4().hex[:16]),
         "title": default_title,
         "is_starred": False,
         "is_initialized": is_initialized,  # 是否已录入题目开启陪练

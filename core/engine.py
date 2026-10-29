@@ -44,6 +44,64 @@ def get_openai_client(api_key: str, base_url: str) -> OpenAI:
     return _CLIENT_CACHE[key]
 
 
+def _extract_json_payload(raw: str) -> str:
+    """从带代码围栏或前后说明的模型输出中提取 JSON 主体"""
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+    if text.startswith("{") or text.startswith("["):
+        return text.strip()
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end > start:
+        return text[start:end + 1]
+    return text.strip()
+
+
+_DEFAULT_TIERS = {
+    1: {"title": "第一关：维度拓展", "question": "在原题结论基础上，讨论自变量处于不同分段区间时的极值或位移临界点。", "hint": "深入考查分段讨论的严密性与区间边界。"},
+    2: {"title": "第二关：逆向反转对抗", "question": "若反转原题的关键边界约束条件，原式结论是否依然成立？请给出反例或转向点。", "hint": "打破顺向定势，警惕约束条件反向时的虚假结论。"},
+    3: {"title": "第三关：跨模型深层情境迁移", "question": "迁移到全新物理/数学复合图景中，识别同构的守恒或单调性本质并求解。", "hint": "透过全新的表面物理构件，抓住不变的核心约束。"},
+}
+
+
+def _safe_text(value: Any, default: str, limit: int) -> str:
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text[:limit] if text else default
+
+
+def _normalize_diagnostic(parsed: Any) -> Dict[str, Any]:
+    """
+    严格校验诊断 JSON 结构：必须是对象，且三阶变式必须为对象。
+    避免模型偶发返回数组/字符串导致后续 .get() 崩溃（500）并污染会话存档。
+    """
+    if not isinstance(parsed, dict):
+        raise ValueError("diagnostic payload is not an object")
+
+    result: Dict[str, Any] = {
+        "blindspot_type": _safe_text(parsed.get("blindspot_type"), "隐式边界或分类遗漏", 80),
+        "confidence": _safe_text(parsed.get("confidence"), "92%", 16),
+        "blindspot_detail": _safe_text(parsed.get("blindspot_detail"), "在关键约束与分类讨论上存在思维断点。", 400),
+        "key_breakthrough": _safe_text(parsed.get("key_breakthrough"), "通过反例与极端值检验重建了条件约束感知。", 300),
+    }
+    for tier_num in (1, 2, 3):
+        key = f"tier{tier_num}_variant"
+        tier = parsed.get(key)
+        fallback = _DEFAULT_TIERS[tier_num]
+        if not isinstance(tier, dict):
+            result[key] = dict(fallback)
+            continue
+        result[key] = {
+            "title": _safe_text(tier.get("title"), fallback["title"], 120),
+            "question": _safe_text(tier.get("question"), fallback["question"], 4000),
+            "hint": _safe_text(tier.get("hint"), fallback["hint"], 1000),
+        }
+    return result
+
+
 def generate_solver_blueprint(
     question: str,
     api_config: Dict[str, Any],
@@ -151,7 +209,8 @@ def stream_tutor_response(
             usage_dict["completion_tokens"] = ct
             usage_dict["total_tokens"] = pt + ct
     except Exception as e:
-        yield f"【网络或接口响应异常: {str(e)}】"
+        print(f"[Tutor Stream Error] {type(e).__name__}: {e}")
+        yield "【网络或接口响应异常，请稍后重试。】"
 
 
 def generate_diagnostic_report(
@@ -214,20 +273,17 @@ def generate_diagnostic_report(
                 )
             except Exception as e_tok:
                 print(f"[Token Log Error in diagnostic_report] {e_tok}")
-        content = response.choices[0].message.content.strip()
-        if content.startswith("```json"):
-            content = content[7:]
-        elif content.startswith("```"):
-            content = content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        return json.loads(content.strip())
+        content = (response.choices[0].message.content or "").strip()
+        content = _extract_json_payload(content)
+        parsed = json.loads(content)
+        return _normalize_diagnostic(parsed)
     except Exception as e:
-        # 降级三阶变式矩阵
+        print(f"[Diagnostic Error] {type(e).__name__}: {e}")
+        # 降级三阶变式矩阵（不再把内部异常细节回显给学生）
         return {
             "blindspot_type": "隐式边界或分类遗漏",
             "confidence": "92%",
-            "blindspot_detail": f"解题过程中在定义域约束或关键参数讨论上出现思维断点（已自动建立认知画像: {str(e)}）",
+            "blindspot_detail": "解题过程中在定义域约束或关键参数讨论上出现思维断点（诊断服务暂时降级，已启用认知基线画像）",
             "key_breakthrough": "通过反思反例与极端值检验重新建立了条件约束感知",
             "tier1_variant": {
                 "title": "第一关：维度拓展",
@@ -359,7 +415,8 @@ def evaluate_transfer_answer(
                 print(f"[Token Log Error in variant_eval] {e_tok}")
         return response.choices[0].message.content.strip()
     except Exception as e:
-        return f"⚠️ 评判服务暂不可用：{str(e)}，请稍后重试。"
+        print(f"[Transfer Eval Error] {type(e).__name__}: {e}")
+        return "⚠️ 评判服务暂不可用，请稍后重试。"
 
 
 def is_transfer_eval_passed(eval_text: str) -> bool:
@@ -410,6 +467,12 @@ def analyze_image_input(
         prompt_text = f"这是学生针对题目【{context_question}】在草稿纸上的手写推导照片。请识别学生手写的推导步骤，并用 1-2 句话客观总结出：'学生尝试了什么公式或代数变形，目前算到了哪一步或卡在哪里'（公式使用 $ 包裹）。"
 
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
+    if not is_valid_api_key(api_config.get("api_key")):
+        # 离线演示模式：无有效 API Key 时返回内置示例，保证演示可用
+        if task_type == "question":
+            return "已知函数 $f(x) = \\ln x - ax$（其中 $a \\in \\mathbb{R}$ 为常数），讨论该函数的单调区间与极值点。"
+        return "我尝试在草稿纸上对两边求导，令 $f'(x) = \\frac{1}{x} - a = 0$ 得到 $x = \\frac{1}{a}$，但我不确定 $a$ 的正负对定义域会有什么影响。"
+
     try:
         response = client.chat.completions.create(
             model=api_config["model"],
@@ -438,11 +501,10 @@ def analyze_image_input(
             except Exception as e_tok:
                 print(f"[Token Log Error in photo_ocr] {e_tok}")
         return response.choices[0].message.content.strip()
-    except Exception:
-        if task_type == "question":
-            return "已知函数 $f(x) = \\ln x - ax$（其中 $a \\in \\mathbb{R}$ 为常数），讨论该函数的单调区间与极值点。"
-        else:
-            return "我尝试在草稿纸上对两边求导，令 $f'(x) = \\frac{1}{x} - a = 0$ 得到 $x = \\frac{1}{a}$，但我不确定 $a$ 的正负对定义域会有什么影响。"
+    except Exception as e:
+        # 在线识别失败时必须显式报错，绝不能伪造一段看似识别成功的题目误导学生
+        print(f"[OCR Error] {type(e).__name__}: {e}")
+        raise RuntimeError("图片识别服务暂不可用") from e
 
 
 def simulate_offline_stream(text: str, delay: float = 0.03) -> Generator[str, None, None]:
@@ -468,15 +530,21 @@ def safe_parse_variant_json(raw_text: str) -> Optional[Dict[str, str]]:
     except Exception:
         pass
 
-    # 备用：基于键名正则提取
-    title_m = re.search(r'"title"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned)
-    q_m = re.search(r'"question"\s*:\s*"(.*?)"\s*,\s*"hint"', cleaned, re.DOTALL)
-    h_m = re.search(r'"hint"\s*:\s*"(.*?)"\s*\}', cleaned, re.DOTALL)
+    # 备用：基于键名正则提取（不依赖字段顺序，且用 JSON 解码确保中文与转义正确）
+    title_m = re.search(r'"title"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned, re.DOTALL)
+    q_m = re.search(r'"question"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned, re.DOTALL)
+    h_m = re.search(r'"hint"\s*:\s*"((?:\\.|[^"\\])*)"', cleaned, re.DOTALL)
     if title_m and q_m:
+        def _decode_json_string(raw_value: str) -> str:
+            try:
+                return json.loads(f'"{raw_value}"')
+            except Exception:
+                return raw_value.replace('\\"', '"').replace("\\n", "\n")
+
         return {
-            "title": title_m.group(1).encode('utf-8').decode('unicode_escape', 'ignore') if '\\u' in title_m.group(1) else title_m.group(1),
-            "question": q_m.group(1).replace('\\"', '"'),
-            "hint": h_m.group(1).replace('\\"', '"') if h_m else ""
+            "title": _decode_json_string(title_m.group(1)),
+            "question": _decode_json_string(q_m.group(1)),
+            "hint": _decode_json_string(h_m.group(1)) if h_m else ""
         }
     return None
 

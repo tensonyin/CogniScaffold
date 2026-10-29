@@ -61,6 +61,21 @@ def validate_password_strength(password: str) -> Tuple[bool, str]:
     return True, ""
 
 
+def _prune_tracker(now: Optional[float] = None):
+    """清理已过期或已解锁的限流记录，防止攻击者用海量随机用户名/IP 撑爆内存"""
+    global _attempt_tracker
+    if len(_attempt_tracker) < 5000:
+        return
+    current = now if now is not None else time.time()
+    expired = [
+        key for key, rec in _attempt_tracker.items()
+        if (rec.get("locked_until", 0) and current >= rec["locked_until"])
+        or (current - rec.get("first_attempt", 0) > ATTEMPT_WINDOW_SECONDS and current >= rec.get("locked_until", 0))
+    ]
+    for key in expired:
+        _attempt_tracker.pop(key, None)
+
+
 def check_rate_limit(key: str) -> Tuple[bool, int]:
     """
     检查指定键（如 'user:username' 或 'ip:1.2.3.4'）是否已被临时锁定
@@ -83,12 +98,14 @@ def check_rate_limit(key: str) -> Tuple[bool, int]:
     return False, 0
 
 
-def record_failed_attempt(key: str) -> Tuple[bool, int, int]:
+def record_failed_attempt(key: str, max_attempts: int = MAX_FAILED_ATTEMPTS) -> Tuple[bool, int, int]:
     """
     记录一次失败尝试
     返回: (is_now_locked, attempts_count, remaining_lock_seconds)
+    max_attempts 可针对 IP 等共享出口设置更高阈值，避免少数错误输入锁死整个 NAT 网关。
     """
     now = time.time()
+    _prune_tracker(now)
     record = _attempt_tracker.setdefault(key, {
         "attempts": 0,
         "first_attempt": now,
@@ -104,7 +121,7 @@ def record_failed_attempt(key: str) -> Tuple[bool, int, int]:
     record["attempts"] += 1
     attempts = record["attempts"]
 
-    if attempts >= MAX_FAILED_ATTEMPTS:
+    if attempts >= max(1, max_attempts):
         record["locked_until"] = now + LOCKOUT_DURATION_SECONDS
         return True, attempts, LOCKOUT_DURATION_SECONDS
 
@@ -114,6 +131,32 @@ def record_failed_attempt(key: str) -> Tuple[bool, int, int]:
 def reset_failed_attempts(key: str):
     """登录成功后清除失败计数"""
     _attempt_tracker.pop(key, None)
+
+
+# ============================================================
+# 通用滑动窗口限流（用于反馈提交、密保查询等非登录动作）
+# ============================================================
+_action_tracker: Dict[str, list] = {}
+
+
+def check_action_rate(key: str, max_events: int = 20, window_seconds: int = 600) -> Tuple[bool, int]:
+    """
+    滑动窗口限流：返回 (allowed, retry_after_seconds)。
+    记录每次被允许的动作时间戳，超过阈值时拒绝并返回等待秒数。
+    """
+    now = time.time()
+    events = [t for t in _action_tracker.get(key, []) if now - t < window_seconds]
+    if len(events) >= max_events:
+        retry_after = max(1, int(window_seconds - (now - events[0])) + 1)
+        _action_tracker[key] = events
+        return False, retry_after
+    events.append(now)
+    _action_tracker[key] = events
+
+    if len(_action_tracker) > 5000:
+        for k in [k for k, v in _action_tracker.items() if not v or now - v[-1] > window_seconds]:
+            _action_tracker.pop(k, None)
+    return True, 0
 
 
 def generate_session_token() -> str:

@@ -2,7 +2,9 @@ import os
 import re
 import json
 import asyncio
+import ipaddress
 import mimetypes
+import weakref
 from datetime import datetime, timedelta
 from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
@@ -54,6 +56,7 @@ from core.db import (
     log_audit_event,
     get_user_store,
     save_user_session,
+    record_question_submission,
     set_user_current_session,
     set_user_session_order,
     archive_user_session,
@@ -93,31 +96,57 @@ from core.auth import (
     verify_password,
     validate_password_strength,
     check_rate_limit,
+    check_action_rate,
     record_failed_attempt,
-    reset_failed_attempts
+    reset_failed_attempts,
+    generate_salt
 )
 
 app = FastAPI(title="CogniScaffold API")
 
+# CORS：仅允许本地开发端口与本站正式域名，禁止任意子域（避免子域被接管后携带 Cookie 读取接口）
+CORS_ORIGIN_REGEX = os.getenv(
+    "CORS_ORIGIN_REGEX",
+    r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://(www\.)?buildfuture\.tech)$"
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r"^(https?://(localhost|127\.0\.0\.1)(:\d+)?|https?://([a-zA-Z0-9-]+\.)*buildfuture\.tech)$",
+    allow_origin_regex=CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_REQUEST_BODY = int(os.getenv("MAX_REQUEST_BODY", str(12 * 1024 * 1024)))  # 12 MB（含 multipart 边界开销）
+MAX_ACTIVE_SESSIONS = int(os.getenv("MAX_ACTIVE_SESSIONS", "100"))
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BODY:
+                return JSONResponse(status_code=413, content={"detail": "请求体过大，最大允许 12MB"})
+        except ValueError:
+            return JSONResponse(status_code=400, content={"detail": "非法的 Content-Length"})
+
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    # API 响应包含用户隐私与额度信息，禁止浏览器/中间代理缓存
+    if request.url.path.startswith("/api/") or "/api/" in request.url.path:
+        response.headers["Cache-Control"] = "no-store"
+    # 仅在 HTTPS 访问时下发 HSTS，避免本地 HTTP 调试被强制跳转
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    if is_https:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
-
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif", "image/bmp"}
 
 # 确保 static 目录及 vendor 目录存在
 os.makedirs("static", exist_ok=True)
@@ -147,24 +176,75 @@ async def startup_event():
     init_db()
 
 
+def _load_trusted_proxies() -> List[Any]:
+    """解析可信反向代理网段（默认仅回环与私有网段）"""
+    raw = os.getenv(
+        "TRUSTED_PROXY_IPS",
+        "127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16",
+    )
+    networks: List[Any] = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            networks.append(ipaddress.ip_network(part, strict=False))
+        except ValueError:
+            continue
+    return networks
+
+
+TRUSTED_PROXY_NETS = _load_trusted_proxies()
+TRUST_CF_CONNECTING_IP = os.getenv("TRUST_CF_CONNECTING_IP", "0") == "1"
+
+
+def _is_trusted_proxy(host: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(addr in net for net in TRUSTED_PROXY_NETS)
+
+
 def get_client_ip(request: Request) -> str:
-    """提取客户端真实 IP，优先解析反向代理转发头"""
-    forwarded = request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For")
+    """
+    提取客户端真实 IP。
+    仅当直连对端是可信反向代理（Nginx/Docker 网关等）时才采信转发头，
+    并从右向左跳过可信代理，防止客户端伪造 X-Forwarded-For 绕过登录限流。
+    """
+    peer = request.client.host if request.client else "127.0.0.1"
+    if not _is_trusted_proxy(peer):
+        return peer
+
+    if TRUST_CF_CONNECTING_IP:
+        cf_ip = (request.headers.get("CF-Connecting-IP") or "").strip()
+        if cf_ip:
+            try:
+                return str(ipaddress.ip_address(cf_ip))
+            except ValueError:
+                pass
+
+    forwarded = request.headers.get("X-Forwarded-For", "")
     if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "127.0.0.1"
+        chain = [item.strip() for item in forwarded.split(",") if item.strip()]
+        chain.append(peer)
+        for candidate in reversed(chain):
+            if not _is_trusted_proxy(candidate):
+                try:
+                    return str(ipaddress.ip_address(candidate))
+                except ValueError:
+                    continue
+        return chain[0]
+    return peer
 
 
 def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
-    """从 HttpOnly Cookie、Bearer Header 或 Query Param 解析已鉴权用户，严格防御 XSS 攻击"""
-    # 优先从 HttpOnly Cookie 读取，防范前端 XSS 攻击窃取登录凭证
+    """从 HttpOnly Cookie 或 Bearer Header 解析已鉴权用户（不再接受 URL 查询参数，避免 Token 泄漏到日志与 Referer）"""
     token = request.cookies.get("cogni_session") or request.cookies.get("cogni_token")
     if not token:
         auth_header = request.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             token = auth_header[7:].strip()
-    if not token:
-        token = request.query_params.get("token", "")
     if not token:
         return None
     return get_user_from_token(token)
@@ -182,36 +262,41 @@ def require_admin(request: Request) -> Dict[str, Any]:
 
 def dispatch_variant_tier_data(session: dict, tier_num: int):
     diag = session.get("diagnostic_result") or {}
+    if not isinstance(diag, dict):
+        diag = {}
     tier_key = f"tier{tier_num}_variant"
     tier_data = diag.get(tier_key, {})
-    
-    raw_title = tier_data.get("title", f"第{to_chinese_num(tier_num)}关变式挑战")
+    if not isinstance(tier_data, dict):
+        tier_data = {}
+
+    raw_title = str(tier_data.get("title") or f"第{to_chinese_num(tier_num)}关变式挑战")
     clean_title = re.sub(r'^(?:Tier\s*\d+\s*[:：]|第\s*\d+\s*关\s*[:：]|第\s*[一二三四五六七八九十]+\s*关\s*[:：])\s*', '', raw_title)
     full_title = f"第{to_chinese_num(tier_num)}关：{clean_title}"
 
-    question = tier_data.get("question", diag.get("variant_question", "请分析约束反转后的系统动量或导数单调性。"))
-    hint = tier_data.get("hint", diag.get("variant_hint", "注意边界与受力方向的矢量分解。"))
+    question = tier_data.get("question") or diag.get("variant_question") or "请分析约束反转后的系统动量或导数单调性。"
+    hint = tier_data.get("hint") or diag.get("variant_hint") or "注意边界与受力方向的矢量分解。"
 
     def unescape_newlines(txt: str) -> str:
-        if not isinstance(txt, str): return txt
+        if not isinstance(txt, str): return str(txt)
         latex_n_cmds = {'neq', 'nabla', 'notin', 'nu', 'ne', 'natural', 'nparallel', 'neg', 'normalsize', 'newcommand', 'nolimits'}
         return re.sub(r'\\n([a-zA-Z]*)', lambda m: m.group(0) if m.group(1) in latex_n_cmds else f"\n{m.group(1)}", txt).replace('\\r', '')
 
     question = unescape_newlines(question)
     hint = unescape_newlines(hint)
-    
-    session["dialogue_history"].append({
+
+    history = session.setdefault("dialogue_history", [])
+    history.append({
         "role": "divider",
         "content": f"阶段 4 · {full_title}"
     })
-    
+
     prompt_msg = (
         f"**📝 {full_title}**\n\n"
         f"{question}\n\n"
         f"> 💡 **考查要点与暗坑提示**：{hint}\n\n"
         f"**请在下方写出你的推导思路或结论（若觉得太简单可直接表明）：**"
     )
-    session["dialogue_history"].append({
+    history.append({
         "role": "assistant_variant",
         "content": prompt_msg
     })
@@ -222,13 +307,17 @@ def dispatch_variant_tier_data(session: dict, tier_num: int):
 
 def trigger_diagnosis_for_session(session: dict, user_id: Optional[str] = None):
     s_id = session.get("id")
-    session["diagnostic_result"] = generate_diagnostic_report(
+    result = generate_diagnostic_report(
         session["dialogue_history"],
         session["question"],
         api_config,
         user_id=user_id,
         session_id=s_id
     )
+    # 防御大模型返回非对象 JSON，避免后续 .get() 崩溃并污染会话存档
+    session["diagnostic_result"] = result if isinstance(result, dict) else None
+    if not session["diagnostic_result"]:
+        return None
     session["current_stage"] = 4
     session["current_variant_tier"] = 1
     
@@ -247,6 +336,7 @@ def trigger_diagnosis_for_session(session: dict, user_id: Optional[str] = None):
         session["title_stage"] = 2
     
     dispatch_variant_tier_data(session, 1)
+    return True
 
 
 def build_user_response_info(user: dict) -> dict:
@@ -347,6 +437,8 @@ async def auth_login(request: Request, data: dict):
 
     if not username or not password:
         raise HTTPException(status_code=400, detail="用户名和密码不能为空")
+    if len(username) > 64 or len(password) > 256:
+        raise HTTPException(status_code=400, detail="用户名或密码长度超出限制")
 
     # 1. 暴力破解防御：校验用户账号与 IP 是否锁定
     is_locked, remaining = check_rate_limit(f"user:{username}")
@@ -372,14 +464,15 @@ async def auth_login(request: Request, data: dict):
             )
 
     if not user or user.get("status") != "active" or not verify_password(password, user["salt"], user["password_hash"]):
-        is_now_locked, attempts, lock_sec = record_failed_attempt(f"user:{username}")
-        record_failed_attempt(f"ip:{client_ip}")
+        is_now_locked, attempts, _ = record_failed_attempt(f"user:{username}")
+        # IP 维度阈值放宽，避免少数错误输入锁死整个校园 NAT / 代理出口
+        record_failed_attempt(f"ip:{client_ip}", max_attempts=30)
         log_audit_event(user["id"] if user else None, "login_failed", client_ip, f"username: {username}, attempts: {attempts}")
         await asyncio.sleep(0.6)  # 渐进式延迟阻断暴力试凑
         if is_now_locked:
             return JSONResponse(
                 status_code=429,
-                content={"status": "error", "message": f"密码连续错误 5 次，账号已被临时锁定 15 分钟"}
+                content={"status": "error", "message": "密码连续错误 5 次，账号已被临时锁定 15 分钟"}
             )
         rem = max(0, 5 - attempts)
         return JSONResponse(
@@ -457,6 +550,9 @@ async def auth_change_password(request: Request, data: dict):
     new_password = data.get("new_password", "").strip()
     client_ip = get_client_ip(request)
 
+    if len(old_password) > 256 or len(new_password) > 256:
+        return JSONResponse(status_code=400, content={"status": "error", "message": "密码长度超出限制"})
+
     db_user = get_user_by_id(user["id"])
     if not db_user or not verify_password(old_password, db_user["salt"], db_user["password_hash"]):
         log_audit_event(user["id"], "change_password_failed", client_ip, "Old password invalid")
@@ -500,6 +596,10 @@ async def setup_security_and_password(request: Request, data: dict):
 
     if not new_password or not security_question or not security_answer:
         raise HTTPException(status_code=400, detail="新密码、密保问题及密保答案均不能为空")
+    if len(new_password) > 256 or len(security_question) > 200 or len(security_answer) > 200:
+        raise HTTPException(status_code=400, detail="密保问题、答案或密码长度超出限制")
+    if len(security_answer) < 2:
+        raise HTTPException(status_code=400, detail="密保答案至少需要 2 个字符")
 
     if new_password in ["Student@2026!", "Admin@Cogni2026!", "123456", "password"]:
         raise HTTPException(status_code=400, detail="禁止继续使用系统默认初始密码，请设置强密码")
@@ -515,19 +615,22 @@ async def setup_security_and_password(request: Request, data: dict):
 
 @app.get("/api/auth/security_question")
 @app.get("/cogni-scaffold/api/auth/security_question")
-async def get_security_question(username: str = ""):
-    """获取用户预设的密保问题"""
+async def get_security_question(request: Request, username: str = ""):
+    """获取用户预设的密保问题（按 IP 限流，降低账号枚举风险）"""
+    client_ip = get_client_ip(request)
+    allowed, retry_after = check_action_rate(f"secq_lookup:{client_ip}", max_events=30, window_seconds=600)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=f"查询过于频繁，请 {retry_after} 秒后再试")
+
     uname = username.strip()
-    if not uname:
-        raise HTTPException(status_code=400, detail="请输入账号用户名")
+    if not uname or len(uname) > 64:
+        raise HTTPException(status_code=400, detail="请输入有效的账号用户名")
 
     user = get_user_by_username(uname)
-    if not user:
-        raise HTTPException(status_code=404, detail="该账号不存在，请核对用户名")
-
-    question = get_user_security_question(uname)
+    question = get_user_security_question(uname) if user else None
     if not question:
-        raise HTTPException(status_code=400, detail="该账号尚未设置密保问题，请联系任课教师或管理员协助重置密码")
+        # 统一文案，避免通过 404/400 差异枚举系统内已存在的账号
+        raise HTTPException(status_code=400, detail="账号不存在或尚未设置密保问题，请联系任课教师或管理员协助重置密码")
 
     return {"status": "ok", "question": question}
 
@@ -535,23 +638,42 @@ async def get_security_question(username: str = ""):
 @app.post("/api/auth/verify_security_answer")
 @app.post("/cogni-scaffold/api/auth/verify_security_answer")
 async def verify_sec_answer(request: Request, data: dict):
-    """忘记密码第一步：验证密保答案并签发重置令牌"""
+    """忘记密码第一步：验证密保答案并签发重置令牌（连续失败将临时锁定）"""
     uname = data.get("username", "").strip()
     answer = data.get("security_answer", "").strip()
     client_ip = get_client_ip(request)
 
     if not uname or not answer:
         raise HTTPException(status_code=400, detail="用户名和密保答案均不能为空")
+    if len(uname) > 64 or len(answer) > 200:
+        raise HTTPException(status_code=400, detail="用户名或密保答案长度超出限制")
+
+    user_lock_key = f"secq_user:{uname}"
+    ip_lock_key = f"secq_ip:{client_ip}"
+    is_locked, remaining = check_rate_limit(user_lock_key)
+    if not is_locked:
+        is_locked, remaining = check_rate_limit(ip_lock_key)
+    if is_locked:
+        log_audit_event(None, "verify_security_answer_locked", client_ip, f"username: {uname}")
+        raise HTTPException(status_code=429, detail=f"密保验证失败次数过多，请等待 {remaining} 秒后再试")
 
     user = get_user_by_username(uname)
     if not user:
-        raise HTTPException(status_code=404, detail="该账号不存在")
+        # 对不存在账号也执行一次哈希，避免响应时间差暴露账号是否存在
+        verify_password(answer.strip().lower(), generate_salt(), "0" * 64)
+        record_failed_attempt(user_lock_key)
+        record_failed_attempt(ip_lock_key, max_attempts=30)
+        raise HTTPException(status_code=400, detail="密保答案不正确，请重新核对后输入")
 
     is_valid, user_id = verify_security_answer(uname, answer)
     if not is_valid:
+        record_failed_attempt(user_lock_key)
+        record_failed_attempt(ip_lock_key, max_attempts=30)
         log_audit_event(user_id, "verify_security_answer_failed", client_ip, f"username: {uname}")
         raise HTTPException(status_code=400, detail="密保答案不正确，请重新核对后输入")
 
+    reset_failed_attempts(user_lock_key)
+    reset_failed_attempts(ip_lock_key)
     reset_token = create_password_reset_token(user_id, ttl_seconds=600)
     log_audit_event(user_id, "verify_security_answer_success", client_ip, f"username: {uname}")
     return {"status": "ok", "reset_token": reset_token}
@@ -567,6 +689,8 @@ async def reset_password_with_sec_token(request: Request, data: dict):
 
     if not reset_token or not new_password:
         raise HTTPException(status_code=400, detail="重置凭据或新密码不能为空")
+    if len(reset_token) > 256 or len(new_password) > 256:
+        raise HTTPException(status_code=400, detail="重置凭据或密码长度超出限制")
 
     user_id = verify_password_reset_token(reset_token)
     if not user_id:
@@ -606,6 +730,13 @@ async def create_session(request: Request):
             set_user_current_session(user_id, s_id)
             store["current_session_id"] = s_id
             return {"status": "ok", "store": store, "already_exists": True}
+
+    # 防御资源耗尽：限制单个用户同时存在的活跃标签页数量
+    if len(active) >= MAX_ACTIVE_SESSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"当前活跃标签页已达上限（{MAX_ACTIVE_SESSIONS} 个），请先归档或关闭部分会话"
+        )
 
     new_s = create_new_session_data(is_initialized=False, store=store)
     save_user_session(user_id, new_s)
@@ -719,7 +850,9 @@ async def delete_archived(request: Request, data: dict):
 @app.post("/api/theme")
 @app.post("/cogni-scaffold/api/theme")
 async def set_theme(request: Request, data: dict):
-    theme = data.get("theme", "dark")
+    theme = str(data.get("theme", "dark")).strip().lower()
+    if theme not in {"dark", "light"}:
+        raise HTTPException(status_code=400, detail="不支持的主题模式")
     user = get_current_user(request)
     if user:
         from core.db import get_db_connection
@@ -764,8 +897,12 @@ async def init_question(request: Request, data: dict):
                 detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
             )
 
-    # 仅当会话未初始化过（即新发起题目）时计入今日开题额度（预设案例不计入每日开题限额，但在后续对话计入Token与轮次）
-    if not sess.get("is_initialized", False) and not is_admin and not preset_key:
+    # 仅当新发起题目时计入今日开题额度；同一会话中途更换题目同样视为一次新开题，
+    # 避免攻击者复用已初始化会话无限提交新题目绕过每日限额。
+    # 预设案例不计入每日开题限额，但在后续对话计入 Token 与轮次。
+    is_new_question = (not sess.get("is_initialized", False)) or (question_text != (sess.get("question") or ""))
+    should_record_question = bool(is_new_question and not preset_key and not is_admin)
+    if is_new_question and not is_admin and not preset_key:
         can_create, cur_count, max_limit = check_can_create_question(user_id, is_admin=is_admin)
         if not can_create:
             raise HTTPException(
@@ -805,24 +942,33 @@ async def init_question(request: Request, data: dict):
         sess["diagnostic_result"] = None
         sess["transfer_eval_result"] = None
         sess["current_variant_tier"] = 1
-        sess["title"] = generate_session_title(
-            question=question_text,
-            dialogue_history=[],
-            diagnostic_result=None,
-            current_title=sess.get("title", "会话"),
-            title_stage=1,
-            api_config=api_config,
-            user_id=user_id,
-            session_id=s_id
+        # 标题生成与解题底座均为同步网络调用，放入线程池并行执行，避免阻塞事件循环
+        new_title, new_blueprint = await asyncio.gather(
+            asyncio.to_thread(
+                generate_session_title,
+                question=question_text,
+                dialogue_history=[],
+                diagnostic_result=None,
+                current_title=sess.get("title", "会话"),
+                title_stage=1,
+                api_config=api_config,
+                user_id=user_id,
+                session_id=s_id,
+            ),
+            asyncio.to_thread(
+                generate_solver_blueprint,
+                question_text,
+                api_config,
+                user_id=user_id,
+                session_id=s_id,
+            ),
         )
-        sess["solver_blueprint"] = generate_solver_blueprint(
-            question_text,
-            api_config,
-            user_id=user_id,
-            session_id=s_id
-        )
+        sess["title"] = new_title
+        sess["solver_blueprint"] = new_blueprint
 
     save_user_session(user_id, sess)
+    if should_record_question:
+        record_question_submission(user_id, s_id)
     set_user_current_session(user_id, s_id)
     return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
@@ -835,6 +981,7 @@ async def reset_session(request: Request, data: dict):
         raise HTTPException(status_code=401, detail="请先登录")
 
     user_id = user["id"]
+    is_admin = (user.get("role") == "admin")
     s_id = data.get("session_id")
     store = get_user_store(user_id)
     sess = store.get("active_sessions", {}).get(s_id)
@@ -853,12 +1000,15 @@ async def reset_session(request: Request, data: dict):
     return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
-_session_tier_locks: Dict[str, asyncio.Lock] = {}
+_session_tier_locks: "weakref.WeakValueDictionary[str, asyncio.Lock]" = weakref.WeakValueDictionary()
+_STREAM_SENTINEL = object()
 
 def get_session_lock(session_id: str) -> asyncio.Lock:
-    if session_id not in _session_tier_locks:
-        _session_tier_locks[session_id] = asyncio.Lock()
-    return _session_tier_locks[session_id]
+    lock = _session_tier_locks.get(session_id)
+    if lock is None:
+        lock = asyncio.Lock()
+        _session_tier_locks[session_id] = lock
+    return lock
 
 
 @app.post("/api/sessions/verify")
@@ -874,7 +1024,9 @@ async def verify_session(request: Request, data: dict):
     sess = store.get("active_sessions", {}).get(s_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
-        
+    if not sess.get("is_initialized") or not str(sess.get("question") or "").strip():
+        raise HTTPException(status_code=400, detail="该会话尚未开题，无法申请诊断")
+
     lock = get_session_lock(s_id)
     if lock.locked():
         return {"status": "ok", "store": store}
@@ -884,8 +1036,12 @@ async def verify_session(request: Request, data: dict):
         sess = store.get("active_sessions", {}).get(s_id)
         if sess.get("diagnostic_result"):
             return {"status": "ok", "store": store}
-        
+
         is_admin = (user.get("role") == "admin")
+        # 与前端门禁保持一致：至少完成 3 轮真实启发式对话后才允许生成诊断，
+        # 防止直接对空白/新建会话调用接口消耗大模型额度。
+        if not is_admin and int(sess.get("tutor_turns") or 0) < 3:
+            raise HTTPException(status_code=400, detail="请先完成至少 3 轮思维引导对话，再申请突破诊断")
         if not is_admin:
             can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user_id, is_admin=is_admin)
             if not can_tokens:
@@ -893,7 +1049,9 @@ async def verify_session(request: Request, data: dict):
                     status_code=429,
                     detail=f"今日 Token 额度已用尽（今日已消耗 {used_tokens}/{limit_tokens} Tokens）。如需继续探索，请联系任课教师或管理员提升专属限额。"
                 )
-        trigger_diagnosis_for_session(sess, user_id=user_id)
+        diagnosed = await asyncio.to_thread(trigger_diagnosis_for_session, sess, user_id=user_id)
+        if not diagnosed:
+            raise HTTPException(status_code=502, detail="诊断画像生成失败，请稍后重试")
         save_user_session(user_id, sess)
         return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
@@ -920,6 +1078,8 @@ async def next_tier(request: Request, data: dict):
         store = get_user_store(user_id)
         sess = store.get("active_sessions", {}).get(s_id)
         diag = sess.get("diagnostic_result") or {}
+        if not isinstance(diag, dict) or not diag:
+            raise HTTPException(status_code=400, detail="请先申请突破诊断，再挑战更高阶变式")
         existing_tiers = [
             int(k.replace("tier", "").replace("_variant", ""))
             for k in diag.keys()
@@ -941,7 +1101,8 @@ async def next_tier(request: Request, data: dict):
                 )
 
         next_t = max_t + 1
-        new_variant = generate_next_tier_variant(
+        new_variant = await asyncio.to_thread(
+            generate_next_tier_variant,
             sess.get("question", ""),
             sess.get("dialogue_history", []),
             diag,
@@ -950,6 +1111,8 @@ async def next_tier(request: Request, data: dict):
             user_id=user_id,
             session_id=s_id
         )
+        if not isinstance(new_variant, dict):
+            raise HTTPException(status_code=502, detail="变式题生成失败，请稍后重试")
         diag[f"tier{next_t}_variant"] = new_variant
         sess["diagnostic_result"] = diag
         sess["current_variant_tier"] = next_t
@@ -990,7 +1153,9 @@ async def upload_image(
 
         # 过滤与截断题目上下文，防范 Prompt 注入
         safe_context = question_context[:500].strip()
-        recognized_text = analyze_image_input(content, mode, safe_context, api_config, user_id=user["id"])
+        recognized_text = await asyncio.to_thread(
+            analyze_image_input, content, mode, safe_context, api_config, user_id=user["id"]
+        )
         return {"status": "ok", "text": recognized_text}
     except HTTPException:
         raise
@@ -999,14 +1164,14 @@ async def upload_image(
         raise HTTPException(status_code=500, detail="图片处理与识别失败，请检查文件或稍后重试")
 
 
-@app.get("/api/sessions/{session_id}/chat/stream")
-@app.get("/cogni-scaffold/api/sessions/{session_id}/chat/stream")
-async def chat_stream(session_id: str, student_text: str, request: Request):
+@app.post("/api/sessions/{session_id}/chat/stream")
+@app.post("/cogni-scaffold/api/sessions/{session_id}/chat/stream")
+async def chat_stream(session_id: str, request: Request, data: dict):
     user = get_current_user(request)
     if not user:
         raise HTTPException(status_code=401, detail="问答功能需先登录账号")
 
-    student_text = student_text.strip()
+    student_text = str(data.get("student_text", "") or "").strip()
     if not student_text:
         raise HTTPException(status_code=400, detail="输入内容不能为空")
     if len(student_text) > 4000:
@@ -1017,6 +1182,8 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
     sess = store.get("active_sessions", {}).get(session_id)
     if not sess:
         raise HTTPException(status_code=404, detail="Session not found")
+    if not sess.get("is_initialized") or not str(sess.get("question") or "").strip():
+        raise HTTPException(status_code=400, detail="该会话尚未开题，请先提交题目")
 
     # 对话轮次与 Token 门禁检测（非管理员账号受单题目轮次及当日Token限额约束）
     is_admin = (user.get("role") == "admin")
@@ -1040,193 +1207,217 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
         raise HTTPException(status_code=429, detail="当前会话已有正在进行的流式推理，请等待上一轮完成")
 
     async def event_generator():
-        nonlocal user_id, sess
-        await lock.acquire()
-        try:
-            # 1. 记录学生输入
-            sess["dialogue_history"].append({"role": "user", "content": student_text})
+        nonlocal sess
+        # 使用 async with 保证生成器在任意位置被取消时锁都能释放，避免会话永久死锁
+        async with lock:
+            # 抢到锁后重新加载会话快照，避免并发请求用旧快照覆盖上一轮消息
+            latest_store = get_user_store(user_id)
+            latest_sess = (latest_store.get("active_sessions") or {}).get(session_id)
+            if latest_sess:
+                sess = latest_sess
+            try:
+                # 1. 记录学生输入
+                sess["dialogue_history"].append({"role": "user", "content": student_text})
 
-            # 【断路器 1：前置安全与合规检测】
-            is_blocked, refusal_text = check_input_guardrail(student_text)
-            if is_blocked:
-                matched_p = get_matched_guardrail_pattern(student_text)
-                record_guardrail_log(
-                    user_id=user_id,
-                    session_id=session_id,
-                    input_text=student_text,
-                    matched_pattern=matched_p or "keyword_match",
-                    action_taken="blocked"
-                )
-                chunk_size = 12
-                for i in range(0, len(refusal_text), chunk_size):
-                    chunk = refusal_text[i:i+chunk_size]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.01)
-
-                sess["dialogue_history"].append({"role": "assistant", "content": refusal_text})
-                save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
-                return
-
-            # 【意图与早退路由检测】
-            intent_type, intent_guidance = classify_user_intent(student_text, sess.get("question", ""))
-            
-            if intent_type == "PROFANITY":
-                chunk_size = 12
-                for i in range(0, len(intent_guidance), chunk_size):
-                    chunk = intent_guidance[i:i+chunk_size]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.01)
-
-                sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
-                save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
-                return
-
-            elif intent_type in ["GIVE_UP", "OFF_TOPIC", "DEMAND_ANSWER", "LOW_INFO"]:
-                chunk_size = 12
-                for i in range(0, len(intent_guidance), chunk_size):
-                    chunk = intent_guidance[i:i+chunk_size]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.01)
-
-                sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
-                sess["tutor_turns"] += 1
-                save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
-                return
-
-            # 阶段 4：变式迁移挑战应答
-            if sess.get("current_stage") == 4:
-                diag = sess.get("diagnostic_result") or {}
-                defined_tiers = [
-                    int(k.replace("tier", "").replace("_variant", ""))
-                    for k in diag.keys()
-                    if k.startswith("tier") and k.endswith("_variant") and k.replace("tier", "").replace("_variant", "").isdigit()
-                ]
-                max_defined = max(defined_tiers, default=3)
-                curr_tier = sess.get("current_variant_tier", 1)
-
-                if curr_tier > max_defined:
-                    next_t = max_defined + 1
-                    new_variant = generate_next_tier_variant(
-                        sess.get("question", ""),
-                        sess.get("dialogue_history", []),
-                        diag,
-                        next_t,
-                        api_config,
+                # 【断路器 1：前置安全与合规检测】
+                is_blocked, refusal_text = check_input_guardrail(student_text)
+                if is_blocked:
+                    matched_p = get_matched_guardrail_pattern(student_text)
+                    record_guardrail_log(
                         user_id=user_id,
-                        session_id=session_id
+                        session_id=session_id,
+                        input_text=student_text,
+                        matched_pattern=matched_p or "keyword_match",
+                        action_taken="blocked"
                     )
-                    diag[f"tier{next_t}_variant"] = new_variant
-                    sess["diagnostic_result"] = diag
-                    sess["current_variant_tier"] = next_t
-                    sess["current_stage"] = 4
-                    prompt_msg = dispatch_variant_tier_data(sess, next_t)
-                    save_user_session(user_id, sess)
-
                     chunk_size = 12
-                    for i in range(0, len(prompt_msg), chunk_size):
-                        chunk = prompt_msg[i:i+chunk_size]
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant_variant'}, ensure_ascii=False)}\n\n"
+                    for i in range(0, len(refusal_text), chunk_size):
+                        chunk = refusal_text[i:i+chunk_size]
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
                         await asyncio.sleep(0.01)
 
+                    sess["dialogue_history"].append({"role": "assistant", "content": refusal_text})
+                    save_user_session(user_id, sess)
                     yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
                     return
 
-                tier_data = diag.get(f"tier{curr_tier}_variant", {})
-                var_q = tier_data.get("question", "变式题")
-                var_h = tier_data.get("hint", "")
+                # 【意图与早退路由检测】
+                intent_type, intent_guidance = classify_user_intent(student_text, sess.get("question", ""))
 
-                eval_text = evaluate_transfer_answer(var_q, var_h, student_text, api_config, user_id=user_id, session_id=session_id)
-                
-                chunk_size = 8
-                for i in range(0, len(eval_text), chunk_size):
-                    chunk = eval_text[i:i+chunk_size]
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant_variant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.02)
+                if intent_type == "PROFANITY":
+                    chunk_size = 12
+                    for i in range(0, len(intent_guidance), chunk_size):
+                        chunk = intent_guidance[i:i+chunk_size]
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                        await asyncio.sleep(0.01)
 
-                sess["dialogue_history"].append({"role": "assistant_variant", "content": eval_text})
-                sess["transfer_eval_result"] = eval_text
+                    sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
+                    save_user_session(user_id, sess)
+                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
+                    return
 
-                if is_transfer_eval_passed(eval_text):
-                    if curr_tier < max_defined:
-                        next_t = curr_tier + 1
+                elif intent_type in ["GIVE_UP", "OFF_TOPIC", "DEMAND_ANSWER", "LOW_INFO"]:
+                    chunk_size = 12
+                    for i in range(0, len(intent_guidance), chunk_size):
+                        chunk = intent_guidance[i:i+chunk_size]
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                        await asyncio.sleep(0.01)
+
+                    sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
+                    sess["tutor_turns"] += 1
+                    save_user_session(user_id, sess)
+                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
+                    return
+
+                # 阶段 4：变式迁移挑战应答
+                if sess.get("current_stage") == 4:
+                    diag = sess.get("diagnostic_result") or {}
+                    if not isinstance(diag, dict):
+                        diag = {}
+                    defined_tiers = [
+                        int(k.replace("tier", "").replace("_variant", ""))
+                        for k in diag.keys()
+                        if k.startswith("tier") and k.endswith("_variant") and k.replace("tier", "").replace("_variant", "").isdigit()
+                    ]
+                    max_defined = max(defined_tiers, default=3)
+                    curr_tier = sess.get("current_variant_tier", 1)
+
+                    if curr_tier > max_defined:
+                        next_t = max_defined + 1
+                        new_variant = await asyncio.to_thread(
+                            generate_next_tier_variant,
+                            sess.get("question", ""),
+                            sess.get("dialogue_history", []),
+                            diag,
+                            next_t,
+                            api_config,
+                            user_id=user_id,
+                            session_id=session_id
+                        )
+                        if isinstance(new_variant, dict):
+                            diag[f"tier{next_t}_variant"] = new_variant
+                        sess["diagnostic_result"] = diag
                         sess["current_variant_tier"] = next_t
-                        dispatch_variant_tier_data(sess, next_t)
-                    else:
-                        sess["current_variant_tier"] = max_defined + 1
+                        sess["current_stage"] = 4
+                        prompt_msg = dispatch_variant_tier_data(sess, next_t)
+                        save_user_session(user_id, sess)
 
-                save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
+                        chunk_size = 12
+                        for i in range(0, len(prompt_msg), chunk_size):
+                            chunk = prompt_msg[i:i+chunk_size]
+                            yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant_variant'}, ensure_ascii=False)}\n\n"
+                            await asyncio.sleep(0.01)
 
-            else:
-                # 阶段 1~3：启发式引导
-                full_response = ""
-                temp_history = list(sess["dialogue_history"])
-                usage_dict = {}
-                
-                for chunk in stream_tutor_response(temp_history, sess.get("solver_blueprint", ""), api_config, usage_dict=usage_dict):
-                    if await request.is_disconnected():
-                        print(f"[Chat Stream] Client disconnected prematurely for session {session_id}")
-                        break
-                    full_response += chunk
-                    clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
-                    if clean_chunk:
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                    await asyncio.sleep(0.01)
+                        yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
+                        return
 
-                clean_full = full_response.replace("[TRIGGER_DIAGNOSIS]", "").strip()
-                sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
-                sess["tutor_turns"] += 1
+                    tier_data = diag.get(f"tier{curr_tier}_variant", {})
+                    if not isinstance(tier_data, dict):
+                        tier_data = {}
+                    var_q = tier_data.get("question", "变式题")
+                    var_h = tier_data.get("hint", "")
 
-                if usage_dict:
-                    record_token_usage(
-                        user_id=user_id,
-                        session_id=session_id,
-                        prompt_tokens=usage_dict.get("prompt_tokens", 0),
-                        completion_tokens=usage_dict.get("completion_tokens", 0),
-                        total_tokens=usage_dict.get("total_tokens", 0),
-                        model_name=api_config.get("model", "deepseek-chat"),
-                        call_type="chat_tutor"
+                    eval_text = await asyncio.to_thread(
+                        evaluate_transfer_answer, var_q, var_h, student_text, api_config,
+                        user_id=user_id, session_id=session_id
+                    )
+                    eval_text = str(eval_text or "")
+
+                    chunk_size = 8
+                    for i in range(0, len(eval_text), chunk_size):
+                        chunk = eval_text[i:i+chunk_size]
+                        yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant_variant'}, ensure_ascii=False)}\n\n"
+                        await asyncio.sleep(0.02)
+
+                    sess["dialogue_history"].append({"role": "assistant_variant", "content": eval_text})
+                    sess["transfer_eval_result"] = eval_text
+
+                    if is_transfer_eval_passed(eval_text):
+                        if curr_tier < max_defined:
+                            next_t = curr_tier + 1
+                            sess["current_variant_tier"] = next_t
+                            dispatch_variant_tier_data(sess, next_t)
+                        else:
+                            sess["current_variant_tier"] = max_defined + 1
+
+                    save_user_session(user_id, sess)
+                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
+
+                else:
+                    # 阶段 1~3：启发式引导
+                    full_response = ""
+                    temp_history = list(sess["dialogue_history"])
+                    usage_dict = {}
+
+                    # 同步 SDK 的流式迭代放入线程池，避免单个慢请求阻塞整个事件循环
+                    tutor_gen = stream_tutor_response(
+                        temp_history, sess.get("solver_blueprint", ""), api_config, usage_dict=usage_dict
+                    )
+                    try:
+                        while True:
+                            chunk = await asyncio.to_thread(next, tutor_gen, _STREAM_SENTINEL)
+                            if chunk is _STREAM_SENTINEL:
+                                break
+                            if await request.is_disconnected():
+                                print(f"[Chat Stream] Client disconnected prematurely for session {session_id}")
+                                break
+                            full_response += chunk
+                            clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
+                            if clean_chunk:
+                                yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                            await asyncio.sleep(0.01)
+                    finally:
+                        await asyncio.to_thread(tutor_gen.close)
+
+                    clean_full = full_response.replace("[TRIGGER_DIAGNOSIS]", "").strip()
+                    sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
+                    sess["tutor_turns"] += 1
+
+                    if usage_dict:
+                        record_token_usage(
+                            user_id=user_id,
+                            session_id=session_id,
+                            prompt_tokens=usage_dict.get("prompt_tokens", 0),
+                            completion_tokens=usage_dict.get("completion_tokens", 0),
+                            total_tokens=usage_dict.get("total_tokens", 0),
+                            model_name=api_config.get("model", "deepseek-chat"),
+                            call_type="chat_tutor"
+                        )
+
+                    if sess.get("title_stage", 0) == 0:
+                        new_title = await asyncio.to_thread(
+                            generate_session_title,
+                            sess["question"],
+                            sess["dialogue_history"],
+                            None,
+                            sess.get("title", ""),
+                            title_stage=1,
+                            api_config=api_config,
+                            user_id=user_id,
+                            session_id=session_id
+                        )
+                        sess["title"] = new_title
+                        sess["title_stage"] = 1
+
+                    is_refusal = check_output_refusal(clean_full)
+
+                    can_trigger_diagnosis = (
+                        not is_refusal
+                        and (intent_type not in ["LOW_INFO", "DEMAND_ANSWER"] and sess.get("tutor_turns", 0) >= 2)
+                        and "[TRIGGER_DIAGNOSIS]" in full_response
                     )
 
-                if sess.get("title_stage", 0) == 0:
-                    new_title = generate_session_title(
-                        sess["question"],
-                        sess["dialogue_history"],
-                        None,
-                        sess.get("title", ""),
-                        title_stage=1,
-                        api_config=api_config,
-                        user_id=user_id,
-                        session_id=session_id
-                    )
-                    sess["title"] = new_title
-                    sess["title_stage"] = 1
+                    if can_trigger_diagnosis:
+                        await asyncio.to_thread(trigger_diagnosis_for_session, sess, user_id=user_id)
 
-                is_refusal = check_output_refusal(clean_full)
+                    save_user_session(user_id, sess)
+                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
 
-                can_trigger_diagnosis = (
-                    not is_refusal
-                    and (intent_type not in ["LOW_INFO", "DEMAND_ANSWER"] and sess.get("tutor_turns", 0) >= 2)
-                    and "[TRIGGER_DIAGNOSIS]" in full_response
-                )
-
-                if can_trigger_diagnosis:
-                    trigger_diagnosis_for_session(sess, user_id=user_id)
-
-                save_user_session(user_id, sess)
+            except Exception as err:
+                print(f"[Chat Stream Exception] {type(err).__name__}: {err}")
+                err_msg = "⚠️ 导师连接处理异常，请点击重试。"
+                yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
                 yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
-
-        except Exception as err:
-            print(f"[Chat Stream Exception] {type(err).__name__}: {err}")
-            err_msg = "⚠️ 导师连接处理异常，请点击重试。"
-            yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
-        finally:
-            if lock.locked():
-                lock.release()
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -1253,6 +1444,7 @@ async def admin_get_users(
     page_size: int = 500
 ):
     require_admin(request)
+    page_size = max(1, min(int(page_size), 500))
     users = get_admin_users_list(search=search, role=role, status=status, limit=page_size)
     return {"status": "ok", "users": users, "total_count": len(users)}
 
@@ -1265,17 +1457,26 @@ async def admin_batch_users(request: Request, data: dict):
     users_to_create = []
 
     if mode == "pattern":
-        prefix = data.get("prefix", "student").strip()
-        start = int(data.get("start", 1))
-        end = int(data.get("end", 10))
-        default_pwd = data.get("default_password", "CogniScaffold123!").strip()
-        role = data.get("role", "student")
+        prefix = str(data.get("prefix", "student")).strip()
+        try:
+            start = int(data.get("start", 1))
+            end = int(data.get("end", 10))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="起始编号与结束编号必须为整数")
+        default_pwd = str(data.get("default_password", "CogniScaffold123!")).strip()
+        role = str(data.get("role", "student")).strip()
 
+        if role not in ("student", "admin"):
+            raise HTTPException(status_code=400, detail="非法的用户角色")
+        if not re.fullmatch(r"[A-Za-z0-9_.@-]{2,32}", prefix):
+            raise HTTPException(status_code=400, detail="账号前缀仅允许 2-32 位字母、数字、下划线、点、@ 或连字符")
+        if start < 1 or end > 999999:
+            raise HTTPException(status_code=400, detail="编号范围必须在 1-999999 之间")
         if end < start:
             raise HTTPException(status_code=400, detail="结束编号不能小于起始编号")
         if (end - start + 1) > 200:
             raise HTTPException(status_code=400, detail="单次批量生成账号数量不能超过 200 个")
-        
+
         valid_pwd, pwd_err = validate_password_strength(default_pwd)
         if not valid_pwd:
             raise HTTPException(status_code=400, detail=f"默认密码不符合强度要求：{pwd_err}")
@@ -1305,6 +1506,13 @@ async def admin_batch_users(request: Request, data: dict):
             pwd = parts[1]
             dname = parts[2] if len(parts) > 2 else uname
             role = parts[3] if len(parts) > 3 and parts[3] in ["student", "admin"] else "student"
+            if not re.fullmatch(r"[A-Za-z0-9_.@-]{2,32}", uname):
+                raise HTTPException(status_code=400, detail=f"账号格式非法：{uname[:32]}")
+            if len(pwd) > 256 or len(dname) > 40:
+                raise HTTPException(status_code=400, detail=f"账号 {uname[:32]} 的密码或显示名称过长")
+            valid_pwd, pwd_err = validate_password_strength(pwd)
+            if not valid_pwd:
+                raise HTTPException(status_code=400, detail=f"账号 {uname[:32]} 的密码不符合强度要求：{pwd_err}")
             users_to_create.append({
                 "username": uname,
                 "password": pwd,
@@ -1334,6 +1542,9 @@ async def admin_ban_user(request: Request, data: dict):
         raise HTTPException(status_code=400, detail="缺少 user_id 参数")
     if str(user_id) == str(admin["id"]):
         raise HTTPException(status_code=400, detail="管理员不可封禁自己的账号")
+    if duration not in ("1d", "3d", "7d", "custom", "permanent"):
+        raise HTTPException(status_code=400, detail="不支持的封禁时长")
+    reason = str(reason or "").strip()[:200] or "管理员临时封禁"
 
     now = now_east8()
     if duration == "1d":
@@ -1343,9 +1554,19 @@ async def admin_ban_user(request: Request, data: dict):
     elif duration == "7d":
         banned_until = (now + timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
     elif duration == "custom":
+        custom_until = str(custom_until or "").strip()
         if not custom_until:
             raise HTTPException(status_code=400, detail="自定义封禁时间不能为空")
-        banned_until = custom_until
+        parsed = None
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M", "%Y-%m-%d"):
+            try:
+                parsed = datetime.strptime(custom_until, fmt)
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            raise HTTPException(status_code=400, detail="自定义封禁时间格式不正确，请使用 YYYY-MM-DD HH:MM:SS")
+        banned_until = parsed.strftime("%Y-%m-%d %H:%M:%S")
     else:
         banned_until = "permanent"
 
@@ -1373,6 +1594,8 @@ async def admin_reset_password(request: Request, data: dict):
 
     if not user_id or not new_password:
         raise HTTPException(status_code=400, detail="缺少 user_id 或新密码")
+    if len(new_password) > 256:
+        raise HTTPException(status_code=400, detail="新密码长度超出限制")
 
     valid, err_msg = validate_password_strength(new_password)
     if not valid:
@@ -1395,27 +1618,28 @@ async def admin_set_quota(request: Request, data: dict):
     custom_daily = data.get("custom_daily_limit")
     custom_turn = data.get("custom_turn_limit")
     custom_token = data.get("custom_daily_token_limit")
-    reset_today = data.get("reset_today", False)
+    reset_today = bool(data.get("reset_today", False))
 
-    if custom_daily is not None and custom_daily != "":
-        custom_daily = int(custom_daily)
-    else:
-        custom_daily = None
+    def _parse_quota(value, field: str):
+        if value is None or value == "":
+            return None
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail=f"{field} 必须为整数")
+        if parsed < 1 or parsed > 10_000_000:
+            raise HTTPException(status_code=400, detail=f"{field} 必须在 1-10000000 之间")
+        return parsed
 
-    if custom_turn is not None and custom_turn != "":
-        custom_turn = int(custom_turn)
-    else:
-        custom_turn = None
+    custom_daily = _parse_quota(custom_daily, "每日开题上限")
+    custom_turn = _parse_quota(custom_turn, "单题轮次上限")
+    custom_token = _parse_quota(custom_token, "每日 Token 上限")
 
-    if custom_token is not None and custom_token != "":
-        custom_token = int(custom_token)
-    else:
-        custom_token = None
-
-    set_user_custom_quota(str(user_id), custom_daily, custom_turn, custom_token)
+    updated = set_user_custom_quota(str(user_id), custom_daily, custom_turn, custom_token)
+    if not updated:
+        raise HTTPException(status_code=404, detail="目标用户不存在")
     if reset_today:
         reset_user_today_questions(str(user_id))
-
     return {"status": "ok", "message": "用户专属额度配置已更新"}
 
 
@@ -1428,6 +1652,7 @@ async def admin_get_sessions(
     page_size: int = 100
 ):
     require_admin(request)
+    page_size = max(1, min(int(page_size), 500))
     sessions = get_admin_sessions_list(user_id=user_id, search=search or "", limit=page_size)
     return {"status": "ok", "sessions": sessions, "total_count": len(sessions)}
 
@@ -1455,7 +1680,41 @@ async def admin_get_configs(request: Request):
 async def admin_set_configs(request: Request, data: dict):
     require_admin(request)
     configs = data.get("configs", {})
+    if not isinstance(configs, dict):
+        raise HTTPException(status_code=400, detail="configs 必须为对象")
+
+    int_limits = {
+        "daily_question_limit": (1, 100000),
+        "session_turn_limit": (1, 100000),
+        "daily_token_limit": (1, 100000000),
+    }
+    float_prices = {"deepseek_input_price_per_m", "deepseek_output_price_per_m"}
+    allowed_keys = set(int_limits) | float_prices
+
+    sanitized: Dict[str, str] = {}
     for k, v in configs.items():
+        key = str(k)
+        if key not in allowed_keys:
+            raise HTTPException(status_code=400, detail=f"不支持的系统配置项：{key[:40]}")
+        if key in int_limits:
+            try:
+                parsed = int(str(v).strip())
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"配置项 {key} 必须为整数")
+            low, high = int_limits[key]
+            if parsed < low or parsed > high:
+                raise HTTPException(status_code=400, detail=f"配置项 {key} 必须在 {low}-{high} 之间")
+            sanitized[key] = str(parsed)
+        else:
+            try:
+                parsed_f = float(str(v).strip())
+            except (TypeError, ValueError):
+                raise HTTPException(status_code=400, detail=f"配置项 {key} 必须为数字")
+            if parsed_f < 0 or parsed_f > 1_000_000:
+                raise HTTPException(status_code=400, detail=f"配置项 {key} 超出允许范围")
+            sanitized[key] = str(parsed_f)
+
+    for k, v in sanitized.items():
         set_system_config(k, v)
     return {"status": "ok", "message": "系统全局配置已更新", "configs": get_all_system_configs()}
 
@@ -1464,6 +1723,7 @@ async def admin_set_configs(request: Request, data: dict):
 @app.get("/cogni-scaffold/api/admin/guardrail_logs")
 async def admin_get_guardrail_logs(request: Request, limit: int = 100):
     require_admin(request)
+    limit = max(1, min(int(limit), 1000))
     logs = get_guardrail_logs(limit=limit)
     return {"status": "ok", "logs": logs}
 
@@ -1489,12 +1749,15 @@ async def admin_probe_api(request: Request):
         }
 
     try:
-        client = OpenAI(api_key=api_key, base_url=base_url, timeout=10.0)
-        res = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": "ping"}],
-            max_tokens=1
-        )
+        def _probe():
+            client = OpenAI(api_key=api_key, base_url=base_url, timeout=10.0)
+            return client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": "ping"}],
+                max_tokens=1
+            )
+
+        res = await asyncio.to_thread(_probe)
         latency_ms = int((time.time() - start_time) * 1000)
         return {
             "status": "ok",
@@ -1523,15 +1786,30 @@ async def admin_probe_api(request: Request):
 @app.post("/cogni-scaffold/api/feedbacks")
 async def create_feedback_endpoint(request: Request, data: dict):
     user = get_current_user(request)
-    title = (data.get("title") or "").strip()
-    content = (data.get("content") or "").strip()
-    category = data.get("category", "other")
-    contact = (data.get("contact") or "").strip()
+    client_ip = get_client_ip(request)
+    # 反馈接口允许匿名提交，因此必须限流，防止被用于灌库或骚扰
+    allowed, retry_after = check_action_rate(f"feedback:{client_ip}", max_events=10, window_seconds=600)
+    if not allowed:
+        raise HTTPException(status_code=429, detail=f"提交过于频繁，请 {retry_after} 秒后再试")
+
+    title = str(data.get("title") or "").strip()
+    content = str(data.get("content") or "").strip()
+    contact = str(data.get("contact") or "").strip()
+    raw_category = str(data.get("category") or "other").strip()
+    allowed_categories = {"pedagogical", "bug", "ui", "feature", "other"}
+    # 白名单收敛分类字段，杜绝把任意 HTML/脚本写入数据库并回流到管理端
+    category = raw_category if raw_category in allowed_categories else "other"
 
     if not title:
         raise HTTPException(status_code=400, detail="反馈标题不能为空")
     if not content:
         raise HTTPException(status_code=400, detail="反馈详细内容不能为空")
+    if len(title) > 200:
+        raise HTTPException(status_code=400, detail="反馈标题过长（最多 200 字）")
+    if len(content) > 5000:
+        raise HTTPException(status_code=400, detail="反馈内容过长（最多 5000 字）")
+    if len(contact) > 200:
+        raise HTTPException(status_code=400, detail="联系方式过长（最多 200 字）")
 
     fb = submit_user_feedback(
         user_id=str(user["id"]) if user else None,
@@ -1563,6 +1841,7 @@ async def admin_get_feedbacks_endpoint(
     limit: int = 100
 ):
     require_admin(request)
+    limit = max(1, min(int(limit), 500))
     fbs = get_admin_feedbacks(status=status, search=search or "", limit=limit)
     return {"status": "ok", "feedbacks": fbs}
 
@@ -1576,6 +1855,10 @@ async def admin_reply_feedback_endpoint(feedback_id: int, request: Request, data
 
     if not reply:
         raise HTTPException(status_code=400, detail="回复内容不能为空")
+    if len(reply) > 5000:
+        raise HTTPException(status_code=400, detail="回复内容过长（最多 5000 字）")
+    if status not in ("replied", "pending", "closed"):
+        status = "replied"
 
     success = reply_user_feedback(
         feedback_id=feedback_id,
