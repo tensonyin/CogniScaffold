@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  cogni-scaffold:
+    image: cogni-scaffold-app:latest
+    container_name: cogni-scaffold
+    restart: unless-stopped
+    ports:
+      # 外部访问端口:容器内部端口（如需修改访问端口，仅修改前面的 8501 即可，例如 "80:8501"）
+      - "8501:8501"
+    env_file:
+      - .env
+    volumes:
+      # 持久化存储 SQLite 数据库与用户数据，重启或升级不丢失数据
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8501/api/bootstrap"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
