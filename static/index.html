@@ -5261,113 +5261,58 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     // 初始化载入（经过零延迟优化：首屏即刻就绪，异步热补丁数据）
     // ============================================================
-    // 🖐️ 触控防误触与缩放治理引擎 (全面兼容 Chrome on iOS / Safari / Android / 桌面端)
-    // 核心逻辑：
-    // 1. 允许双指向内捏合缩小（scale <= 1.0 时畅通缩回），仅拦截向外张开手势（禁止继续放大）
-    // 2. 避免在 touchstart 和 gesturestart 上调用 preventDefault，防止将缩回手势彻底杀死
-    // 3. 在 gesturechange 上精准按 e.scale > 1.0 实施单向放大拦截，e.scale <= 1.0 顺畅缩回
-    // 4. 输入框失焦 (focusout) 与用户触控结束 (touchend) 自动复位视口
+    // 🖐️ 触控防误触与缩放治理引擎 (安全版本：绝不拦截单指触控与点击事件)
+    // 1. 仅在 iOS WebKit 发生手势缩放且试图放大时拦截 (gesturechange e.scale > 1.0)；放行缩小手势
+    // 2. 仅在真正双指触控 (e.touches.length > 1) 且两指间距扩张时拦截 touchmove 放大；放行缩小手势
+    // 3. 绝不在 touchend / touchstart 上拦截事件，确保所有标签页、卡片、按钮点击 100% 正常响应
+    // 4. 触控板滚轮缩放拦截 (wheel + ctrlKey)，不影响物理键盘 Ctrl+/- 缩放
     // ============================================================
-    
-    // (1) iOS WebKit (Safari & Chrome on iOS) 原生手势拦截：仅拦截放大，放行缩小
-    function handleGestureChange(e) {
+
+    // (1) iOS WebKit (Safari & Chrome on iOS) 原生手势精准单向拦截：仅阻断放大，允许捏合缩小
+    window.addEventListener('gesturechange', function(e) {
       if (e.scale > 1.0) {
-        // 向外张开手势（试图继续放大）：坚决阻止
         e.preventDefault();
       }
-      // e.scale <= 1.0 表示向内捏合手势（正在缩小回弹），绝对不拦截，允许浏览器内核顺畅缩回！
-    }
-    window.addEventListener('gesturechange', handleGestureChange, { passive: false, capture: true });
-    document.addEventListener('gesturechange', handleGestureChange, { passive: false, capture: true });
+    }, { passive: false });
 
-    // (2) 双指触控智能方向判定
-    let pinchStartDistance = 0;
-    function calcTouchDistance(touches) {
+    // (2) 真正双指触控智能方向判定 (仅针对 touches.length > 1 的两指手势，绝不影响单指交互)
+    let multiTouchDistance = 0;
+    function calcDistance(touches) {
       if (!touches || touches.length < 2) return 0;
       const dx = touches[0].clientX - touches[1].clientX;
       const dy = touches[0].clientY - touches[1].clientY;
       return Math.sqrt(dx * dx + dy * dy);
     }
 
-    function handleMultiTouchStart(e) {
+    window.addEventListener('touchstart', function(e) {
       if (e.touches && e.touches.length > 1) {
-        pinchStartDistance = calcTouchDistance(e.touches);
-        // 注意：切勿在 touchstart 调用 preventDefault()，否则会直接将后续的缩小动作一并取消！
-      }
-    }
-
-    function handleMultiTouchMove(e) {
-      if (e.touches && e.touches.length > 1) {
-        const currentDistance = calcTouchDistance(e.touches);
-        // 仅当两指距离明显变大（正在执行向外放大动作）时，拦截放大
-        if (currentDistance > pinchStartDistance + 2) {
-          e.preventDefault();
-        }
-        // 若两指距离变小或持平（向内捏合缩小），放行手势让其正常缩小回 1.0！
-      }
-    }
-
-    window.addEventListener('touchstart', handleMultiTouchStart, { passive: false, capture: true });
-    document.addEventListener('touchstart', handleMultiTouchStart, { passive: false, capture: true });
-
-    window.addEventListener('touchmove', handleMultiTouchMove, { passive: false, capture: true });
-    document.addEventListener('touchmove', handleMultiTouchMove, { passive: false, capture: true });
-
-    // (3) 双击防误触放大（320ms 快速连续点击非输入框区域不放大）
-    let lastTouchEndStamp = 0;
-    function handleTouchEndCheck(e) {
-      const now = Date.now();
-      const isFormInteractive = e.target && e.target.closest && e.target.closest('input, textarea, select, button, a, [contenteditable="true"]');
-      if (!isFormInteractive && (now - lastTouchEndStamp <= 320)) {
-        e.preventDefault();
-      }
-      lastTouchEndStamp = now;
-    }
-    window.addEventListener('touchend', handleTouchEndCheck, { passive: false, capture: true });
-    document.addEventListener('touchend', handleTouchEndCheck, { passive: false, capture: true });
-
-    // (4) 触控板滚轮手势双指缩放拦截（仅拦截带有 ctrlKey 的 wheel 事件，完全保留 Ctrl+/- 键盘缩放）
-    function handleWheelPinch(e) {
-      if (e.ctrlKey) {
-        e.preventDefault();
-      }
-    }
-    window.addEventListener('wheel', handleWheelPinch, { passive: false, capture: true });
-    document.addEventListener('wheel', handleWheelPinch, { passive: false, capture: true });
-
-    // (5) 移动端 iOS 视口强制复位自愈引擎
-    function forceResetViewportScale() {
-      const meta = document.querySelector('meta[name="viewport"]');
-      if (!meta) return;
-      // 技巧：先变更 content 迫使 WebKit 重新排版视口边界，再复位回 1.0 锁定
-      meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0');
-      setTimeout(() => {
-        meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover');
-      }, 50);
-    }
-
-    // 1) 在输入框失焦 (键盘收起) 时，触发视口复位
-    document.addEventListener('focusout', function(e) {
-      if (e.target && /input|textarea|select/i.test(e.target.tagName)) {
-        setTimeout(forceResetViewportScale, 100);
-      }
-    });
-
-    // 2) 视口缩放监视器：若检测到 scale > 1.01，在用户触碰结束 (touchend) 后主动纠偏拉回
-    window.addEventListener('touchend', function() {
-      if (window.visualViewport && window.visualViewport.scale > 1.01) {
-        forceResetViewportScale();
+        multiTouchDistance = calcDistance(e.touches);
       }
     }, { passive: true });
 
-    // 3) 视口尺寸变化监视器
-    if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', function() {
-        if (window.visualViewport.scale > 1.02) {
-          forceResetViewportScale();
+    window.addEventListener('touchmove', function(e) {
+      if (e.touches && e.touches.length > 1) {
+        const curDist = calcDistance(e.touches);
+        // 仅在明确向外张开两指（距离增大）时拦截放大
+        if (curDist > multiTouchDistance + 4) {
+          e.preventDefault();
         }
-      });
-    }
+      }
+    }, { passive: false });
+
+    // (3) 触控板滚轮手势双指缩放拦截 (wheel + ctrlKey，保留物理键盘 Ctrl+/-)
+    window.addEventListener('wheel', function(e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    // (4) 软键盘收起自愈
+    document.addEventListener('focusout', function(e) {
+      if (e.target && /input|textarea|select/i.test(e.target.tagName)) {
+        window.scrollTo(0, window.scrollY);
+      }
+    });
 
     async function initApp() {
       // 1. 同步即时渲染：0 毫秒首屏呈现，彻底杜绝白屏与卡顿

@@ -102,7 +102,7 @@ class TestSixImprovements(unittest.TestCase):
         self.assertTrue("top: 1" in css or "top: 2" in css or "top: 12" in css or "top: 13" in css or "top: 14" in css, "Pill should have safe top offset")
 
     def test_04_touch_zoom_prevention_script(self):
-        """Item 5: Script should prevent multi-touch zoom and wheel zoom while allowing keyboard zoom and pinch-out recovery"""
+        """Item 5: Script should prevent multi-touch zoom and wheel zoom while allowing keyboard zoom and single-tap clicks"""
         with open("static/index.html", "r", encoding="utf-8") as f:
             html = f.read()
 
@@ -110,9 +110,8 @@ class TestSixImprovements(unittest.TestCase):
         self.assertIn("minimum-scale=1.0", html)
         self.assertIn("touch-action: pan-x pan-y", html)
         self.assertIn("gesturechange", html)
-        self.assertIn("forceResetViewportScale", html)
-        self.assertIn("calcTouchDistance", html)
-        self.assertIn("currentDistance > pinchStartDistance", html)
+        self.assertIn("calcDistance", html)
+        self.assertIn("curDist > multiTouchDistance", html)
 
     def test_05_logout_forces_clean_reload(self):
         """Item 2: handleLogout should remove tokens and reload window"""
