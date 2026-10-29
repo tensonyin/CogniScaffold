@@ -4529,7 +4529,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             </li>
             <li>
               <span class="badge-fix">修复</span>
-              <span><strong>深色/浅色模式持久化与管理端优化</strong>：刷新保持当前主题风格；修复账号筛选文字遮挡与审计抽屉学者身份标记。</span>
+              <span><strong>深色/浅色模式持久化与视觉体验提升</strong>：刷新后自动保持当前主题风格；优化各端文字排版、卡片对比度与移动端触控体验。</span>
             </li>
           </ul>
         </div>
@@ -4546,7 +4546,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>意见反馈互动与答复闭环</strong>：学者可在页面随时提交推导疑问或功能建议，管理员控制台直接在线答复并标记已读。</span>
+              <span><strong>意见反馈互动与答复闭环</strong>：学者可在页面随时提交推导疑问或功能建议，专职导师团队在线查阅并实时答复。</span>
             </li>
             <li>
               <span class="badge-feat">新增</span>
@@ -4554,7 +4554,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>全景审查一键封禁与移动端双层标签</strong>：审计抽屉支持直达封禁；移动端适配双层全宽标签流，间距与标题清晰可触。</span>
+              <span><strong>移动端多标签流交互革新</strong>：手机端适配双层自适应标签栏，对话标题与标签间距清晰易触控，提升移动端推导体验。</span>
             </li>
           </ul>
         </div>
@@ -4564,22 +4564,22 @@ student04, CogniScaffold123!, 李小明"></textarea>
           <div class="changelog-header-row">
             <div style="display: flex; align-items: center; gap: 8px;">
               <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.6.0</span>
-              <span class="changelog-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">机构管控</span>
+              <span class="changelog-tag" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">专注护航</span>
             </div>
             <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-27</span>
           </div>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>机构级管理控制台</strong>：前缀递增与表格批量建号、临时/永久账号封禁与违规说明管理。</span>
+              <span><strong>沉浸专注力与防疲劳体系</strong>：单日探索题目上限与每题深度交互轮次限制，防止盲目刷题，倡导高质量推导思考。</span>
             </li>
             <li>
               <span class="badge-sec">安全</span>
-              <span><strong>防沉迷与开题限额双保底</strong>：单日提问限额（默认15道）、单题深度启发交互限额（默认30轮），支持后台随调与重置。</span>
+              <span><strong>科学开题与阶段思维阶梯</strong>：设置阶梯式推导防疲劳节奏，保障每一道题目的苏格拉底脚手架都能充分内化吸收。</span>
             </li>
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>全量会话审计与成本透视</strong>：按学者筛选会话流，查看解题蓝图与完整交互流，一键导出 Markdown 审计文件。</span>
+              <span><strong>研习笔记与推导全景导出</strong>：支持将完整思维演进路径与导师交互过程一键导出为 Markdown 格式，便于离线复习沉淀。</span>
             </li>
           </ul>
         </div>
@@ -5547,6 +5547,30 @@ student04, CogniScaffold123!, 李小明"></textarea>
     // ============================================================
     // 🔐 用户认证面板、改密与门禁拦截控制逻辑
     // ============================================================
+    function formatEast8(dateStr) {
+      if (!dateStr || dateStr === '-') return '-';
+      try {
+        if (typeof dateStr === 'string' && (dateStr.includes('Z') || dateStr.includes('+'))) {
+          const d = new Date(dateStr);
+          if (!isNaN(d.getTime())) {
+            return d.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', hour12: false }).replace(/\//g, '-');
+          }
+        }
+        return dateStr;
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    function applyUserQuota(quota) {
+      if (!quota || !currentUser) return;
+      currentUser.quota = Object.assign({}, currentUser.quota || {}, quota);
+      try {
+        localStorage.setItem('cogni_current_user', JSON.stringify(currentUser));
+      } catch (e) {}
+      updateUserUI();
+    }
+
     function updateUserUI() {
       const userAuthBtn = document.getElementById('userAuthBtn');
       const userNameText = document.getElementById('userNameText');
@@ -6199,6 +6223,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
         body: JSON.stringify({session_id: id})
       });
       const data = await res.json();
+      if (data.user_quota) applyUserQuota(data.user_quota);
       appState = data.store;
       renderTabs();
       renderHistoryList(activeHistoryTab);
@@ -6739,6 +6764,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
         body: JSON.stringify({session_id: curId, question: text})
       });
       const data = await res.json();
+      if (data.user_quota) applyUserQuota(data.user_quota);
       appState = data.store;
       onboardInput.value = "";
       renderTabs();
@@ -6825,6 +6851,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
                 contentBox.innerHTML = formatMarkdown(streamedText);
                 renderLatex(contentBox);
                 appState = data.store;
+                if (data.user_quota) {
+                  applyUserQuota(data.user_quota);
+                }
                 renderTabs();
                 renderCurrentSessionView();
               }
@@ -6899,6 +6928,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             body: JSON.stringify({session_id: curId})
           });
           const data = await res.json();
+          if (data.user_quota) applyUserQuota(data.user_quota);
           appState = data.store;
           renderTabs();
           renderCurrentSessionView();
@@ -6910,6 +6940,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
             body: JSON.stringify({session_id: curId})
           });
           const data = await res.json();
+          if (data.user_quota) applyUserQuota(data.user_quota);
           appState = data.store;
           renderTabs();
           renderCurrentSessionView();
@@ -6958,6 +6989,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
         body: formData
       });
       const data = await res.json();
+      if (data.user_quota) applyUserQuota(data.user_quota);
 
       if (mode === 'question') {
         onboardInput.value = data.text;
@@ -7668,13 +7700,15 @@ student04, CogniScaffold123!, 李小明"></textarea>
         }
 
         tbody.innerHTML = list.map(s => {
-          const uName = s.user ? `${s.user.username} (${s.user.display_name || ''})` : (s.user_id || '未知');
+          const uname = s.username || (s.user && s.user.username);
+          const dname = s.display_name || (s.user && s.user.display_name);
+          const uName = uname ? `${uname}${dname ? ' (' + dname + ')' : ''}` : (s.user_id || '未知学者');
           const title = s.title || '探索会话';
-          const tokenCount = (s.token_usage_total != null ? s.token_usage_total : 0).toLocaleString();
+          const tokenCount = (s.token_usage_total != null ? s.token_usage_total : (s.session_tokens != null ? s.session_tokens : 0)).toLocaleString();
           return `
             <tr>
               <td style="font-family: monospace; font-size: 0.75rem; color: var(--text-muted);">${s.id}</td>
-              <td style="font-weight: 600; font-family: monospace;">${escapeHtml(uName)}</td>
+              <td style="font-weight: 600; font-family: monospace; color: var(--primary-hover);">${escapeHtml(uName)}</td>
               <td>
                 <div style="font-weight: 600; max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
                 <div style="font-size: 0.72rem; color: var(--text-muted); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml((s.question || '').slice(0, 50))}</div>
@@ -7682,7 +7716,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
               <td><span class="sec-badge" style="background: rgba(59,130,246,0.1); color: #60a5fa;">阶段 ${s.current_stage || 1}</span></td>
               <td style="font-family: monospace; font-weight: 600;">${s.tutor_turns || 0} 轮</td>
               <td style="font-family: monospace; font-weight: 600; color: var(--text-main);">${tokenCount}</td>
-              <td style="font-size: 0.75rem; color: var(--text-muted);">${s.created_at || '-'}</td>
+              <td style="font-size: 0.75rem; color: var(--text-muted);">${formatEast8(s.created_at)}</td>
               <td style="text-align: right;">
                 <button class="admin-btn-sm" onclick="openAdminSessionDetail('${s.id}')">审查对话 ➔</button>
               </td>
@@ -7720,8 +7754,10 @@ student04, CogniScaffold123!, 李小明"></textarea>
         }
 
         titleEl.textContent = s.title || '探索会话详情';
-        const uText = s.user ? `${s.user.username} (${s.user.display_name || ''})` : s.user_id;
-        metaEl.textContent = `学者：${uText} | 阶段：${s.current_stage || 1} | 轮次：${s.tutor_turns || 0} 轮 | Token: ${(s.token_usage_total || 0).toLocaleString()} | 时间：${s.created_at || '-'}`;
+        const uname = s.username || (s.user && s.user.username);
+        const dname = s.display_name || (s.user && s.user.display_name);
+        const uText = uname ? `${uname}${dname ? ' (' + dname + ')' : ''}` : (s.user_id || '未知学者');
+        metaEl.textContent = `学者：${uText} | 阶段：${s.current_stage || 1} | 轮次：${s.tutor_turns || 0} 轮 | Token: ${(s.token_usage_total || s.session_tokens || 0).toLocaleString()} | 时间：${formatEast8(s.created_at)}`;
 
         let html = '';
 
@@ -7754,7 +7790,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
               return `<div style="text-align: center; color: var(--primary-hover); font-size: 0.75rem; margin: 10px 0; border-top: 1px dashed var(--card-border); padding-top: 8px;">⚡ ${escapeHtml(m.content)}</div>`;
             }
             const isUser = m.role === 'user';
-            const studentUName = s.user ? `${s.user.username} (${s.user.display_name || '学者'})` : (s.user_id || '学者');
+            const uname = s.username || (s.user && s.user.username);
+            const dname = s.display_name || (s.user && s.user.display_name);
+            const studentUName = uname ? `${uname}${dname ? ' (' + dname + ')' : ''}` : (s.user_id || '学者');
             const roleName = isUser ? `👤 学者 [${studentUName}]` : (m.role === 'assistant_variant' ? '🎯 变式挑战' : '🧭 导师');
             const bg = isUser ? 'var(--input-bg)' : 'rgba(59,130,246,0.06)';
             const borderCol = isUser ? 'var(--card-border)' : 'rgba(59,130,246,0.2)';

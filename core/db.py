@@ -14,8 +14,26 @@ import json
 import time
 import uuid
 from typing import Dict, Any, List, Optional, Tuple, Union
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from core.auth import hash_password, generate_salt, hash_token
+
+# ============================================================
+# 🕒 东八区（北京时间 UTC+8）强一致性时区适配层
+# 彻底脱钩宿主机 / 容器系统时区，确保会话时间、审计日志、每日额度重置精确锁定东八区
+# ============================================================
+TZ_EAST8 = timezone(timedelta(hours=8))
+
+def now_east8() -> datetime:
+    """获取东八区（UTC+8）当前 datetime 对象"""
+    return datetime.now(timezone.utc).astimezone(TZ_EAST8)
+
+def now_east8_str(fmt: str = "%Y-%m-%d %H:%M:%S") -> str:
+    """获取东八区当前时间格式化字符串"""
+    return now_east8().strftime(fmt)
+
+def today_east8_str(fmt: str = "%Y-%m-%d") -> str:
+    """获取东八区今日日期字符串（YYYY-MM-DD）"""
+    return now_east8().strftime(fmt)
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "data")
@@ -238,7 +256,7 @@ def _migrate_user_columns(conn: sqlite3.Connection):
 def _seed_default_configs(conn: sqlite3.Connection):
     """初始化全局限额与资费配置"""
     cur = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     defaults = [
         ("daily_question_limit", "15", "非管理员单日允许开题的最多题目数（道）"),
         ("session_turn_limit", "30", "单道题目允许进行的最多思维引导交互轮次（轮）"),
@@ -259,7 +277,7 @@ def _seed_default_configs(conn: sqlite3.Connection):
 def _seed_default_users(conn: sqlite3.Connection):
     """预置系统管理员 admin 与默认学生 student01, student02"""
     cur = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     # 1. 管理员 admin / Admin@Cogni2026!
     cur.execute("SELECT id FROM users WHERE username = 'admin';")
@@ -323,7 +341,7 @@ def _migrate_legacy_json_data(conn: sqlite3.Connection):
         active = legacy_data.get("active_sessions", {})
         archived = legacy_data.get("archived_sessions", {})
         cur_id = legacy_data.get("current_session_id")
-        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
         # 迁移 active sessions
         order_idx = 0
@@ -361,7 +379,7 @@ def _seed_student01_golden_presets(conn: sqlite3.Connection):
     if not stu_row:
         return
     stu_id = stu_row["id"]
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     # 获取 student01 当前已有的题目
     cur.execute("SELECT question, id FROM sessions WHERE user_id = ?;", (stu_id,))
@@ -468,7 +486,7 @@ def _seed_student01_golden_presets(conn: sqlite3.Connection):
 def _insert_session_record(conn: sqlite3.Connection, user_id: str, s: Dict[str, Any], is_archived: int, sort_order: int):
     cur = conn.cursor()
     s_id = s.get("id") or str(uuid.uuid4())[:8]
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     cur.execute("""
     INSERT OR REPLACE INTO sessions (
@@ -529,7 +547,7 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
     d = dict(row)
     # 自动解封检查
     if d.get("status") == "locked" and d.get("banned_until") and d.get("banned_until") != "permanent":
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
         if now_str >= d["banned_until"]:
             cur.execute("UPDATE users SET status = 'active', banned_until = NULL, ban_reason = NULL WHERE id = ?;", (d["id"],))
             conn.commit()
@@ -551,7 +569,7 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     d = dict(row)
     # 自动解封检查
     if d.get("status") == "locked" and d.get("banned_until") and d.get("banned_until") != "permanent":
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
         if now_str >= d["banned_until"]:
             cur.execute("UPDATE users SET status = 'active', banned_until = NULL, ban_reason = NULL WHERE id = ?;", (d["id"],))
             conn.commit()
@@ -566,7 +584,7 @@ def create_user(username: str, plain_password: str, display_name: str = "", role
     salt = generate_salt()
     pwd_hash = hash_password(plain_password, salt)
     user_id = str(uuid.uuid4())[:8]
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     disp = display_name if display_name else f"知阶学者 {username}"
 
     conn = get_db_connection()
@@ -626,7 +644,7 @@ def create_auth_token_session(user_id: str, ip: str = "", user_agent: str = "", 
     raw_token = generate_salt(32)  # 64 位字符高熵 Token
     hashed = hash_token(raw_token)
     expires_at = int(time.time()) + (expire_days * 86400)
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     conn = get_db_connection()
     cur = conn.cursor()
@@ -683,7 +701,7 @@ def delete_auth_token(raw_token: str):
 
 
 def log_audit_event(user_id: Optional[str], action: str, ip: str, details: str):
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -751,7 +769,7 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
             "transfer_eval_result": None,
             "current_variant_tier": 1,
             "title_stage": 0,
-            "created_at": datetime.now().strftime("%m-%d %H:%M")
+            "created_at": now_east8_str("%m-%d %H:%M")
         }
         _insert_session_record(conn, user_id, default_sess, is_archived=0, sort_order=0)
         active_sessions[default_sess["id"]] = default_sess
@@ -826,7 +844,7 @@ def save_user_session(user_id: str, session_data: Dict[str, Any]):
     conn = get_db_connection()
     cur = conn.cursor()
     s_id = session_data["id"]
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
 
     diag_json = json.dumps(session_data.get("diagnostic_result")) if session_data.get("diagnostic_result") else None
     eval_json = json.dumps(session_data.get("transfer_eval_result")) if session_data.get("transfer_eval_result") else None
@@ -835,7 +853,7 @@ def save_user_session(user_id: str, session_data: Dict[str, Any]):
     if not raw_created:
         created_at_db = now
     elif len(raw_created) <= 12 and "-" in raw_created:  # e.g. "10-28 13:45"
-        year = datetime.now().strftime("%Y")
+        year = now_east8_str("%Y")
         created_at_db = f"{year}-{raw_created}:00"
     else:
         created_at_db = raw_created
@@ -929,7 +947,7 @@ def set_user_session_order(user_id: str, order_list: List[str]):
 def archive_user_session(user_id: str, session_id: str):
     conn = get_db_connection()
     cur = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     cur.execute("UPDATE sessions SET is_archived = 1, updated_at = ? WHERE id = ? AND user_id = ?;",
                 (now, session_id, user_id))
 
@@ -961,7 +979,7 @@ def archive_user_session(user_id: str, session_id: str):
 def restore_user_session(user_id: str, session_id: str):
     conn = get_db_connection()
     cur = conn.cursor()
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     cur.execute("UPDATE sessions SET is_archived = 0, updated_at = ? WHERE id = ? AND user_id = ?;",
                 (now, session_id, user_id))
 
@@ -1030,7 +1048,7 @@ def get_all_system_configs() -> Dict[str, Any]:
 
 def set_system_config(key: str, value: str, description: str = ""):
     """设置系统配置项"""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -1068,7 +1086,7 @@ def record_token_usage(
 
     if total_tokens <= 0:
         total_tokens = prompt_tokens + completion_tokens
-    now_dt = datetime.now()
+    now_dt = now_east8()
     now_str = now_dt.strftime("%Y-%m-%d %H:%M:%S")
     today_str = now_dt.strftime("%Y-%m-%d")
 
@@ -1084,7 +1102,7 @@ def record_token_usage(
 
 def get_token_stats_overview() -> Dict[str, Any]:
     """汇总今日 Token、总 Token、估算费用与学生消耗排行"""
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = today_east8_str()
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -1158,7 +1176,7 @@ def record_guardrail_log(
 ):
     """记录学生触发敏感合规拦截的日志"""
     snippet = input_snippet or input_text
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cur = conn.cursor()
     if not username:
@@ -1210,7 +1228,7 @@ def check_user_ban_status(user_id: str) -> Tuple[bool, str, Optional[str]]:
     reason = row["ban_reason"] or "管理员封禁"
 
     if b_until and b_until != "permanent":
-        now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
         if now_str >= b_until:
             # 自动解封
             cur.execute("UPDATE users SET status = 'active', banned_until = NULL, ban_reason = NULL WHERE id = ?;", (user_id,))
@@ -1281,8 +1299,8 @@ def set_user_custom_quota(user_id: str, daily_limit: Optional[int], turn_limit: 
 
 def reset_user_today_questions(user_id: str):
     """管理员特批：一键重置某学生今日已用开题次数"""
-    today_full = datetime.now().strftime("%Y-%m-%d")
-    today_short = datetime.now().strftime("%m-%d")
+    today_full = today_east8_str()
+    today_short = now_east8_str("%m-%d")
     conn = get_db_connection()
     cur = conn.cursor()
     # 将今日创建的会话 created_at 日期前移一天，从而绕过当日 00:00 计数
@@ -1304,7 +1322,7 @@ def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
     批量添加账号
     user_list: [{"username": "...", "password": "...", "display_name": "..."}]
     """
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     created = []
     skipped = []
     errors = []
@@ -1380,8 +1398,8 @@ def get_user_effective_limits(user_id: str) -> Tuple[int, int, int]:
 
 def get_user_today_questions_count(user_id: str) -> int:
     """获取某用户今日已开题数量（排除预设案例库的演示记录）"""
-    today_full = datetime.now().strftime("%Y-%m-%d")
-    today_short = datetime.now().strftime("%m-%d")
+    today_full = today_east8_str()
+    today_short = now_east8_str("%m-%d")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -1398,7 +1416,7 @@ def get_user_today_questions_count(user_id: str) -> int:
 
 def get_user_today_tokens(user_id: str) -> int:
     """获取某用户今日已消耗的全部 Token 总数"""
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = today_east8_str()
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -1463,7 +1481,7 @@ def check_can_continue_chat(user_id: str, session: Union[Dict[str, Any], int], i
 
 def get_admin_overview() -> Dict[str, Any]:
     """控制台概览总指标"""
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = today_east8_str()
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -1501,8 +1519,8 @@ def get_admin_overview() -> Dict[str, Any]:
 
 def get_admin_users_list(search: str = "", role: str = "", status: str = "", limit: int = 500) -> List[Dict[str, Any]]:
     """管理员账号列表检索与详细聚合"""
-    today_str = datetime.now().strftime("%Y-%m-%d")
-    today_short = datetime.now().strftime("%m-%d")
+    today_str = today_east8_str()
+    today_short = now_east8_str("%m-%d")
     conn = get_db_connection()
     cur = conn.cursor()
 
@@ -1544,7 +1562,7 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
         # 自动校验解封状态
         b_until = d.get("banned_until")
         if d["status"] == "locked" and b_until and b_until != "permanent":
-            now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
             if now_str >= b_until:
                 d["status"] = "active"
                 d["banned_until"] = None
@@ -1584,7 +1602,19 @@ def get_admin_sessions_list(user_id: Optional[str] = None, search: str = "", lim
     cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    res = []
+    for r in rows:
+        d = dict(r)
+        d["user"] = {
+            "id": d.get("user_id"),
+            "username": d.get("username"),
+            "display_name": d.get("display_name")
+        }
+        c_at = d.get("created_at") or ""
+        if len(c_at) == 11 and c_at[2] == "-":
+            d["created_at"] = f"{now_east8().year}-{c_at}"
+        res.append(d)
+    return res
 
 
 def get_admin_session_detail(session_id: str) -> Optional[Dict[str, Any]]:
@@ -1630,7 +1660,7 @@ def get_admin_session_detail(session_id: str) -> Optional[Dict[str, Any]]:
 
 def submit_user_feedback(user_id: Optional[str], username: Optional[str], category: str, title: str, content: str, contact: str = "") -> Dict[str, Any]:
     """学生或用户提交反馈"""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
@@ -1697,7 +1727,7 @@ def get_admin_feedbacks(status: Optional[str] = None, search: str = "", limit: i
 
 def reply_user_feedback(feedback_id: int, admin_reply: str, admin_name: str, status: str = "replied") -> bool:
     """管理员回复学生反馈"""
-    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""

@@ -35,6 +35,10 @@ from core.intent import classify_user_intent
 
 # 导入 SQLite 持久化与认证安全模块
 from core.db import (
+    TZ_EAST8,
+    now_east8,
+    now_east8_str,
+    today_east8_str,
     init_db,
     get_user_by_username,
     get_user_by_id,
@@ -147,13 +151,13 @@ def get_client_ip(request: Request) -> str:
 
 
 def get_current_user(request: Request) -> Optional[Dict[str, Any]]:
-    """从 Bearer Header、Cookie 或 Query Param 解析已鉴权用户"""
-    auth_header = request.headers.get("Authorization", "")
-    token = ""
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:].strip()
+    """从 HttpOnly Cookie、Bearer Header 或 Query Param 解析已鉴权用户，严格防御 XSS 攻击"""
+    # 优先从 HttpOnly Cookie 读取，防范前端 XSS 攻击窃取登录凭证
+    token = request.cookies.get("cogni_session") or request.cookies.get("cogni_token")
     if not token:
-        token = request.cookies.get("cogni_token", "")
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:].strip()
     if not token:
         token = request.query_params.get("token", "")
     if not token:
@@ -263,11 +267,20 @@ def build_user_response_info(user: dict) -> dict:
             "turn_limit": 99999 if is_admin else max_turns,
             "today_tokens": 0 if is_admin else used_tokens,
             "daily_tokens": 99999999 if is_admin else limit_tokens,
+            "daily_token_limit": 99999999 if is_admin else limit_tokens,
             "remaining_tokens": remaining_tokens,
             "token_remaining_pct": remaining_pct,
             "is_admin": is_admin
         }
     }
+
+
+def get_user_quota_info(user_id: str, is_admin: bool = False) -> Dict[str, Any]:
+    """实时计算获取用户的最新额度与已消耗 Token 数据，用于全链路无缝动态刷新"""
+    user = get_user_by_id(user_id)
+    if not user:
+        user = {"id": user_id, "role": "admin" if is_admin else "student"}
+    return build_user_response_info(user)["quota"]
 
 
 # ============================================================
@@ -385,15 +398,16 @@ async def auth_login(request: Request, data: dict):
         "store": user_store
     })
     is_https = (request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
-    response.set_cookie(
-        key="cogni_token",
-        value=token,
-        httponly=True,
-        secure=is_https,
-        samesite="lax",
-        max_age=7 * 86400,
-        path="/"
-    )
+    for cookie_key in ["cogni_session", "cogni_token"]:
+        response.set_cookie(
+            key=cookie_key,
+            value=token,
+            httponly=True,
+            secure=is_https,
+            samesite="lax",
+            max_age=7 * 86400,
+            path="/"
+        )
     return response
 
 
@@ -408,7 +422,8 @@ async def auth_logout(request: Request):
     if token:
         delete_auth_token(token)
     response = JSONResponse(content={"status": "ok"})
-    response.delete_cookie(key="cogni_token", path="/")
+    for cookie_key in ["cogni_session", "cogni_token"]:
+        response.delete_cookie(key=cookie_key, path="/")
     return response
 
 
@@ -448,15 +463,16 @@ async def auth_change_password(request: Request, data: dict):
 
     response = JSONResponse(content={"status": "ok", "message": "密码修改成功", "token": new_token})
     is_https = (request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
-    response.set_cookie(
-        key="cogni_token",
-        value=new_token,
-        httponly=True,
-        secure=is_https,
-        samesite="lax",
-        max_age=7 * 86400,
-        path="/"
-    )
+    for cookie_key in ["cogni_session", "cogni_token"]:
+        response.set_cookie(
+            key=cookie_key,
+            value=new_token,
+            httponly=True,
+            secure=is_https,
+            samesite="lax",
+            max_age=7 * 86400,
+            path="/"
+        )
     return response
 
 
@@ -472,6 +488,7 @@ async def create_session(request: Request):
         raise HTTPException(status_code=401, detail="问答功能需先登录账号")
 
     user_id = user["id"]
+    is_admin = (user.get("role") == "admin")
     store = get_user_store(user_id)
     active = store.setdefault("active_sessions", {})
 
@@ -485,7 +502,7 @@ async def create_session(request: Request):
     new_s = create_new_session_data(is_initialized=False, store=store)
     save_user_session(user_id, new_s)
     set_user_current_session(user_id, new_s["id"])
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/switch")
@@ -531,7 +548,7 @@ async def reorder_sessions(request: Request, data: dict):
     new_order = data.get("order", [])
     if new_order and isinstance(new_order, list):
         set_user_session_order(user_id, new_order)
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/close")
@@ -544,7 +561,7 @@ async def close_session(request: Request, data: dict):
     user_id = user["id"]
     s_id = data.get("session_id")
     archive_user_session(user_id, s_id)
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/toggle_star")
@@ -571,7 +588,7 @@ async def restore_session(request: Request, data: dict):
     s_id = data.get("session_id")
     restore_user_session(user_id, s_id)
     set_user_current_session(user_id, s_id)
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/delete_archived")
@@ -584,7 +601,7 @@ async def delete_archived(request: Request, data: dict):
     user_id = user["id"]
     s_id = data.get("session_id")
     delete_archived_user_session(user_id, s_id)
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/theme")
@@ -695,7 +712,7 @@ async def init_question(request: Request, data: dict):
 
     save_user_session(user_id, sess)
     set_user_current_session(user_id, s_id)
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/reset")
@@ -721,7 +738,7 @@ async def reset_session(request: Request, data: dict):
     sess["transfer_eval_result"] = None
     sess["current_variant_tier"] = 1
     save_user_session(user_id, sess)
-    return {"status": "ok", "store": get_user_store(user_id)}
+    return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 _session_tier_locks: Dict[str, asyncio.Lock] = {}
@@ -766,7 +783,7 @@ async def verify_session(request: Request, data: dict):
                 )
         trigger_diagnosis_for_session(sess, user_id=user_id)
         save_user_session(user_id, sess)
-        return {"status": "ok", "store": get_user_store(user_id)}
+        return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/next_tier")
@@ -827,7 +844,7 @@ async def next_tier(request: Request, data: dict):
         sess["current_stage"] = 4
         dispatch_variant_tier_data(sess, next_t)
         save_user_session(user_id, sess)
-        return {"status": "ok", "store": get_user_store(user_id)}
+        return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
 
 
 @app.post("/api/sessions/upload_image")
@@ -936,7 +953,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
 
                 sess["dialogue_history"].append({"role": "assistant", "content": refusal_text})
                 save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
                 return
 
             # 【意图与早退路由检测】
@@ -951,7 +968,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
 
                 sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
                 save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
                 return
 
             elif intent_type in ["GIVE_UP", "OFF_TOPIC", "DEMAND_ANSWER", "LOW_INFO"]:
@@ -964,7 +981,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                 sess["dialogue_history"].append({"role": "assistant", "content": intent_guidance})
                 sess["tutor_turns"] += 1
                 save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
                 return
 
             # 阶段 4：变式迁移挑战应答
@@ -1002,7 +1019,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                         yield f"data: {json.dumps({'type': 'chunk', 'content': chunk, 'role': 'assistant_variant'}, ensure_ascii=False)}\n\n"
                         await asyncio.sleep(0.01)
 
-                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
                     return
 
                 tier_data = diag.get(f"tier{curr_tier}_variant", {})
@@ -1029,7 +1046,7 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                         sess["current_variant_tier"] = max_defined + 1
 
                 save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
 
             else:
                 # 阶段 1~3：启发式引导
@@ -1088,13 +1105,13 @@ async def chat_stream(session_id: str, student_text: str, request: Request):
                     trigger_diagnosis_for_session(sess, user_id=user_id)
 
                 save_user_session(user_id, sess)
-                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
 
         except Exception as err:
             print(f"[Chat Stream Exception] {type(err).__name__}: {err}")
             err_msg = "⚠️ 导师连接处理异常，请点击重试。"
             yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-            yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id)}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
         finally:
             if lock.locked():
                 lock.release()
@@ -1206,7 +1223,7 @@ async def admin_ban_user(request: Request, data: dict):
     if str(user_id) == str(admin["id"]):
         raise HTTPException(status_code=400, detail="管理员不可封禁自己的账号")
 
-    now = datetime.now()
+    now = now_east8()
     if duration == "1d":
         banned_until = (now + timedelta(days=1)).strftime("%Y-%m-%d %H:%M:%S")
     elif duration == "3d":

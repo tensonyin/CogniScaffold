@@ -76,8 +76,8 @@ def create_new_session_data(title: str = None, question: str = "", is_initialize
 
 
 def time_now_str() -> str:
-    from datetime import datetime
-    return datetime.now().strftime("%m-%d %H:%M")
+    from core.db import now_east8_str
+    return now_east8_str("%Y-%m-%d %H:%M:%S")
 
 
 def generate_session_title(
