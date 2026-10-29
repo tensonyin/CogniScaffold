@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>知阶 · 不给答案，只给台阶</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧭</text></svg>">
   
@@ -923,8 +923,8 @@
       display: none;
       position: fixed;
       right: 0;
-      top: 50%;
-      transform: translateY(-50%);
+      top: 130px;
+      transform: none;
       z-index: 100;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
@@ -3295,7 +3295,23 @@
       flex-shrink: 0;
     }
 
-  </style>
+  
+    .loading-spinner-sm {
+      display: inline-block;
+      width: 11px;
+      height: 11px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: currentColor;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 3px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+</style>
 </head>
 <body data-theme="dark">
   <script>
@@ -4104,10 +4120,13 @@
         </div>
 
         <div class="auth-input-group">
-          <label class="auth-label">
-            <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-            密码
-          </label>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <label class="auth-label" style="margin-bottom: 0;">
+              <svg class="ui-icon" viewBox="0 0 24 24"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              密码
+            </label>
+            <a href="javascript:void(0)" onclick="openForgotPasswordModal()" style="font-size: 0.74rem; color: var(--primary); text-decoration: none;">忘记密码？</a>
+          </div>
           <input type="password" class="auth-input" id="loginPassword" placeholder="请输入密码" autocomplete="current-password" required>
         </div>
 
@@ -4120,6 +4139,123 @@
           <button type="submit" class="auth-submit-btn" id="loginSubmitBtn">
             <span>安全登录系统</span>
           </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 首次登录强制设置密保与新密码模态弹窗 -->
+  <div class="theme-modal-backdrop" id="firstLoginSecurityModal">
+    <div class="theme-modal-card auth-modal-card" style="max-width: 480px;" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">🔐</span>
+          <div>
+            <h3 class="auth-title">安全初始化：设置密保与新密码</h3>
+            <p class="auth-subtitle">首次登录请设置密保问题并修改新密码，保障学习记录安全</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="auth-alert-box" id="firstLoginSecAlertBox"></div>
+
+      <form class="auth-form" id="firstLoginSecForm" onsubmit="handleFirstLoginSecSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">选择密保问题</label>
+          <select class="auth-input" id="firstSecQuestionSelect" onchange="handleSecQuestionChange()" required>
+            <option value="您就读的第一所小学或初中全称是？">您就读的第一所小学或初中全称是？</option>
+            <option value="您最喜爱的启蒙教师姓名是？">您最喜爱的启蒙教师姓名是？</option>
+            <option value="您父亲或母亲的姓名是？">您父亲或母亲的姓名是？</option>
+            <option value="您出生在哪个城市？">您出生在哪个城市？</option>
+            <option value="custom">✏️ 自定义密保问题...</option>
+          </select>
+        </div>
+
+        <div class="auth-input-group" id="firstSecCustomQuestionGroup" style="display: none;">
+          <label class="auth-label">输入自定义密保问题</label>
+          <input type="text" class="auth-input" id="firstSecCustomQuestionInput" placeholder="请输入容易记忆的密保问题">
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">密保问题答案</label>
+          <input type="text" class="auth-input" id="firstSecAnswerInput" placeholder="请输入您的密保答案（忘记密码时核验）" required>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">新登录密码</label>
+          <input type="password" class="auth-input" id="firstNewPasswordInput" placeholder="至少8位，包含大小写字母与数字" required>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">确认新登录密码</label>
+          <input type="password" class="auth-input" id="firstConfirmPasswordInput" placeholder="请再次输入新密码" required>
+        </div>
+
+        <div class="auth-btn-row" style="margin-top: 14px;">
+          <button type="submit" class="auth-submit-btn" id="firstLoginSecSubmitBtn">
+            <span>确认保存并开启知阶 🚀</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 忘记密码与密保找回模态弹窗 (两步分离流) -->
+  <div class="theme-modal-backdrop" id="forgotPasswordModal" onclick="closeForgotPasswordModal()">
+    <div class="theme-modal-card auth-modal-card" style="max-width: 460px;" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge">🔑</span>
+          <div>
+            <h3 class="auth-title">密保找回与重置密码</h3>
+            <p class="auth-subtitle" id="forgotModalSubtitle">步骤 1/2：验证预设密保答案</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeForgotPasswordModal()">✕</button>
+      </div>
+
+      <div class="auth-alert-box" id="forgotPwdAlertBox"></div>
+
+      <!-- Step 1: 验证密保答案 -->
+      <form class="auth-form" id="forgotStep1Form" onsubmit="handleForgotVerifyAnswerSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">您的账号用户名</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" class="auth-input" id="forgotUsernameInput" placeholder="请输入账号 (如 student01)" required>
+            <button type="button" class="btn btn-secondary" id="btnForgotFetchQuestion" onclick="fetchForgotQuestion()" style="white-space: nowrap; padding: 6px 12px; font-size: 0.82rem;">获取密保</button>
+          </div>
+        </div>
+
+        <div class="auth-input-group" id="forgotQuestionDisplayGroup" style="display: none;">
+          <label class="auth-label">密保问题</label>
+          <div id="forgotQuestionDisplayText" style="padding: 10px 12px; background: rgba(59, 130, 246, 0.08); border: 1px solid var(--card-border); border-radius: 6px; font-size: 0.85rem; font-weight: 600; color: var(--primary);">--</div>
+        </div>
+
+        <div class="auth-input-group" id="forgotAnswerGroup" style="display: none;">
+          <label class="auth-label">密保答案</label>
+          <input type="text" class="auth-input" id="forgotAnswerInput" placeholder="请输入密保问题答案">
+        </div>
+
+        <div class="auth-btn-row" id="forgotStep1BtnRow" style="display: none; margin-top: 12px;">
+          <button type="button" class="auth-cancel-btn" onclick="closeForgotPasswordModal()">取消</button>
+          <button type="submit" class="auth-submit-btn" id="btnForgotVerifyAnswer">下一步：验证密保 ➔</button>
+        </div>
+      </form>
+
+      <!-- Step 2: 凭 Reset Token 设置新密码 -->
+      <form class="auth-form" id="forgotStep2Form" style="display: none;" onsubmit="handleForgotResetPasswordSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">新登录密码</label>
+          <input type="password" class="auth-input" id="forgotNewPasswordInput" placeholder="至少8位，包含大小写字母与数字" required>
+        </div>
+
+        <div class="auth-input-group">
+          <label class="auth-label">确认新密码</label>
+          <input type="password" class="auth-input" id="forgotConfirmPasswordInput" placeholder="请再次输入新密码" required>
+        </div>
+
+        <div class="auth-btn-row" style="margin-top: 12px;">
+          <button type="submit" class="auth-submit-btn" id="btnForgotResetSubmit">确认修改新密码并返回登录</button>
         </div>
       </form>
     </div>
@@ -5105,6 +5241,27 @@ student04, CogniScaffold123!, 李小明"></textarea>
     }
 
     // 初始化载入（经过零延迟优化：首屏即刻就绪，异步热补丁数据）
+    // ============================================================
+    // 🖐️ 触控防误触引擎：禁止移动端与触控板双指缩放，不干预 Ctrl+/- 键盘缩放
+    // ============================================================
+    document.addEventListener('touchstart', function(e) {
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchmove', function(e) {
+      if (e.touches && e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
+    document.addEventListener('wheel', function(e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+
     async function initApp() {
       // 1. 同步即时渲染：0 毫秒首屏呈现，彻底杜绝白屏与卡顿
       const savedTheme = localStorage.getItem('cogni_theme') || 'dark';
@@ -5759,6 +5916,12 @@ student04, CogniScaffold123!, 李小明"></textarea>
           currentUser = data.user;
           localStorage.setItem('cogni_token', data.token);
           appState = data.store;
+
+          if (data.must_setup_security || (data.user && data.user.must_setup_security)) {
+            closeLoginModal();
+            openFirstLoginSecurityModal();
+            return;
+          }
           
           if (appState) {
             idbSaveAllSessions(currentUser.id, Object.values(appState.active_sessions || {}));
@@ -5795,20 +5958,338 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
       currentUser = null;
       localStorage.removeItem('cogni_token');
-      const menu = document.getElementById('userProfileMenu');
-      if (menu) menu.classList.remove('show');
-
-      appState = {
-        active_sessions: {},
-        archived_sessions: {},
-        current_session_id: null,
-        theme_mode: 'dark'
-      };
-
-      updateUserUI();
-      renderTabs();
-      showOnboardingView();
+      localStorage.removeItem('cogni_current_user');
+      window.location.reload();
     }
+
+    // ============================================================
+    // 🔐 首次登录安全初始化 (设置密保与强制修改初始密码)
+    // ============================================================
+    function openFirstLoginSecurityModal() {
+      const modal = document.getElementById('firstLoginSecurityModal');
+      const alertBox = document.getElementById('firstLoginSecAlertBox');
+      if (alertBox) {
+        alertBox.className = 'auth-alert-box warning';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '🔒 检测到初次登入或使用初始密码，请设置密保问题并修改新密码';
+      }
+      const form = document.getElementById('firstLoginSecForm');
+      if (form) form.reset();
+      handleSecQuestionChange();
+      if (modal) modal.classList.add('show');
+    }
+
+    function handleSecQuestionChange() {
+      const select = document.getElementById('firstSecQuestionSelect');
+      const customGroup = document.getElementById('firstSecCustomQuestionGroup');
+      const customInput = document.getElementById('firstSecCustomQuestionInput');
+      if (select && customGroup) {
+        if (select.value === 'custom') {
+          customGroup.style.display = 'block';
+          if (customInput) customInput.required = true;
+        } else {
+          customGroup.style.display = 'none';
+          if (customInput) customInput.required = false;
+        }
+      }
+    }
+
+    async function handleFirstLoginSecSubmit(e) {
+      e.preventDefault();
+      const select = document.getElementById('firstSecQuestionSelect');
+      const customInput = document.getElementById('firstSecCustomQuestionInput');
+      const answerInput = document.getElementById('firstSecAnswerInput');
+      const newPwdInput = document.getElementById('firstNewPasswordInput');
+      const confirmPwdInput = document.getElementById('firstConfirmPasswordInput');
+      const alertBox = document.getElementById('firstLoginSecAlertBox');
+      const submitBtn = document.getElementById('firstLoginSecSubmitBtn');
+
+      let question = select.value;
+      if (question === 'custom') {
+        question = (customInput.value || '').trim();
+      }
+      const answer = (answerInput.value || '').trim();
+      const newPwd = (newPwdInput.value || '').trim();
+      const confirmPwd = (confirmPwdInput.value || '').trim();
+
+      if (!question) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '请输入或选择密保问题';
+        return;
+      }
+      if (!answer) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '请输入密保问题答案';
+        return;
+      }
+      if (newPwd.length < 8) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '新密码至少需要 8 位字符';
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '两次输入的新密码不一致';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span class="loading-spinner-sm"></span> 保存安全配置中...';
+
+      try {
+        const res = await apiFetch('/api/auth/setup_security_and_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            security_question: question,
+            security_answer: answer,
+            new_password: newPwd
+          })
+        });
+        const data = await res.json();
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>确认保存并开启知阶 🚀</span>';
+
+        if (res.ok && data.status === 'ok') {
+          if (currentUser) {
+            currentUser.must_setup_security = false;
+          }
+          const modal = document.getElementById('firstLoginSecurityModal');
+          if (modal) modal.classList.remove('show');
+          updateUserUI();
+          renderTabs();
+          showOnboardingView();
+        } else {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || data.message || '安全配置保存失败，请检查密码强度';
+        }
+      } catch (err) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<span>确认保存并开启知阶 🚀</span>';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络连接异常，请重试';
+      }
+    }
+
+    // ============================================================
+    // 🔑 忘记密码找回流程 (两步分离流)
+    // ============================================================
+    let currentForgotResetToken = null;
+
+    function openForgotPasswordModal() {
+      closeLoginModal();
+      currentForgotResetToken = null;
+      const modal = document.getElementById('forgotPasswordModal');
+      const alertBox = document.getElementById('forgotPwdAlertBox');
+      const step1Form = document.getElementById('forgotStep1Form');
+      const step2Form = document.getElementById('forgotStep2Form');
+      const subtitle = document.getElementById('forgotModalSubtitle');
+
+      if (alertBox) {
+        alertBox.className = 'auth-alert-box';
+        alertBox.style.display = 'none';
+        alertBox.textContent = '';
+      }
+      if (subtitle) subtitle.textContent = '步骤 1/2：验证预设密保答案';
+      if (step1Form) {
+        step1Form.reset();
+        step1Form.style.display = 'flex';
+      }
+      if (step2Form) {
+        step2Form.reset();
+        step2Form.style.display = 'none';
+      }
+
+      document.getElementById('forgotQuestionDisplayGroup').style.display = 'none';
+      document.getElementById('forgotAnswerGroup').style.display = 'none';
+      document.getElementById('forgotStep1BtnRow').style.display = 'none';
+
+      if (modal) modal.classList.add('show');
+      setTimeout(() => {
+        const uInput = document.getElementById('forgotUsernameInput');
+        if (uInput) uInput.focus();
+      }, 100);
+    }
+
+    function closeForgotPasswordModal() {
+      const modal = document.getElementById('forgotPasswordModal');
+      if (modal) modal.classList.remove('show');
+      currentForgotResetToken = null;
+    }
+
+    async function fetchForgotQuestion() {
+      const uInput = document.getElementById('forgotUsernameInput');
+      const alertBox = document.getElementById('forgotPwdAlertBox');
+      const btn = document.getElementById('btnForgotFetchQuestion');
+      const uname = (uInput?.value || '').trim();
+
+      if (!uname) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '请先输入您的账号用户名';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = '查询中...';
+      alertBox.style.display = 'none';
+
+      try {
+        const res = await apiFetch(`/api/auth/security_question?username=${encodeURIComponent(uname)}`);
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = '获取密保';
+
+        if (res.ok && data.status === 'ok') {
+          const qGroup = document.getElementById('forgotQuestionDisplayGroup');
+          const qText = document.getElementById('forgotQuestionDisplayText');
+          const ansGroup = document.getElementById('forgotAnswerGroup');
+          const btnRow = document.getElementById('forgotStep1BtnRow');
+
+          qText.textContent = data.question;
+          qGroup.style.display = 'block';
+          ansGroup.style.display = 'block';
+          btnRow.style.display = 'flex';
+
+          const ansInput = document.getElementById('forgotAnswerInput');
+          if (ansInput) ansInput.focus();
+        } else {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || '未查询到该账号的密保问题，请联系管理员或教师重置';
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '获取密保';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络连接异常，请重试';
+      }
+    }
+
+    async function handleForgotVerifyAnswerSubmit(e) {
+      e.preventDefault();
+      const uInput = document.getElementById('forgotUsernameInput');
+      const ansInput = document.getElementById('forgotAnswerInput');
+      const alertBox = document.getElementById('forgotPwdAlertBox');
+      const btn = document.getElementById('btnForgotVerifyAnswer');
+
+      const uname = (uInput?.value || '').trim();
+      const answer = (ansInput?.value || '').trim();
+
+      if (!answer) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '请输入密保问题答案';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner-sm"></span> 验证中...';
+
+      try {
+        const res = await apiFetch('/api/auth/verify_security_answer', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: uname, security_answer: answer })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = '下一步：验证密保 ➔';
+
+        if (res.ok && data.status === 'ok') {
+          currentForgotResetToken = data.reset_token;
+          // 平滑切换至步骤 2：设置新密码
+          document.getElementById('forgotStep1Form').style.display = 'none';
+          document.getElementById('forgotStep2Form').style.display = 'flex';
+          const subtitle = document.getElementById('forgotModalSubtitle');
+          if (subtitle) subtitle.textContent = '步骤 2/2：密保核验通过，请输入新密码';
+
+          alertBox.className = 'auth-alert-box success';
+          alertBox.style.display = 'block';
+          alertBox.textContent = '✅ 密保核验成功，请设置您的新密码';
+
+          const newPwdInput = document.getElementById('forgotNewPasswordInput');
+          if (newPwdInput) newPwdInput.focus();
+        } else {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || '密保答案不正确，请重新核对';
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '下一步：验证密保 ➔';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络连接异常，请重试';
+      }
+    }
+
+    async function handleForgotResetPasswordSubmit(e) {
+      e.preventDefault();
+      const newPwdInput = document.getElementById('forgotNewPasswordInput');
+      const confirmPwdInput = document.getElementById('forgotConfirmPasswordInput');
+      const alertBox = document.getElementById('forgotPwdAlertBox');
+      const btn = document.getElementById('btnForgotResetSubmit');
+
+      const newPwd = (newPwdInput?.value || '').trim();
+      const confirmPwd = (confirmPwdInput?.value || '').trim();
+
+      if (!newPwd || newPwd.length < 8) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '新密码至少需要 8 位字符';
+        return;
+      }
+      if (newPwd !== confirmPwd) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '两次输入的新密码不一致';
+        return;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner-sm"></span> 正在重置密码...';
+
+      try {
+        const res = await apiFetch('/api/auth/reset_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reset_token: currentForgotResetToken, new_password: newPwd })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = '确认修改新密码并返回登录';
+
+        if (res.ok && data.status === 'ok') {
+          closeForgotPasswordModal();
+          openLoginModal();
+          const loginAlert = document.getElementById('loginAlertBox');
+          if (loginAlert) {
+            loginAlert.className = 'auth-alert-box success';
+            loginAlert.style.display = 'block';
+            loginAlert.textContent = '🎉 密码重置成功，请使用新密码登录系统';
+          }
+        } else {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || '重置失败，重置凭据可能已失效，请重新核验密保';
+        }
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '确认修改新密码并返回登录';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络连接异常，请重试';
+      }
+    }
+
 
     function openChangePasswordModal() {
       const menu = document.getElementById('userProfileMenu');
@@ -5881,18 +6362,40 @@ student04, CogniScaffold123!, 李小明"></textarea>
     }
 
     async function closeTab(id) {
-      const res = await apiFetch('/api/sessions/close', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({session_id: id})
-      });
-      const data = await res.json();
-      appState = data.store;
-      if (currentUser && appState.archived_sessions && appState.archived_sessions[id]) {
-        idbSaveSession(currentUser.id, { ...appState.archived_sessions[id], is_archived: true });
+      // 乐观即时移除：0ms 立即在界面上剔除当前标签，杜绝任何视觉延迟与卡顿
+      if (appState && appState.active_sessions && appState.active_sessions[id]) {
+        const closedSess = appState.active_sessions[id];
+        delete appState.active_sessions[id];
+        if (!appState.archived_sessions) appState.archived_sessions = {};
+        appState.archived_sessions[id] = { ...closedSess, is_archived: true };
+
+        if (appState.current_session_id === id) {
+          const remainingIds = Object.keys(appState.active_sessions);
+          appState.current_session_id = remainingIds.length > 0 ? remainingIds[0] : null;
+        }
+        renderTabs();
+        renderCurrentSessionView();
       }
-      renderTabs();
-      renderCurrentSessionView();
+
+      try {
+        const res = await apiFetch('/api/sessions/close', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({session_id: id})
+        });
+        const data = await res.json();
+        if (data && data.store) {
+          appState = data.store;
+          if (data.user_quota) applyUserQuota(data.user_quota);
+          if (currentUser && appState.archived_sessions && appState.archived_sessions[id]) {
+            idbSaveSession(currentUser.id, { ...appState.archived_sessions[id], is_archived: true });
+          }
+          renderTabs();
+          renderCurrentSessionView();
+        }
+      } catch (err) {
+        console.warn('closeTab sync error:', err);
+      }
     }
 
     async function toggleStar(id) {
@@ -6109,51 +6612,13 @@ student04, CogniScaffold123!, 李小明"></textarea>
         groups[cat.key].items.push(item);
       });
 
-      const sortedGroupKeys = Object.keys(groups).sort((a, b) => groups[a].order - groups[b].order);
-
-      sortedGroupKeys.forEach(gKey => {
-        const group = groups[gKey];
-        const groupEl = document.createElement('div');
-        groupEl.style.cssText = "margin-bottom: 14px;";
-
-        const groupHeader = document.createElement('div');
-        groupHeader.style.cssText = "font-size: 0.82rem; font-weight: 700; color: var(--primary); padding: 3px 6px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;";
-        groupHeader.innerHTML = `<span>${escapeHtml(group.label)}</span><span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
-        groupEl.appendChild(groupHeader);
-
-        group.items.forEach(item => {
-          const isAlreadyOpened = Boolean(activeDict[item.id]);
-          const row = document.createElement('div');
-          row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; border-bottom: 1px solid var(--card-border); font-size: 0.86rem; gap: 8px;";
-          
-          // 对灰色小字（题目）进行 LaTeX 渲染
-          const rawQ = (item.question || '暂无题目内容').slice(0, 50);
-          const qHtml = formatMarkdown(rawQ).replace(/^<p>/, '').replace(/<\/p>\s*$/, '');
-
-          row.innerHTML = `
-            <div style="flex: 1; min-width: 0;">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.title || '会话')}</strong>
-                ${isAlreadyOpened ? `<span style="font-size: 0.72rem; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">已在标签页打开</span>` : ''}
-              </div>
-              <div class="history-item-math-q" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${qHtml}</div>
-            </div>
-            <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center;">
-              <span class="star-toggle-btn ${item.is_starred ? 'is-starred' : ''}" style="font-size: 15px; cursor: pointer; padding: 2px 4px;" onclick="event.stopPropagation(); toggleStarFromHistory('${item.id}')" title="${item.is_starred ? '取消收藏' : '加入收藏'}">${item.is_starred ? '★' : '☆'}</span>
-              <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="restoreSession('${item.id}')">${isAlreadyOpened ? '切换至' : '恢复'}</button>
-              ${tab === 'archived' ? `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="deleteArchived('${item.id}')" title="彻底删除">🗑️</button>` : ''}
-            </div>
-          `;
-          groupEl.appendChild(row);
-        });
-
-        container.appendChild(groupEl);
-      });
-
-      // 渲染搜索引擎风格分页栏
-      if (totalPages > 1 || list.length > 0) {
+      function buildPaginationEl(isTop = false) {
+        if (totalPages <= 1 && list.length === 0) return null;
         const pagEl = document.createElement('div');
-        pagEl.className = 'history-pagination';
+        pagEl.className = 'history-pagination' + (isTop ? ' history-pagination-top' : '');
+        pagEl.style.cssText = isTop
+          ? "display: flex; align-items: center; justify-content: center; gap: 4px; padding: 6px 0 10px 0; margin-bottom: 8px; border-bottom: 1px solid var(--card-border);"
+          : "display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px 0; margin-top: 6px;";
 
         let pagHtml = `
           <button class="history-page-btn" ${historyCurrentPage <= 1 ? 'disabled style="opacity: 0.4; cursor: not-allowed;"' : ''} onclick="gotoHistoryPage(${historyCurrentPage - 1})" title="上一页">◀</button>
@@ -6187,14 +6652,63 @@ student04, CogniScaffold123!, 李小明"></textarea>
         `;
 
         pagEl.innerHTML = pagHtml;
-        container.appendChild(pagEl);
+        return pagEl;
       }
+
+      // 顶部页码导航栏 (把页码导航放到对话记录上面)
+      const topPagEl = buildPaginationEl(true);
+      if (topPagEl) container.appendChild(topPagEl);
+
+      const sortedGroupKeys = Object.keys(groups).sort((a, b) => groups[a].order - groups[b].order);
+
+      sortedGroupKeys.forEach(gKey => {
+        const group = groups[gKey];
+        const groupEl = document.createElement('div');
+        groupEl.style.cssText = "margin-bottom: 14px;";
+
+        const groupHeader = document.createElement('div');
+        groupHeader.style.cssText = "font-size: 0.82rem; font-weight: 700; color: var(--primary); padding: 3px 6px; background: rgba(59, 130, 246, 0.08); border-radius: 4px; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;";
+        groupHeader.innerHTML = `<span>${escapeHtml(group.label)}</span><span style="font-size: 0.74rem; color: var(--text-muted); font-weight: 500;">${group.items.length} 个对话</span>`;
+        groupEl.appendChild(groupHeader);
+
+        group.items.forEach(item => {
+          const isAlreadyOpened = Boolean(activeDict[item.id]);
+          const row = document.createElement('div');
+          row.style.cssText = "display: flex; justify-content: space-between; align-items: center; padding: 8px 6px; border-bottom: 1px solid var(--card-border); font-size: 0.86rem; gap: 8px;";
+          
+          // 对灰色小字（题目）进行 LaTeX 渲染
+          const rawQ = (item.question || '暂无题目内容').slice(0, 50);
+          const qHtml = formatMarkdown(rawQ).replace(/^<p>/, '').replace(/<\/p>\s*$/, '');
+
+          row.innerHTML = `
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <strong style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHtml(item.title || '会话')}</strong>
+                ${isAlreadyOpened ? `<span style="font-size: 0.72rem; color: #10b981; background: rgba(16, 185, 129, 0.12); padding: 1px 5px; border-radius: 3px; flex-shrink: 0;">已在标签页打开</span>` : ''}
+              </div>
+              <div class="history-item-math-q" style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${qHtml}</div>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0; align-items: center;">
+              <span class="star-toggle-btn ${item.is_starred ? 'is-starred' : ''}" style="font-size: 15px; cursor: pointer; padding: 2px 4px;" onclick="event.stopPropagation(); toggleStarFromHistory('${item.id}')" title="${item.is_starred ? '取消收藏' : '加入收藏'}">${item.is_starred ? '★' : '☆'}</span>
+              <button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="restoreSession('${item.id}', this)">${isAlreadyOpened ? '切换至' : '恢复'}</button>
+              ${tab === 'archived' ? `<button class="btn btn-secondary" style="padding: 3px 8px; font-size: 11px;" onclick="deleteArchived('${item.id}', this)" title="彻底删除">🗑️</button>` : ''}
+            </div>
+          `;
+          groupEl.appendChild(row);
+        });
+
+        container.appendChild(groupEl);
+      });
+
+      // 底部页码导航栏
+      const bottomPagEl = buildPaginationEl(false);
+      if (bottomPagEl) container.appendChild(bottomPagEl);
 
       // 对生成的题目 KaTeX 进行批量排版
       renderLatex(container);
     }
 
-    async function restoreSession(id) {
+    async function restoreSession(id, btn) {
       // 防御：若已经在活跃标签页中打开，直接无缝切换激活它，避免任何网络请求导致的异常重置
       if (appState.active_sessions && appState.active_sessions[id]) {
         switchTab(id);
@@ -6202,31 +6716,61 @@ student04, CogniScaffold123!, 李小明"></textarea>
         return;
       }
 
-      const res = await apiFetch('/api/sessions/restore', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({session_id: id})
-      });
-      const data = await res.json();
-      if (data && data.store) {
-        appState = data.store;
-        renderTabs();
-        renderCurrentSessionView();
+      let origText = '';
+      if (btn) {
+        btn.disabled = true;
+        origText = btn.innerHTML;
+        btn.innerHTML = '<span class="loading-spinner-sm"></span> 恢复中...';
       }
-      toggleHistoryDrawer();
+
+      try {
+        const res = await apiFetch('/api/sessions/restore', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({session_id: id})
+        });
+        const data = await res.json();
+        if (data && data.store) {
+          appState = data.store;
+          renderTabs();
+          renderCurrentSessionView();
+        }
+        toggleHistoryDrawer();
+      } catch (err) {
+        console.error('restoreSession error:', err);
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+      }
     }
 
-    async function deleteArchived(id) {
-      const res = await apiFetch('/api/sessions/delete_archived', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({session_id: id})
-      });
-      const data = await res.json();
-      if (data.user_quota) applyUserQuota(data.user_quota);
-      appState = data.store;
-      renderTabs();
-      renderHistoryList(activeHistoryTab);
+    async function deleteArchived(id, btn) {
+      let origText = '';
+      if (btn) {
+        btn.disabled = true;
+        origText = btn.innerHTML;
+        btn.innerHTML = '<span class="loading-spinner-sm"></span> 删除中...';
+      }
+
+      try {
+        const res = await apiFetch('/api/sessions/delete_archived', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({session_id: id})
+        });
+        const data = await res.json();
+        if (data.user_quota) applyUserQuota(data.user_quota);
+        appState = data.store;
+        renderTabs();
+        renderHistoryList(activeHistoryTab);
+      } catch (err) {
+        console.error('deleteArchived error:', err);
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+      }
     }
 
     // 渲染主解题视图或引导视图

@@ -37,6 +37,11 @@ from core.intent import classify_user_intent
 from core.db import (
     TZ_EAST8,
     now_east8,
+    set_user_security_and_password,
+    get_user_security_question,
+    verify_security_answer,
+    create_password_reset_token,
+    verify_password_reset_token,
     now_east8_str,
     today_east8_str,
     init_db,
@@ -275,11 +280,13 @@ def build_user_response_info(user: dict) -> dict:
     }
 
 
-def get_user_quota_info(user_id: str, is_admin: bool = False) -> Dict[str, Any]:
-    """实时计算获取用户的最新额度与已消耗 Token 数据，用于全链路无缝动态刷新"""
+def get_user_quota_info(user_id: str, is_admin: Optional[bool] = None) -> Dict[str, Any]:
+    """实时计算获取用户的最新额度与已消耗 Token 数据，自动判定管理员与防范未定义异常"""
     user = get_user_by_id(user_id)
     if not user:
         user = {"id": user_id, "role": "admin" if is_admin else "student"}
+    if is_admin is None:
+        is_admin = (user.get("role") == "admin")
     return build_user_response_info(user)["quota"]
 
 
@@ -388,14 +395,17 @@ async def auth_login(request: Request, data: dict):
     token = create_auth_token_session(user["id"], ip=client_ip, user_agent=ua)
     log_audit_event(user["id"], "login_success", client_ip, "Success")
 
+    must_setup_security = bool(user.get("must_change_password") or not user.get("security_question"))
     user_info = build_user_response_info(user)
+    user_info["must_setup_security"] = must_setup_security
     user_store = get_user_store(user["id"])
 
     response = JSONResponse(content={
         "status": "ok",
         "user": user_info,
         "token": token,
-        "store": user_store
+        "store": user_store,
+        "must_setup_security": must_setup_security
     })
     is_https = (request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https")
     for cookie_key in ["cogni_session", "cogni_token"]:
@@ -476,6 +486,104 @@ async def auth_change_password(request: Request, data: dict):
     return response
 
 
+@app.post("/api/auth/setup_security_and_password")
+@app.post("/cogni-scaffold/api/auth/setup_security_and_password")
+async def setup_security_and_password(request: Request, data: dict):
+    """首次登录强制设置密保问题并修改新密码"""
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登录")
+
+    new_password = data.get("new_password", "").strip()
+    security_question = data.get("security_question", "").strip()
+    security_answer = data.get("security_answer", "").strip()
+
+    if not new_password or not security_question or not security_answer:
+        raise HTTPException(status_code=400, detail="新密码、密保问题及密保答案均不能为空")
+
+    if new_password in ["Student@2026!", "Admin@Cogni2026!", "123456", "password"]:
+        raise HTTPException(status_code=400, detail="禁止继续使用系统默认初始密码，请设置强密码")
+
+    valid, err_msg = validate_password_strength(new_password)
+    if not valid:
+        raise HTTPException(status_code=400, detail=err_msg)
+
+    set_user_security_and_password(user["id"], new_password, security_question, security_answer)
+    log_audit_event(user["id"], "setup_security_success", get_client_ip(request), "Success")
+    return {"status": "ok", "message": "密保问题与新密码设置成功"}
+
+
+@app.get("/api/auth/security_question")
+@app.get("/cogni-scaffold/api/auth/security_question")
+async def get_security_question(username: str = ""):
+    """获取用户预设的密保问题"""
+    uname = username.strip()
+    if not uname:
+        raise HTTPException(status_code=400, detail="请输入账号用户名")
+
+    user = get_user_by_username(uname)
+    if not user:
+        raise HTTPException(status_code=404, detail="该账号不存在，请核对用户名")
+
+    question = get_user_security_question(uname)
+    if not question:
+        raise HTTPException(status_code=400, detail="该账号尚未设置密保问题，请联系任课教师或管理员协助重置密码")
+
+    return {"status": "ok", "question": question}
+
+
+@app.post("/api/auth/verify_security_answer")
+@app.post("/cogni-scaffold/api/auth/verify_security_answer")
+async def verify_sec_answer(request: Request, data: dict):
+    """忘记密码第一步：验证密保答案并签发重置令牌"""
+    uname = data.get("username", "").strip()
+    answer = data.get("security_answer", "").strip()
+    client_ip = get_client_ip(request)
+
+    if not uname or not answer:
+        raise HTTPException(status_code=400, detail="用户名和密保答案均不能为空")
+
+    user = get_user_by_username(uname)
+    if not user:
+        raise HTTPException(status_code=404, detail="该账号不存在")
+
+    is_valid, user_id = verify_security_answer(uname, answer)
+    if not is_valid:
+        log_audit_event(user_id, "verify_security_answer_failed", client_ip, f"username: {uname}")
+        raise HTTPException(status_code=400, detail="密保答案不正确，请重新核对后输入")
+
+    reset_token = create_password_reset_token(user_id, ttl_seconds=600)
+    log_audit_event(user_id, "verify_security_answer_success", client_ip, f"username: {uname}")
+    return {"status": "ok", "reset_token": reset_token}
+
+
+@app.post("/api/auth/reset_password")
+@app.post("/cogni-scaffold/api/auth/reset_password")
+async def reset_password_with_sec_token(request: Request, data: dict):
+    """忘记密码第二步：凭有效重置令牌设置新密码"""
+    reset_token = data.get("reset_token", "").strip()
+    new_password = data.get("new_password", "").strip()
+    client_ip = get_client_ip(request)
+
+    if not reset_token or not new_password:
+        raise HTTPException(status_code=400, detail="重置凭据或新密码不能为空")
+
+    user_id = verify_password_reset_token(reset_token)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="密码重置链接已失效或超时（有效期 10 分钟），请重新验证密保")
+
+    if new_password in ["Student@2026!", "Admin@Cogni2026!", "123456", "password"]:
+        raise HTTPException(status_code=400, detail="禁止继续使用系统默认初始密码，请设置强密码")
+
+    valid, err_msg = validate_password_strength(new_password)
+    if not valid:
+        raise HTTPException(status_code=400, detail=err_msg)
+
+    update_user_password(user_id, new_password)
+    log_audit_event(user_id, "reset_password_success", client_ip, "Success")
+    return {"status": "ok", "message": "密码重置成功，请使用新密码重新登录"}
+
+
 # ============================================================
 # 会话管理 API (多用户严格隔离与鉴权门禁)
 # ============================================================
@@ -545,6 +653,7 @@ async def reorder_sessions(request: Request, data: dict):
         raise HTTPException(status_code=401, detail="请先登录")
 
     user_id = user["id"]
+    is_admin = (user.get("role") == "admin")
     new_order = data.get("order", [])
     if new_order and isinstance(new_order, list):
         set_user_session_order(user_id, new_order)
@@ -559,6 +668,7 @@ async def close_session(request: Request, data: dict):
         raise HTTPException(status_code=401, detail="请先登录")
 
     user_id = user["id"]
+    is_admin = (user.get("role") == "admin")
     s_id = data.get("session_id")
     archive_user_session(user_id, s_id)
     return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}
@@ -585,6 +695,7 @@ async def restore_session(request: Request, data: dict):
         raise HTTPException(status_code=401, detail="请先登录")
 
     user_id = user["id"]
+    is_admin = (user.get("role") == "admin")
     s_id = data.get("session_id")
     restore_user_session(user_id, s_id)
     set_user_current_session(user_id, s_id)
@@ -599,6 +710,7 @@ async def delete_archived(request: Request, data: dict):
         raise HTTPException(status_code=401, detail="请先登录")
 
     user_id = user["id"]
+    is_admin = (user.get("role") == "admin")
     s_id = data.get("session_id")
     delete_archived_user_session(user_id, s_id)
     return {"status": "ok", "store": get_user_store(user_id), "user_quota": get_user_quota_info(user_id, is_admin)}

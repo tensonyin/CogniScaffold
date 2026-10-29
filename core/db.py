@@ -250,6 +250,23 @@ def _migrate_user_columns(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE users ADD COLUMN custom_turn_limit INTEGER;")
     if "custom_daily_token_limit" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN custom_daily_token_limit INTEGER;")
+    if "must_change_password" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN must_change_password INTEGER DEFAULT 0;")
+    if "security_question" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN security_question TEXT;")
+    if "security_answer_hash" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN security_answer_hash TEXT;")
+    if "security_answer_salt" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN security_answer_salt TEXT;")
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    """)
     conn.commit()
 
 
@@ -580,7 +597,7 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     return d
 
 
-def create_user(username: str, plain_password: str, display_name: str = "", role: str = "student") -> Dict[str, Any]:
+def create_user(username: str, plain_password: str, display_name: str = "", role: str = "student", must_change_password: int = 0) -> Dict[str, Any]:
     salt = generate_salt()
     pwd_hash = hash_password(plain_password, salt)
     user_id = str(uuid.uuid4())[:8]
@@ -590,9 +607,9 @@ def create_user(username: str, plain_password: str, display_name: str = "", role
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-    INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-    """, (user_id, username, pwd_hash, salt, disp, role, "active", now))
+    INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at, must_change_password)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (user_id, username, pwd_hash, salt, disp, role, "active", now, must_change_password))
     conn.commit()
     conn.close()
 
@@ -619,6 +636,102 @@ def update_user_password(user_id: str, new_plain_password: str):
     cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (user_id,))
     conn.commit()
     conn.close()
+
+
+def set_user_security_and_password(user_id: str, new_plain_password: str, security_question: str, security_answer: str) -> bool:
+    """首次登录或重置时同时绑定密保问题、加盐哈希密保答案并设定新密码"""
+    new_salt = generate_salt()
+    new_pwd_hash = hash_password(new_plain_password, new_salt)
+
+    ans_salt = generate_salt()
+    norm_answer = security_answer.strip().lower()
+    ans_hash = hash_password(norm_answer, ans_salt)
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    UPDATE users SET 
+        password_hash = ?, 
+        salt = ?, 
+        security_question = ?, 
+        security_answer_hash = ?, 
+        security_answer_salt = ?, 
+        must_change_password = 0 
+    WHERE id = ?;
+    """, (new_pwd_hash, new_salt, security_question.strip(), ans_hash, ans_salt, user_id))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_user_security_question(username: str) -> Optional[str]:
+    """获取用户预设的密保问题，若未设置则返回 None"""
+    user = get_user_by_username(username)
+    if not user:
+        return None
+    return user.get("security_question")
+
+
+def verify_security_answer(username: str, answer: str) -> Tuple[bool, Optional[str]]:
+    """验证密保答案是否正确，返回 (is_valid, user_id)"""
+    user = get_user_by_username(username)
+    if not user:
+        return False, None
+    ans_hash = user.get("security_answer_hash")
+    ans_salt = user.get("security_answer_salt")
+    if not ans_hash or not ans_salt:
+        return False, user.get("id")
+
+    from core.auth import verify_password
+    norm_answer = answer.strip().lower()
+    if verify_password(norm_answer, ans_salt, ans_hash):
+        return True, user.get("id")
+    return False, user.get("id")
+
+
+def create_password_reset_token(user_id: str, ttl_seconds: int = 600) -> str:
+    """为通过密保验证的用户签发 10 分钟一次性密码重置凭据"""
+    import secrets
+    token = secrets.token_urlsafe(32)
+    now_ts = int(time.time())
+    expires_at = now_ts + ttl_seconds
+    now_str = now_east8_str("%Y-%m-%d %H:%M:%S")
+
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    INSERT INTO password_reset_tokens (token, user_id, expires_at, created_at)
+    VALUES (?, ?, ?, ?);
+    """, (token, user_id, expires_at, now_str))
+    conn.commit()
+    conn.close()
+    return token
+
+
+def verify_password_reset_token(token: str) -> Optional[str]:
+    """验证并消耗重置凭据，成功则返回 user_id"""
+    now_ts = int(time.time())
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT user_id, expires_at FROM password_reset_tokens WHERE token = ?;
+    """, (token,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return None
+
+    if row["expires_at"] < now_ts:
+        cur.execute("DELETE FROM password_reset_tokens WHERE token = ?;", (token,))
+        conn.commit()
+        conn.close()
+        return None
+
+    user_id = row["user_id"]
+    cur.execute("DELETE FROM password_reset_tokens WHERE token = ?;", (token,))
+    conn.commit()
+    conn.close()
+    return user_id
 
 
 def set_user_status(user_id: str, status: str):
@@ -1275,7 +1388,7 @@ def reset_user_password_by_admin(user_id: str, new_password: str, admin_id: Opti
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-    UPDATE users SET password_hash = ?, salt = ? WHERE id = ?;
+    UPDATE users SET password_hash = ?, salt = ?, must_change_password = 1 WHERE id = ?;
     """, (new_hash, new_salt, str(user_id)))
     # 密码修改后将该用户所有旧令牌注销
     cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (str(user_id),))
@@ -1351,8 +1464,8 @@ def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
 
         try:
             cur.execute("""
-            INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at)
-            VALUES (?, ?, ?, ?, ?, 'student', 'active', ?);
+            INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at, must_change_password)
+            VALUES (?, ?, ?, ?, ?, 'student', 'active', ?, 1);
             """, (u_id, uname, pwd_hash, salt, disp, now))
             created.append(uname)
         except Exception as e:
