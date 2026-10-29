@@ -1553,7 +1553,7 @@
       padding: 10px 14px;
       color: var(--text-main);
       font-family: inherit;
-      font-size: 15px;
+      font-size: 16px;
       line-height: 1.6;
       resize: vertical;
       outline: none;
@@ -2146,6 +2146,17 @@
 
     /* 📱 手机端深度适配 (Screen Width <= 768px) */
     @media (max-width: 768px) {
+      /* 强制所有表单输入控件字体在移动端不低于 16px，从根本上杜绝 iOS WebKit (Chrome iOS / Safari) 聚焦自动放大页面 */
+      input, textarea, select,
+      .student-input, .auth-input, .auth-select,
+      .feedback-input, .feedback-textarea,
+      .form-control,
+      input[type="text"], input[type="password"], input[type="search"] {
+        font-size: 16px !important;
+      }
+      textarea.student-input::placeholder {
+        font-size: 15px !important;
+      }
       .app-main-layout {
         padding: 8px 10px calc(20px + env(safe-area-inset-bottom)) 10px;
       }
@@ -5250,25 +5261,26 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     // 初始化载入（经过零延迟优化：首屏即刻就绪，异步热补丁数据）
     // ============================================================
-    // 🖐️ 触控防误触与缩放治理引擎 (多重物理与事件层锁死)
-    // 1. 拦截 iOS WebKit 原生手势事件 (gesturestart / gesturechange / gestureend)
-    // 2. 拦截多指触控，若已被异常双击放大则允许缩小回弹 (避免缩不回去)
-    // 3. 拦截双击空白区防误触放大 (touchend 320ms 规则)
-    // 4. 触控板双指缩放拦截 (wheel + ctrlKey)，不影响 Ctrl+/- 键盘缩放
-    // 5. 视口异常放大自动恢复监视器 (visualViewport scale > 1.01 时重置)
+    // 🖐️ 触控防误触与缩放治理引擎 (全面兼容 Chrome on iOS / Safari / Android / 桌面端)
+    // 核心逻辑：
+    // 1. 允许双指向内捏合缩小（scale <= 1.0 时畅通缩回），仅拦截向外张开手势（禁止继续放大）
+    // 2. 避免在 touchstart 和 gesturestart 上调用 preventDefault，防止将缩回手势彻底杀死
+    // 3. 在 gesturechange 上精准按 e.scale > 1.0 实施单向放大拦截，e.scale <= 1.0 顺畅缩回
+    // 4. 输入框失焦 (focusout) 与用户触控结束 (touchend) 自动复位视口
     // ============================================================
     
-    // (1) iOS Safari 私有手势事件深度拦截
-    ['gesturestart', 'gesturechange', 'gestureend'].forEach(function(evt) {
-      window.addEventListener(evt, function(e) {
+    // (1) iOS WebKit (Safari & Chrome on iOS) 原生手势拦截：仅拦截放大，放行缩小
+    function handleGestureChange(e) {
+      if (e.scale > 1.0) {
+        // 向外张开手势（试图继续放大）：坚决阻止
         e.preventDefault();
-      }, { passive: false, capture: true });
-      document.addEventListener(evt, function(e) {
-        e.preventDefault();
-      }, { passive: false, capture: true });
-    });
+      }
+      // e.scale <= 1.0 表示向内捏合手势（正在缩小回弹），绝对不拦截，允许浏览器内核顺畅缩回！
+    }
+    window.addEventListener('gesturechange', handleGestureChange, { passive: false, capture: true });
+    document.addEventListener('gesturechange', handleGestureChange, { passive: false, capture: true });
 
-    // (2) 双指触控缩放智能拦截与双向缩放解死锁
+    // (2) 双指触控智能方向判定
     let pinchStartDistance = 0;
     function calcTouchDistance(touches) {
       if (!touches || touches.length < 2) return 0;
@@ -5280,29 +5292,18 @@ student04, CogniScaffold123!, 李小明"></textarea>
     function handleMultiTouchStart(e) {
       if (e.touches && e.touches.length > 1) {
         pinchStartDistance = calcTouchDistance(e.touches);
-        const currentScale = window.visualViewport ? window.visualViewport.scale : 1.0;
-        // 正常视口比例（scale <= 1.02）彻底阻止任何双指触控初始化
-        if (currentScale <= 1.02) {
-          e.preventDefault();
-        }
+        // 注意：切勿在 touchstart 调用 preventDefault()，否则会直接将后续的缩小动作一并取消！
       }
     }
 
     function handleMultiTouchMove(e) {
       if (e.touches && e.touches.length > 1) {
-        const currentScale = window.visualViewport ? window.visualViewport.scale : 1.0;
-        if (currentScale <= 1.02) {
-          // 正常比例：锁死放大
+        const currentDistance = calcTouchDistance(e.touches);
+        // 仅当两指距离明显变大（正在执行向外放大动作）时，拦截放大
+        if (currentDistance > pinchStartDistance + 2) {
           e.preventDefault();
-        } else {
-          // 关键救生通道：若由于浏览器异常已被放大，允许用户通过双指向内捏合缩小回弹！
-          const currentDistance = calcTouchDistance(e.touches);
-          if (currentDistance > pinchStartDistance) {
-            // 向外张开手势（继续放大）：阻止
-            e.preventDefault();
-          }
-          // 向内捏合手势（正在缩小）：不阻止，让其顺畅缩小回 1.0！
         }
+        // 若两指距离变小或持平（向内捏合缩小），放行手势让其正常缩小回 1.0！
       }
     }
 
@@ -5334,19 +5335,38 @@ student04, CogniScaffold123!, 李小明"></textarea>
     window.addEventListener('wheel', handleWheelPinch, { passive: false, capture: true });
     document.addEventListener('wheel', handleWheelPinch, { passive: false, capture: true });
 
-    // (5) 视口比例监视与自动复位自愈
-    function autoHealViewportScale() {
-      if (window.visualViewport && window.visualViewport.scale > 1.02) {
-        const meta = document.querySelector('meta[name="viewport"]');
-        if (meta) {
-          const standardContent = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover';
-          meta.setAttribute('content', standardContent);
-        }
-      }
+    // (5) 移动端 iOS 视口强制复位自愈引擎
+    function forceResetViewportScale() {
+      const meta = document.querySelector('meta[name="viewport"]');
+      if (!meta) return;
+      // 技巧：先变更 content 迫使 WebKit 重新排版视口边界，再复位回 1.0 锁定
+      meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=5.0');
+      setTimeout(() => {
+        meta.setAttribute('content', 'width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover');
+      }, 50);
     }
+
+    // 1) 在输入框失焦 (键盘收起) 时，触发视口复位
+    document.addEventListener('focusout', function(e) {
+      if (e.target && /input|textarea|select/i.test(e.target.tagName)) {
+        setTimeout(forceResetViewportScale, 100);
+      }
+    });
+
+    // 2) 视口缩放监视器：若检测到 scale > 1.01，在用户触碰结束 (touchend) 后主动纠偏拉回
+    window.addEventListener('touchend', function() {
+      if (window.visualViewport && window.visualViewport.scale > 1.01) {
+        forceResetViewportScale();
+      }
+    }, { passive: true });
+
+    // 3) 视口尺寸变化监视器
     if (window.visualViewport) {
-      window.visualViewport.addEventListener('resize', autoHealViewportScale);
-      window.visualViewport.addEventListener('scroll', autoHealViewportScale);
+      window.visualViewport.addEventListener('resize', function() {
+        if (window.visualViewport.scale > 1.02) {
+          forceResetViewportScale();
+        }
+      });
     }
 
     async function initApp() {

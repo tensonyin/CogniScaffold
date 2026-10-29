@@ -109,8 +109,8 @@ class TestSixImprovements(unittest.TestCase):
         self.assertIn("user-scalable=no", html)
         self.assertIn("minimum-scale=1.0", html)
         self.assertIn("touch-action: pan-x pan-y", html)
-        self.assertIn("gesturestart", html)
-        self.assertIn("autoHealViewportScale", html)
+        self.assertIn("gesturechange", html)
+        self.assertIn("forceResetViewportScale", html)
         self.assertIn("calcTouchDistance", html)
         self.assertIn("currentDistance > pinchStartDistance", html)
 
