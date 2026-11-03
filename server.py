@@ -2,6 +2,7 @@ import os
 import re
 import json
 import asyncio
+import threading
 import ipaddress
 import mimetypes
 import weakref
@@ -141,7 +142,8 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     # API 响应包含用户隐私与额度信息，禁止浏览器/中间代理缓存
     if request.url.path.startswith("/api/") or "/api/" in request.url.path:
-        response.headers["Cache-Control"] = "no-store"
+        if "no-cache" not in response.headers.get("Cache-Control", ""):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
     # 仅在 HTTPS 访问时下发 HSTS，避免本地 HTTP 调试被强制跳转
     is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
     if is_https:
@@ -1202,6 +1204,46 @@ async def upload_image(
         raise HTTPException(status_code=500, detail="图片处理与识别失败，请检查文件或稍后重试")
 
 
+async def aiter_sync_generator(sync_gen, keepalive_interval: float = 3.0):
+    """
+    将阻塞式同步 Generator（如 OpenAI 流式迭代器）转换为轻量高效的异步流，
+    避免逐 token 频繁调度 ThreadPoolExecutor 导致的多核争用与线程池耗尽。
+    若上游生成出现网络停顿或模型思考阶段，自动发送 SSE 注释保活帧，防止网关/反向代理超时或缓冲。
+    """
+    queue = asyncio.Queue(maxsize=100)
+    loop = asyncio.get_running_loop()
+    done_event = threading.Event()
+
+    def _worker():
+        try:
+            for item in sync_gen:
+                if done_event.is_set():
+                    break
+                asyncio.run_coroutine_threadsafe(queue.put(("chunk", item)), loop).result()
+        except Exception as e:
+            asyncio.run_coroutine_threadsafe(queue.put(("error", e)), loop).result()
+        finally:
+            asyncio.run_coroutine_threadsafe(queue.put(("done", None)), loop).result()
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+
+    try:
+        while True:
+            try:
+                msg_type, payload = await asyncio.wait_for(queue.get(), timeout=keepalive_interval)
+                if msg_type == "done":
+                    break
+                elif msg_type == "error":
+                    raise payload
+                elif msg_type == "chunk":
+                    yield payload
+            except asyncio.TimeoutError:
+                yield ": keep-alive\n\n"
+    finally:
+        done_event.set()
+
+
 @app.post("/api/sessions/{session_id}/chat/stream")
 @app.post("/cogni-scaffold/api/sessions/{session_id}/chat/stream")
 async def chat_stream(session_id: str, request: Request, data: dict):
@@ -1387,25 +1429,27 @@ async def chat_stream(session_id: str, request: Request, data: dict):
                     temp_history = list(sess["dialogue_history"])
                     usage_dict = {}
 
-                    # 同步 SDK 的流式迭代放入线程池，避免单个慢请求阻塞整个事件循环
+                    # 使用轻量异步流迭代器驱动，零线程调度争用并自带保活穿透代理
                     tutor_gen = stream_tutor_response(
                         temp_history, sess.get("solver_blueprint", ""), api_config, usage_dict=usage_dict
                     )
                     try:
-                        while True:
-                            chunk = await asyncio.to_thread(next, tutor_gen, _STREAM_SENTINEL)
-                            if chunk is _STREAM_SENTINEL:
-                                break
+                        async for chunk in aiter_sync_generator(tutor_gen, keepalive_interval=3.0):
                             if await request.is_disconnected():
                                 print(f"[Chat Stream] Client disconnected prematurely for session {session_id}")
                                 break
+                            if chunk.startswith(":"):
+                                yield chunk
+                                continue
                             full_response += chunk
                             clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
                             if clean_chunk:
                                 yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
-                            await asyncio.sleep(0.01)
                     finally:
-                        await asyncio.to_thread(tutor_gen.close)
+                        try:
+                            tutor_gen.close()
+                        except Exception:
+                            pass
 
                     clean_full = full_response.replace("[TRIGGER_DIAGNOSIS]", "").strip()
                     sess["dialogue_history"].append({"role": "assistant", "content": clean_full})
@@ -1422,20 +1466,25 @@ async def chat_stream(session_id: str, request: Request, data: dict):
                             call_type="chat_tutor"
                         )
 
+                    # 标题提炼异步非阻塞执行，不拖累当前流式响应结束
                     if sess.get("title_stage", 0) == 0:
-                        new_title = await asyncio.to_thread(
-                            generate_session_title,
-                            sess["question"],
-                            sess["dialogue_history"],
-                            None,
-                            sess.get("title", ""),
-                            title_stage=1,
-                            api_config=api_config,
-                            user_id=user_id,
-                            session_id=session_id
-                        )
-                        sess["title"] = new_title
                         sess["title_stage"] = 1
+                        async def _bg_title(q, hist, u_id, s_id):
+                            try:
+                                t = await asyncio.to_thread(
+                                    generate_session_title,
+                                    q, hist, None, "会话", 1, api_config, user_id=u_id, session_id=s_id
+                                )
+                                s_store = get_user_store(u_id)
+                                cur_s = (s_store.get("active_sessions") or {}).get(s_id)
+                                if cur_s:
+                                    cur_s["title"] = t
+                                    cur_s["title_stage"] = 1
+                                    save_user_session(u_id, cur_s)
+                            except Exception as e:
+                                print(f"[BG Title Error] {e}")
+
+                        asyncio.create_task(_bg_title(sess["question"], list(sess["dialogue_history"]), user_id, session_id))
 
                     is_refusal = check_output_refusal(clean_full)
 
@@ -1446,6 +1495,8 @@ async def chat_stream(session_id: str, request: Request, data: dict):
                     )
 
                     if can_trigger_diagnosis:
+                        # 明确通知客户端：主回复已完毕，正在生成深度认知透视与变式题
+                        yield f"data: {json.dumps({'type': 'stage_transition', 'stage': 'diagnosing', 'message': '✨ 检测到认知突破！正在为你生成思维盲区透视与定制三阶变式挑战...'}, ensure_ascii=False)}\n\n"
                         await asyncio.to_thread(trigger_diagnosis_for_session, sess, user_id=user_id)
 
                     save_user_session(user_id, sess)
@@ -1457,7 +1508,12 @@ async def chat_stream(session_id: str, request: Request, data: dict):
                 yield f"data: {json.dumps({'type': 'chunk', 'content': err_msg, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
                 yield f"data: {json.dumps({'type': 'done', 'session': sess, 'store': get_user_store(user_id), 'user_quota': get_user_quota_info(user_id, is_admin)}, ensure_ascii=False)}\n\n"
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "X-Accel-Buffering": "no",
+        "Connection": "keep-alive"
+    }
+    return StreamingResponse(event_generator(), media_type="text/event-stream", headers=headers)
 
 
 # ============================================================

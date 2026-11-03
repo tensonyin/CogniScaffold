@@ -35,10 +35,11 @@ def get_openai_client(api_key: str, base_url: str) -> OpenAI:
     """初始化并缓存 OpenAI 客户端单例，复用底层 HTTP Keep-Alive 连接池，大幅消除网络握手延迟"""
     key = (api_key or "sk-dummy", base_url or "")
     if key not in _CLIENT_CACHE:
+        from openai import Timeout
         _CLIENT_CACHE[key] = OpenAI(
             api_key=key[0],
             base_url=key[1] if key[1] else None,
-            timeout=45.0,
+            timeout=Timeout(90.0, connect=10.0, read=90.0),
             max_retries=2
         )
     return _CLIENT_CACHE[key]
@@ -218,7 +219,7 @@ def stream_tutor_response(
             "model": api_config["model"],
             "messages": messages,
             "temperature": 0.3,
-            "max_tokens": 400,
+            "max_tokens": 800,
             "stream": True
         }
         try:
@@ -239,10 +240,15 @@ def stream_tutor_response(
                     usage_dict["completion_tokens"] = getattr(u, "completion_tokens", 0)
                     usage_dict["total_tokens"] = getattr(u, "total_tokens", 0)
             if chunk.choices and chunk.choices[0].delta:
-                delta = chunk.choices[0].delta.content or ""
+                delta_obj = chunk.choices[0].delta
+                delta = getattr(delta_obj, "content", None) or ""
+                reasoning = getattr(delta_obj, "reasoning_content", None) or ""
                 if delta:
                     completion_chars += len(delta)
                     yield delta
+                elif reasoning and completion_chars == 0:
+                    # 推理模型（如 DeepSeek-R1）思考中，向生成器发射微心跳
+                    yield ""
 
         # 若模型流式未携带 usage，基于中英字符比率精确估算
         if not has_usage and usage_dict is not None:
