@@ -1072,6 +1072,29 @@
       color: var(--text-sub);
       margin: 0;
     }
+    .guide-tour-modal-card {
+      width: 100%;
+      max-width: 680px;
+      max-height: 86vh;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 14px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .guide-tour-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 4px 6px 4px 2px;
+      margin: 10px 0;
+    }
+    .guide-tour-section:last-child {
+      margin-bottom: 0;
+    }
     @media (max-width: 900px) {
       .st-columns {
         flex-direction: column;
@@ -2494,12 +2517,65 @@
         justify-content: center !important;
         gap: 12px !important;
       }
+
+      /* 管理控制台移动端深度适配 (Mobile <= 768px) */
+      .admin-console-container {
+        padding: 12px 10px 40px 10px !important;
+      }
+      .admin-header-bar {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 12px !important;
+      }
+      .admin-header-title {
+        width: 100% !important;
+        justify-content: space-between !important;
+      }
+      .admin-nav-tabs {
+        padding-bottom: 6px !important;
+        gap: 6px !important;
+      }
+      .admin-nav-tab {
+        padding: 6px 12px !important;
+        font-size: 0.8rem !important;
+      }
+      .admin-card {
+        padding: 14px 12px !important;
+        margin-bottom: 14px !important;
+        border-radius: 10px !important;
+      }
+      .admin-card-header {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+      }
+      .admin-batch-toolbar {
+        flex-direction: column !important;
+        align-items: flex-start !important;
+        gap: 10px !important;
+        width: 100% !important;
+      }
+      .batch-toolbar-left {
+        flex-wrap: wrap !important;
+        width: 100% !important;
+      }
+      .guide-tour-modal-card {
+        padding: 18px 14px !important;
+        max-height: 90vh !important;
+      }
     }
 
     /* 📱 平板端精致调优 (Tablet: 769px <= Width <= 1024px) */
     @media (min-width: 769px) and (max-width: 1024px) {
       .app-main-layout {
         padding: 14px 18px !important;
+      }
+      .admin-console-container {
+        padding: 16px 14px 50px 14px !important;
+      }
+      .admin-nav-tabs {
+        overflow-x: auto !important;
+        flex-wrap: nowrap !important;
       }
       .st-columns {
         gap: 1.25rem !important;
@@ -2860,6 +2936,9 @@
       padding: 3px 8px;
       border-radius: 4px;
       border: 1px solid var(--card-border);
+      white-space: nowrap !important;
+      word-break: keep-all !important;
+      flex-shrink: 0;
     }
     .auth-btn-row {
       display: flex;
@@ -3055,15 +3134,25 @@
       font-size: 0.72rem;
       color: var(--text-muted);
     }
-    /* 管理员表格样式 */
+    /* 管理员表格样式与全终端响应式优化 */
     .admin-table-wrapper {
       overflow-x: auto;
       border: 1px solid var(--card-border);
       border-radius: 10px;
       background: var(--card-bg);
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: thin;
+    }
+    .admin-table-wrapper::-webkit-scrollbar {
+      height: 6px;
+    }
+    .admin-table-wrapper::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 4px;
     }
     .admin-table {
       width: 100%;
+      min-width: 1160px;
       border-collapse: collapse;
       font-size: 0.84rem;
       text-align: left;
@@ -3075,11 +3164,14 @@
       padding: 12px 14px;
       border-bottom: 1px solid var(--card-border);
       white-space: nowrap;
+      word-break: keep-all;
     }
     .admin-table td {
       padding: 12px 14px;
       border-bottom: 1px solid var(--card-border);
       color: var(--text-main);
+      vertical-align: middle;
+      white-space: nowrap;
     }
     .admin-table tr:last-child td {
       border-bottom: none;
@@ -3095,6 +3187,9 @@
       border-radius: 999px;
       font-size: 0.74rem;
       font-weight: 600;
+      white-space: nowrap !important;
+      word-break: keep-all !important;
+      flex-shrink: 0;
     }
     .user-status-badge.active {
       background: rgba(16, 185, 129, 0.15);
@@ -3108,7 +3203,8 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      flex-wrap: wrap;
+      flex-wrap: nowrap !important;
+      white-space: nowrap !important;
     }
     .admin-btn-sm {
       padding: 4px 8px;
@@ -4135,6 +4231,7 @@
             </table>
           </div>
         </div>
+      </div>
       
       <!-- Tab 6: 🗑️ 回收站与安全隔离恢复 -->
       <div id="adminPanelTrash" class="admin-tab-panel" style="display: none;">
@@ -4193,7 +4290,6 @@
           </div>
         </div>
       </div>
-</div>
     </div>
 
     <!-- 视图 B: 主双栏解题工作区 (Main Workspace) -->
@@ -4350,7 +4446,7 @@
           <span class="feedback-unread-dot" id="feedbackUnreadDot"></span>
         </a>
         <a class="version-link-badge" id="footerVersionBtn" onclick="openChangelogModal()" title="点击查看更新日志与版本特性">
-          <span>v2.8.0</span>
+          <span>v2.9.0</span>
           <span class="version-unread-dot" id="versionUnreadDot"></span>
         </a>
       </div>
@@ -4907,12 +5003,53 @@ student04, CogniScaffold123!, 李小明, 高一(1)班"></textarea>
 
       <div class="changelog-timeline">
 
-        <!-- v2.8.0 (当前最新版本) -->
+        <!-- v2.9.0 (当前最新版本) -->
         <div class="changelog-version-card current">
           <div class="changelog-header-row">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <span style="font-size: 1.05rem; font-weight: 700; color: var(--primary); font-family: monospace;">v2.8.0</span>
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--primary); font-family: monospace;">v2.9.0</span>
               <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary-hover);">最新上线</span>
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">2026-11-03</span>
+          </div>
+          <ul class="changelog-item-list">
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>专属 DeepSeek API Key 自由导入与双模调度</strong>：学者与导师可自主绑定个人官网 API Key 并进行合法性校验与端到端网络探针；探究默认优先消耗个人 Key，额度耗尽或异常时系统自动平滑回退至每日保底配额。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>数据安全隔离回收站机制</strong>：被移除的账号或对话历史首先移入隔离保护回收站，防误删防丢失，支持随时一键无损还原或永久粉碎。</span>
+            </li>
+            <li>
+              <span class="badge-feat">新增</span>
+              <span><strong>多学者账号集中维护与快速表格导入</strong>：支持多账号快速重置初始密码、每日 Token 额度批量更新与今日消耗重置，支持多行直接粘贴学生花名册。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>全终端响应式排版与文字防折行</strong>：深度重构移动端与平板端视图排版，彻底消除状态标签、班级、姓名等单字垂直折行（如 <code>🟢 正常</code> 等），全面优化横向顺滑滚动与自适应导航栏。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>顶部导航栏优先呈现真实姓名</strong>：用户身份胶囊默认优先展示学者真实姓名而非系统账号，悬浮气泡明晰身份归属。</span>
+            </li>
+            <li>
+              <span class="badge-opt">优化</span>
+              <span><strong>新手使用指南视觉层级与边距重构</strong>：优化使用指南弹窗内边距与垂直呼吸感；强化暗色模式弹窗纯净度与文字背景对比度。</span>
+            </li>
+            <li>
+              <span class="badge-fix">修复</span>
+              <span><strong>学校服务器重新部署数据安全保障</strong>：增强数据向下兼容引擎，历史账号缺少班级自动优雅回退，再次部署绝不覆盖任何既有学生对话与账号。</span>
+            </li>
+          </ul>
+        </div>
+
+        <!-- v2.8.0 -->
+        <div class="changelog-version-card">
+          <div class="changelog-header-row">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="font-size: 1.05rem; font-weight: 700; color: var(--text-main); font-family: monospace;">v2.8.0</span>
+              <span class="changelog-tag" style="background: rgba(99, 102, 241, 0.15); color: var(--primary-hover);">额度管理</span>
             </div>
             <span style="font-size: 0.75rem; color: var(--text-muted);">2026-10-28</span>
           </div>
@@ -6133,7 +6270,11 @@ let currentUser = null;
       const tokenText = document.getElementById('headerTokenText');
 
       if (currentUser) {
-        if (userNameText) userNameText.textContent = currentUser.username;
+        if (userNameText) {
+          const displayLabel = (currentUser.display_name && currentUser.display_name.trim()) ? currentUser.display_name.trim() : currentUser.username;
+          userNameText.textContent = displayLabel;
+          if (userAuthBtn) userAuthBtn.title = `${displayLabel} (@${currentUser.username})`;
+        }
         if (userAuthBtn) userAuthBtn.classList.add('logged-in');
         if (userMenuHeader) userMenuHeader.textContent = `${currentUser.display_name || currentUser.username} (${currentUser.role === 'admin' ? '管理员' : '学者'})`;
         if (itemChangePwd) itemChangePwd.style.display = 'flex';
@@ -8383,26 +8524,26 @@ let currentUser = null;
 
         return `
           <tr>
-            <td style="text-align: center;">
+            <td style="text-align: center; white-space: nowrap; width: 38px;">
               <input type="checkbox" class="user-row-checkbox" value="${u.id}" onchange="handleUserRowCheckboxChange(this)" ${isChecked ? 'checked' : ''} ${isMe ? 'disabled title="不可操作当前管理员自身"' : ''}>
             </td>
-            <td>
+            <td style="white-space: nowrap;">
               <div style="font-weight: 600; font-family: monospace;">${escapeHtml(u.username)}</div>
               <div style="font-size: 0.7rem; color: var(--text-muted);">${u.id}</div>
             </td>
-            <td>${escapeHtml(u.display_name || u.username)}</td>
-            <td><span style="font-size: 0.8rem; color: var(--text-sub);">${escapeHtml(u.class_name || '未分班')}</span></td>
-            <td><span class="sec-badge" style="background: ${u.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(100, 116, 139, 0.15)'}; color: ${u.role === 'admin' ? '#60a5fa' : 'var(--text-main)'};">${u.role === 'admin' ? '管理员' : '学生'}</span></td>
-            <td><span class="user-status-badge ${u.status}">${isLocked ? '🚫 封禁' : '🟢 正常'}</span></td>
-            <td>
-              ${hasKey ? '<span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px;">🟢 专属Key</span>' : '<span style="color: var(--text-muted); font-size: 0.72rem;">学校配额</span>'}
+            <td style="white-space: nowrap; font-weight: 500;">${escapeHtml(u.display_name || u.username)}</td>
+            <td style="white-space: nowrap;"><span style="font-size: 0.8rem; color: var(--text-sub);">${escapeHtml(u.class_name || '未分班')}</span></td>
+            <td style="white-space: nowrap;"><span class="sec-badge" style="background: ${u.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(100, 116, 139, 0.15)'}; color: ${u.role === 'admin' ? '#60a5fa' : 'var(--text-main)'};">${u.role === 'admin' ? '管理员' : '学生'}</span></td>
+            <td style="white-space: nowrap;"><span class="user-status-badge ${u.status}">${isLocked ? '🚫 封禁' : '🟢 正常'}</span></td>
+            <td style="white-space: nowrap;">
+              ${hasKey ? '<span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px; white-space: nowrap;">🟢 专属Key</span>' : '<span style="color: var(--text-muted); font-size: 0.72rem; white-space: nowrap;">学校配额</span>'}
             </td>
-            <td>${banInfo}</td>
-            <td style="font-size: 0.78rem;">${quotaInfo}</td>
-            <td style="font-family: monospace; font-weight: 600;">${u.today_questions != null ? u.today_questions : (u.today_questions_count != null ? u.today_questions_count : 0)} 道<br><span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">${(u.today_tokens != null ? u.today_tokens : 0).toLocaleString()} Tokens</span></td>
-            <td style="font-size: 0.75rem; color: var(--text-muted);">${u.last_login_at || '未登录过'}</td>
-            <td>
-              <div class="admin-action-btn-group" style="justify-content: flex-end;">
+            <td style="white-space: nowrap;">${banInfo}</td>
+            <td style="font-size: 0.78rem; white-space: nowrap;">${quotaInfo}</td>
+            <td style="font-family: monospace; font-weight: 600; white-space: nowrap;">${u.today_questions != null ? u.today_questions : (u.today_questions_count != null ? u.today_questions_count : 0)} 道<br><span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">${(u.today_tokens != null ? u.today_tokens : 0).toLocaleString()} Tokens</span></td>
+            <td style="font-size: 0.75rem; color: var(--text-muted); white-space: nowrap;">${u.last_login_at || '未登录过'}</td>
+            <td style="white-space: nowrap; text-align: right;">
+              <div class="admin-action-btn-group" style="justify-content: flex-end; flex-wrap: nowrap; white-space: nowrap;">
                 ${isLocked ? `
                   <button class="admin-btn-sm" style="color: #34d399; border-color: rgba(16, 185, 129, 0.3);" onclick="handleAdminUnban('${u.id}')">解封</button>
                 ` : `
@@ -8809,6 +8950,12 @@ let currentUser = null;
         if (uBadge) uBadge.textContent = uCnt;
         const sBadge = document.getElementById('trashSessionsCount');
         if (sBadge) sBadge.textContent = sCnt;
+
+        if (uCnt === 0 && sCnt > 0 && currentTrashSubTab === 'users') {
+          switchTrashSubTab('sessions');
+        } else {
+          switchTrashSubTab(currentTrashSubTab || 'users');
+        }
 
         renderTrashSubViews();
       } catch (err) {
@@ -9690,7 +9837,7 @@ let currentUser = null;
     // ============================================================
     // 版本更新日志与红点提醒逻辑 (Changelog & Version Dot)
     // ============================================================
-    const APP_CURRENT_VERSION = 'v2.8.0';
+    const APP_CURRENT_VERSION = 'v2.9.0';
 
     function checkVersionChangelogBadge() {
       try {

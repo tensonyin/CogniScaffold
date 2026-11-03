@@ -1,3 +1,4 @@
+import re
 # tests/test_custom_api_and_admin.py
 import unittest
 import json
@@ -169,6 +170,37 @@ stu_batch_02, Student123456!, 李四, 高一(3)班
         csv_text = res_csv.content.decode("utf-8")
         self.assertIn("学号/账号", csv_text)
         self.assertIn("达成突破数", csv_text)
+
+    def test_07_trash_items_and_compatibility(self):
+        # 1. Trash items endpoint
+        res = self.client.get("/api/admin/trash/items", headers=self.admin_headers, cookies=self.admin_cookies)
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertIn("trash", data)
+        self.assertIn("users", data["trash"])
+        self.assertIn("sessions", data["trash"])
+
+        # 2. Check HTML integrity for Trash panel and top navbar username display
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            html = f.read()
+
+        # adminPanelSecurity must close before adminPanelTrash
+        sec_idx = html.index('id="adminPanelSecurity"')
+        trash_idx = html.index('id="adminPanelTrash"')
+        self.assertTrue(sec_idx < trash_idx)
+        sec_slice = html[sec_idx:trash_idx]
+        self.assertEqual(len(re.findall(r'<div\b', sec_slice)), len(re.findall(r'</div>', sec_slice)))
+
+        # Top navbar displays display_name by default
+        self.assertIn("userNameText.textContent = displayLabel", html)
+
+        # Badges have nowrap
+        self.assertIn(".user-status-badge {", html)
+        self.assertIn("white-space: nowrap !important;", html)
+
+        # Version is v2.9.0
+        self.assertIn("<span>v2.9.0</span>", html)
+        self.assertIn("const APP_CURRENT_VERSION = 'v2.9.0';", html)
 
 if __name__ == "__main__":
     unittest.main()

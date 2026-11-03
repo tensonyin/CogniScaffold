@@ -60,10 +60,15 @@ fi
 echo -e "${GREEN}✔ 配置文件 (.env) 准备就绪${NC}"
 
 # 4. 创建并授权数据目录
-echo -e "\n${YELLOW}[步骤 4/5] 初始化持久化数据目录 (./data)...${NC}"
+echo -e "\n${YELLOW}[步骤 4/5] 检查与保护持久化数据目录 (./data)...${NC}"
 mkdir -p data
 chmod 777 data
-echo -e "${GREEN}✔ 数据目录已就绪 (SQLite 数据库与学生数据持久保存在 ./data 目录下)${NC}"
+if [ -f "data/cogni_scaffold.db" ]; then
+    echo -e "${GREEN}✔ 检测到已存在的历史数据数据库 (./data/cogni_scaffold.db)${NC}"
+    echo -e "${GREEN}  [数据安全承诺] 正在继承历史数据：学生账号、班级信息、问答历史与密保均安全保留，绝不覆盖！${NC}"
+else
+    echo -e "${GREEN}✔ 数据目录已就绪 (初次部署，将自动初始化全新 SQLite 数据库)${NC}"
+fi
 
 # 5. 启动服务容器
 echo -e "\n${YELLOW}[步骤 5/5] 启动 CogniScaffold 服务容器...${NC}"

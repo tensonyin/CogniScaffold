@@ -319,6 +319,11 @@ def _migrate_user_columns(conn: sqlite3.Connection):
         created_at TEXT NOT NULL
     );
     """)
+
+    # 历史数据向下兼容保护：确保旧数据中的 NULL 安全升级为默认值，杜绝字段缺失 bug
+    cur.execute("UPDATE users SET is_deleted = 0 WHERE is_deleted IS NULL;")
+    cur.execute("UPDATE users SET class_name = '' WHERE class_name IS NULL;")
+    cur.execute("UPDATE sessions SET is_deleted = 0 WHERE is_deleted IS NULL;")
     conn.commit()
 
 
@@ -1764,7 +1769,7 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
 
     sql = """
     SELECT 
-        u.id, u.username, u.display_name, u.class_name, u.role, u.status, u.banned_until, u.ban_reason,
+        u.id, u.username, u.display_name, COALESCE(u.class_name, '') AS class_name, u.role, u.status, u.banned_until, u.ban_reason,
         u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit, u.custom_daily_token_limit,
         (CASE WHEN u.custom_api_key_enc IS NOT NULL AND length(u.custom_api_key_enc) > 0 THEN 1 ELSE 0 END) AS has_custom_key,
         (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%') as session_count,
@@ -1775,7 +1780,7 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id AND date = ?) as today_tokens,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id) as total_tokens
     FROM users u
-    WHERE u.is_deleted = 0
+    WHERE COALESCE(u.is_deleted, 0) = 0
     """
     params: List[Any] = [today_str, today_str, f"{today_str}%", f"{today_short}%", today_str, today_str]
 
@@ -1792,8 +1797,11 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
         params.append(status)
 
     if class_filter:
-        sql += " AND u.class_name = ?"
-        params.append(class_filter)
+        if class_filter == "未分班":
+            sql += " AND (u.class_name IS NULL OR u.class_name = '')"
+        else:
+            sql += " AND u.class_name = ?"
+            params.append(class_filter)
 
     sql += " ORDER BY u.role DESC, u.created_at ASC LIMIT ?;"
     params.append(max(1, min(int(limit), 500)))
@@ -1826,11 +1834,11 @@ def get_admin_sessions_list(user_id: Optional[str] = None, search: str = "", lim
     SELECT 
         s.id, s.user_id, s.title, s.question, s.current_stage, s.tutor_turns,
         s.is_starred, s.is_archived, s.created_at, s.updated_at,
-        u.username, u.display_name,
+        u.username, u.display_name, COALESCE(u.class_name, '') as class_name,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE session_id = s.id) as session_tokens
     FROM sessions s
-    JOIN users u ON s.user_id = u.id
-    WHERE s.is_initialized = 1
+    LEFT JOIN users u ON s.user_id = u.id
+    WHERE s.is_initialized = 1 AND COALESCE(s.is_deleted, 0) = 0
     """
     params: List[Any] = []
 
@@ -2226,13 +2234,13 @@ def get_trash_items() -> Dict[str, Any]:
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-    SELECT id, username, display_name, class_name, role, deleted_at
+    SELECT id, username, display_name, COALESCE(class_name, '') as class_name, role, deleted_at
     FROM users WHERE is_deleted = 1 ORDER BY deleted_at DESC;
     """)
     trash_users = [dict(r) for r in cur.fetchall()]
 
     cur.execute("""
-    SELECT s.id, s.user_id, s.title, s.question, s.current_stage, s.deleted_at, u.username, u.display_name, u.class_name
+    SELECT s.id, s.user_id, s.title, s.question, s.current_stage, s.deleted_at, u.username, u.display_name, COALESCE(u.class_name, '') as class_name
     FROM sessions s
     LEFT JOIN users u ON s.user_id = u.id
     WHERE s.is_deleted = 1 ORDER BY s.deleted_at DESC;
