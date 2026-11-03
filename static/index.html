@@ -20,10 +20,8 @@
       }
       // 3. 极速恢复暗色/亮色模式，彻底杜绝刷新闪烁
       try {
-        var savedTheme = localStorage.getItem('cogni_theme');
-        if (savedTheme) {
-          document.documentElement.setAttribute('data-theme', savedTheme);
-        }
+        var savedTheme = localStorage.getItem('cogni_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', savedTheme);
       } catch(e) {}
     })();
   </script>
@@ -2681,25 +2679,37 @@
       margin: 4px 0;
     }
 
-        /* 弹窗专用高不透明度纯净背景（彻底消除黑暗模式下半透明透光文字杂乱问题） */
-    :root {
-      --modal-card-bg: #121622;
-      --modal-card-border: rgba(255, 255, 255, 0.14);
+    /* 弹窗核心背景与主题深度绑定（彻底杜绝黑暗模式下因选择器错位导致的白底问题） */
+    body[data-theme="dark"] .theme-modal-card,
+    body[data-theme="dark"] .auth-modal-card,
+    body[data-theme="dark"] .feedback-modal-card,
+    body[data-theme="dark"] .changelog-modal-card,
+    body[data-theme="dark"] .guide-tour-modal-card,
+    body[data-theme="dark"] .admin-session-modal-card,
+    body[data-theme="dark"] .admin-modal-card,
+    body[data-theme="dark"] .admin-session-drawer-card {
+      background-color: #161b22 !important;
+      background: #161b22 !important;
+      border: 1px solid rgba(255, 255, 255, 0.16) !important;
+      color: #f1f5f9 !important;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85) !important;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
     }
-    [data-theme="light"] {
-      --modal-card-bg: #ffffff;
-      --modal-card-border: #e2e8f0;
-    }
-    .theme-modal-card,
-    .auth-modal-card,
-    .feedback-modal-card,
-    .changelog-modal-card,
-    .guide-tour-modal-card,
-    .admin-session-modal-card,
-    .admin-modal-card {
-      background: var(--modal-card-bg) !important;
-      border: 1px solid var(--modal-card-border) !important;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7) !important;
+
+    body[data-theme="light"] .theme-modal-card,
+    body[data-theme="light"] .auth-modal-card,
+    body[data-theme="light"] .feedback-modal-card,
+    body[data-theme="light"] .changelog-modal-card,
+    body[data-theme="light"] .guide-tour-modal-card,
+    body[data-theme="light"] .admin-session-modal-card,
+    body[data-theme="light"] .admin-modal-card,
+    body[data-theme="light"] .admin-session-drawer-card {
+      background-color: #ffffff !important;
+      background: #ffffff !important;
+      border: 1px solid #e2e8f0 !important;
+      color: #0f172a !important;
+      box-shadow: 0 20px 48px rgba(0, 0, 0, 0.15) !important;
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
     }
@@ -3561,10 +3571,9 @@
 <body data-theme="dark">
   <script>
     try {
-      var savedTheme = localStorage.getItem('cogni_theme');
-      if (savedTheme) {
-        document.body.setAttribute('data-theme', savedTheme);
-      }
+      var savedTheme = localStorage.getItem('cogni_theme') || 'dark';
+      document.body.setAttribute('data-theme', savedTheme);
+      document.documentElement.setAttribute('data-theme', savedTheme);
     } catch(e) {}
   </script>
 
@@ -5015,31 +5024,23 @@ student04, CogniScaffold123!, 李小明, 高一(1)班"></textarea>
           <ul class="changelog-item-list">
             <li>
               <span class="badge-feat">新增</span>
-              <span><strong>专属 DeepSeek API Key 自由导入与双模调度</strong>：学者与导师可自主绑定个人官网 API Key 并进行合法性校验与端到端网络探针；探究默认优先消耗个人 Key，额度耗尽或异常时系统自动平滑回退至每日保底配额。</span>
-            </li>
-            <li>
-              <span class="badge-feat">新增</span>
-              <span><strong>数据安全隔离回收站机制</strong>：被移除的账号或对话历史首先移入隔离保护回收站，防误删防丢失，支持随时一键无损还原或永久粉碎。</span>
-            </li>
-            <li>
-              <span class="badge-feat">新增</span>
-              <span><strong>多学者账号集中维护与快速表格导入</strong>：支持多账号快速重置初始密码、每日 Token 额度批量更新与今日消耗重置，支持多行直接粘贴学生花名册。</span>
+              <span><strong>支持导入个人专属 DeepSeek API Key</strong>：点击顶栏 Token 胶囊可自主绑定官方 API Key，享受充沛算力；未导入时自动使用系统分配的每日免费额度，双模自动平滑调度。</span>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>全终端响应式排版与文字防折行</strong>：深度重构移动端与平板端视图排版，彻底消除状态标签、班级、姓名等单字垂直折行（如 <code>🟢 正常</code> 等），全面优化横向顺滑滚动与自适应导航栏。</span>
+              <span><strong>顶部导航栏优先呈现学者真实姓名</strong>：身份胶囊默认优先展示你的真实姓名而非账号代码，悬浮提示完整归属，提升个性化与归属感。</span>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>顶部导航栏优先呈现真实姓名</strong>：用户身份胶囊默认优先展示学者真实姓名而非系统账号，悬浮气泡明晰身份归属。</span>
+              <span><strong>暗色模式纯净度升级与弹窗护眼优化</strong>：全面重构深色主题下所有弹窗卡片背景，彻底消除白屏与刺眼强光，夜间沉浸推导更舒适护眼。</span>
             </li>
             <li>
               <span class="badge-opt">优化</span>
-              <span><strong>新手使用指南视觉层级与边距重构</strong>：优化使用指南弹窗内边距与垂直呼吸感；强化暗色模式弹窗纯净度与文字背景对比度。</span>
+              <span><strong>新手使用指南视觉层级与边距重构</strong>：全景功能图解卡片呼吸感升级，优化移动端与平板端弹窗边距，随时查阅苏格拉底脚手架探究方法。</span>
             </li>
             <li>
-              <span class="badge-fix">修复</span>
-              <span><strong>学校服务器重新部署数据安全保障</strong>：增强数据向下兼容引擎，历史账号缺少班级自动优雅回退，再次部署绝不覆盖任何既有学生对话与账号。</span>
+              <span class="badge-opt">优化</span>
+              <span><strong>移动端与平板端交互体验优化</strong>：优化窄屏下的标签流横向顺滑滑动与长文本防折行排版，在各类手机和平板上推导更加清爽顺畅。</span>
             </li>
           </ul>
         </div>
@@ -5874,6 +5875,7 @@ let currentUser = null;
 
     function applyTheme(theme) {
       document.body.setAttribute('data-theme', theme);
+      document.documentElement.setAttribute('data-theme', theme);
       try {
         localStorage.setItem('cogni_theme', theme);
       } catch (e) {}
