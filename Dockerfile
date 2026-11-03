@@ -23,4 +23,4 @@ EXPOSE 8501
 HEALTHCHECK CMD curl --fail http://localhost:8501/api/bootstrap || exit 1
 
 # Launch FastAPI with uvicorn
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8501", "--workers", "1"]
+CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "8501", "--workers", "1", "--backlog", "2048", "--timeout-keep-alive", "65"]

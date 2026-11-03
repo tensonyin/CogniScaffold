@@ -5,6 +5,7 @@ services:
     image: cogni-scaffold-app:latest
     container_name: cogni-scaffold
     restart: unless-stopped
+    cpu_shares: 1024
     ports:
       # 外部访问端口:容器内部端口（如需修改访问端口，仅修改前面的 8501 即可，例如 "80:8501"）
       - "8501:8501"
