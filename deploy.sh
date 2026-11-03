@@ -73,6 +73,11 @@ $COMPOSE_CMD up -d
 echo -e "正在等待系统完成初次初始化与健康检查 (5秒)..."
 sleep 5
 
+# 执行校园内网 DeepSeek API 链路预热（消除内网防火墙/DPI冷启动与首包断开）
+echo -e "正在预热 DeepSeek API 连通性并激活校园网状态表..."
+curl -4 --retry 3 --retry-delay 1 --max-time 10 -s -o /dev/null https://api.deepseek.com 2>/dev/null || true
+echo -e "${GREEN}✔ 链路首连预热完成${NC}"
+
 # 获取本机内网 IP 地址
 HOST_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 if [ -z "$HOST_IP" ]; then

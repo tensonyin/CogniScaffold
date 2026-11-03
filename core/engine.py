@@ -44,6 +44,47 @@ def get_openai_client(api_key: str, base_url: str) -> OpenAI:
     return _CLIENT_CACHE[key]
 
 
+def call_llm_with_retry(
+    client: OpenAI,
+    call_kwargs: Dict[str, Any],
+    max_retries: int = 3,
+    initial_delay: float = 0.5
+) -> Any:
+    """
+    通用弹性调用封装：
+    专门针对校园内网/出口防火墙对首次 TLS 握手的丢包/RST（如 unexpected eof while reading）、
+    网络瞬断（APIConnectionError、RemoteProtocolError、SSLError 等）提供透明自动重试。
+    """
+    last_err = None
+    for attempt in range(max_retries):
+        try:
+            return client.chat.completions.create(**call_kwargs)
+        except Exception as e:
+            last_err = e
+            err_name = type(e).__name__
+            err_msg = str(e).lower()
+
+            # 识别是否属于网络握手、TLS 异常、连接断开或瞬时超时
+            is_transient = any(
+                keyword in err_msg for keyword in [
+                    "unexpected eof", "eof", "connection reset", "broken pipe",
+                    "connection error", "timeout", "timed out", "handshake", "ssl",
+                    "tls", "econnreset", "failed to establish a new connection"
+                ]
+            ) or err_name in [
+                "APIConnectionError", "APITimeoutError", "RemoteProtocolError",
+                "ConnectError", "SSLError", "ReadTimeout", "ConnectTimeout"
+            ]
+
+            if is_transient and attempt < max_retries - 1:
+                delay = initial_delay * (attempt + 1)
+                print(f"[LLM Retry] 捕获网络层瞬态异常 ({err_name}: {e})，{delay}s 后自动进行第 {attempt + 2} 次重试...")
+                time.sleep(delay)
+            else:
+                raise e
+    raise last_err
+
+
 def _extract_json_payload(raw: str) -> str:
     """从带代码围栏或前后说明的模型输出中提取 JSON 主体"""
     text = (raw or "").strip()
@@ -119,14 +160,17 @@ def generate_solver_blueprint(
     solver_prompt = get_solver_prompt(track)
     client = get_openai_client(api_config["api_key"], api_config["base_url"])
     try:
-        response = client.chat.completions.create(
-            model=api_config["model"],
-            messages=[
-                {"role": "system", "content": solver_prompt},
-                {"role": "user", "content": f"请针对这道题目构建解题/思辨底座与陷阱字典：\n{question}"}
-            ],
-            temperature=0.2,
-            max_tokens=650
+        response = call_llm_with_retry(
+            client,
+            {
+                "model": api_config["model"],
+                "messages": [
+                    {"role": "system", "content": solver_prompt},
+                    {"role": "user", "content": f"请针对这道题目构建解题/思辨底座与陷阱字典：\n{question}"}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 650
+            }
         )
         if user_id and hasattr(response, "usage") and response.usage:
             from core.db import record_token_usage
@@ -182,7 +226,7 @@ def stream_tutor_response(
         except Exception:
             pass
 
-        response_stream = client.chat.completions.create(**call_params)
+        response_stream = call_llm_with_retry(client, call_params)
         has_usage = False
         completion_chars = 0
 
@@ -251,14 +295,17 @@ def generate_diagnostic_report(
     user_prompt = f"【原始题目】:\n{question}\n\n【学生与导师对话记录】:\n{dialogue_str}"
 
     try:
-        response = client.chat.completions.create(
-            model=api_config["model"],
-            messages=[
-                {"role": "system", "content": DIAGNOSTIC_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt}
-            ],
-            temperature=0.2,
-            max_tokens=900
+        response = call_llm_with_retry(
+            client,
+            {
+                "model": api_config["model"],
+                "messages": [
+                    {"role": "system", "content": DIAGNOSTIC_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 900
+            }
         )
         if user_id and hasattr(response, "usage") and response.usage:
             try:
@@ -345,11 +392,14 @@ def evaluate_transfer_answer(
 3. 严禁直接给出最终完整答案或数值计算结果，引导学生在启发下尝试动手写出第一步推导。
 4. 全文控制在 120 字左右，严禁输出任何带有“⚠️ 需再审视条件”或“✅ 成功通关”这种机械生硬的评判帽子！"""
         try:
-            response = client.chat.completions.create(
-                model=api_config["model"],
-                messages=[{"role": "user", "content": hint_prompt}],
-                temperature=0.3,
-                max_tokens=220
+            response = call_llm_with_retry(
+                client,
+                {
+                    "model": api_config["model"],
+                    "messages": [{"role": "user", "content": hint_prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 220
+                }
             )
             if user_id and hasattr(response, "usage") and response.usage:
                 try:
@@ -392,13 +442,16 @@ def evaluate_transfer_answer(
         student_answer=student_answer
     )
     try:
-        response = client.chat.completions.create(
-            model=api_config["model"],
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.2,
-            max_tokens=220
+        response = call_llm_with_retry(
+            client,
+            {
+                "model": api_config["model"],
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.2,
+                "max_tokens": 220
+            }
         )
         if user_id and hasattr(response, "usage") and response.usage:
             try:
@@ -474,18 +527,21 @@ def analyze_image_input(
         return "我尝试在草稿纸上对两边求导，令 $f'(x) = \\frac{1}{x} - a = 0$ 得到 $x = \\frac{1}{a}$，但我不确定 $a$ 的正负对定义域会有什么影响。"
 
     try:
-        response = client.chat.completions.create(
-            model=api_config["model"],
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt_text},
-                        {"type": "image_url", "image_url": {"url": data_url}}
-                    ]
-                }
-            ],
-            max_tokens=300
+        response = call_llm_with_retry(
+            client,
+            {
+                "model": api_config["model"],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": prompt_text},
+                            {"type": "image_url", "image_url": {"url": data_url}}
+                        ]
+                    }
+                ],
+                "max_tokens": 300
+            }
         )
         if user_id and hasattr(response, "usage") and response.usage:
             try:
@@ -598,7 +654,7 @@ def generate_next_tier_variant(
             except Exception:
                 pass
 
-            response = client.chat.completions.create(**call_params)
+            response = call_llm_with_retry(client, call_params)
             if user_id and hasattr(response, "usage") and response.usage:
                 try:
                     from core.db import record_token_usage

@@ -171,9 +171,47 @@ api_config = {
 }
 
 
+async def _warmup_deepseek_connection():
+    """
+    后台静默预热 DeepSeek API 连通性：
+    解决校园内网/防火墙/DPI冷启动与首次 TLS 握手断开 (unexpected eof while reading) 问题。
+    在服务启动时自动完成首连握手，并定期维持底层 HTTP 连接池与防火墙 NAT 会话。
+    """
+    api_key = api_config.get("api_key", "")
+    if not api_key or api_key == "sk-dummy":
+        return
+    base_url = api_config.get("base_url", "https://api.deepseek.com")
+
+    # 稍微等待 1.5 秒，确保主事件循环初始化完毕
+    await asyncio.sleep(1.5)
+
+    # 启动时执行快速预热握手（免费 models.list()，0 Token 消耗）
+    for attempt in range(3):
+        try:
+            from core.engine import get_openai_client
+            client = get_openai_client(api_key, base_url)
+            await asyncio.to_thread(client.models.list)
+            print("[LLM Warmup] ✔ DeepSeek API 连通性预热成功，内网连接池与防火墙状态已就绪！")
+            break
+        except Exception as e:
+            print(f"[LLM Warmup] 首连预热第 {attempt + 1}/3 次握手重试: {type(e).__name__}: {e}")
+            await asyncio.sleep(1.0)
+
+    # 后台持续心跳：每 5 分钟向 DeepSeek 发送一次零 Token 消耗的轻量探测，防止校园网防火墙丢弃闲置 NAT 映射
+    while True:
+        try:
+            await asyncio.sleep(300)
+            from core.engine import get_openai_client
+            client = get_openai_client(api_key, base_url)
+            await asyncio.to_thread(client.models.list)
+        except Exception:
+            pass
+
+
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    asyncio.create_task(_warmup_deepseek_connection())
 
 
 def _load_trusted_proxies() -> List[Any]:
@@ -1750,11 +1788,17 @@ async def admin_probe_api(request: Request):
 
     try:
         def _probe():
-            client = OpenAI(api_key=api_key, base_url=base_url, timeout=10.0)
-            return client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": "ping"}],
-                max_tokens=1
+            from core.engine import get_openai_client, call_llm_with_retry
+            client = get_openai_client(api_key, base_url)
+            return call_llm_with_retry(
+                client,
+                {
+                    "model": model,
+                    "messages": [{"role": "user", "content": "ping"}],
+                    "max_tokens": 1
+                },
+                max_retries=3,
+                initial_delay=0.3
             )
 
         res = await asyncio.to_thread(_probe)

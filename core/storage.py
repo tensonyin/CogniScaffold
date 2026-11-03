@@ -119,7 +119,7 @@ def generate_session_title(
     # 阶段 1：首轮提炼学科与题目类型
     if question and api_config and api_config.get("api_key"):
         try:
-            from core.engine import get_openai_client
+            from core.engine import get_openai_client, call_llm_with_retry
             client = get_openai_client(api_config["api_key"], api_config.get("base_url", ""))
             prompt = (
                 "你是一个高中与大学题目学科分类专家。请仔细阅读以下题目，将其严格归入以下【11个标准门类】之一，并生成规范标题：\n"
@@ -142,15 +142,18 @@ def generate_session_title(
                 "4. 仅输出一行，绝对不要带有任何引号、括号或多余说明！\n\n"
                 f"题目：\n{question[:350]}"
             )
-            resp = client.chat.completions.create(
-                model=api_config.get("model", "deepseek-chat"),
-                messages=[
-                    {"role": "system", "content": "你只输出指定格式的一行学科标签，绝不包含任何多余文字。"},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=25,
-                temperature=0.2,
-                timeout=6.0
+            resp = call_llm_with_retry(
+                client,
+                {
+                    "model": api_config.get("model", "deepseek-chat"),
+                    "messages": [
+                        {"role": "system", "content": "你只输出指定格式的一行学科标签，绝不包含任何多余文字。"},
+                        {"role": "user", "content": prompt}
+                    ],
+                    "max_tokens": 25,
+                    "temperature": 0.2,
+                    "timeout": 12.0
+                }
             )
             if user_id and hasattr(resp, "usage") and resp.usage:
                 try:
