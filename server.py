@@ -191,10 +191,10 @@ async def _warmup_deepseek_connection():
             from core.engine import get_openai_client
             client = get_openai_client(api_key, base_url)
             await asyncio.to_thread(client.models.list)
-            print("[LLM Warmup] ✔ DeepSeek API 连通性预热成功，内网连接池与防火墙状态已就绪！")
+            print("[LLM Warmup] ✔ DeepSeek API 连通性预热成功，内网连接池与防火墙状态已就绪！", flush=True)
             break
         except Exception as e:
-            print(f"[LLM Warmup] 首连预热第 {attempt + 1}/3 次握手重试: {type(e).__name__}: {e}")
+            print(f"[LLM Warmup] 首连预热第 {attempt + 1}/3 次握手重试: {type(e).__name__}: {e}", flush=True)
             await asyncio.sleep(1.0)
 
     # 后台持续心跳：每 5 分钟向 DeepSeek 发送一次零 Token 消耗的轻量探测，防止校园网防火墙丢弃闲置 NAT 映射
