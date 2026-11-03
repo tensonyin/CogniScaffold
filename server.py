@@ -7,9 +7,9 @@ import ipaddress
 import mimetypes
 import weakref
 from datetime import datetime, timedelta
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Request
-from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -38,6 +38,28 @@ from core.intent import classify_user_intent
 
 # 导入 SQLite 持久化与认证安全模块
 from core.db import (
+    get_user_custom_api_key,
+    set_user_custom_api_key,
+    clear_user_custom_api_key,
+    get_all_class_names,
+    get_class_analytics,
+    soft_delete_user,
+    restore_user,
+    purge_user,
+    soft_delete_session,
+    restore_session_from_trash,
+    purge_session,
+    get_trash_items,
+    batch_soft_delete_users,
+    batch_restore_users,
+    batch_purge_users,
+    batch_soft_delete_sessions,
+    batch_restore_sessions,
+    batch_purge_sessions,
+    batch_reset_user_passwords,
+    batch_set_user_token_limits,
+    batch_set_user_status,
+    batch_reset_user_today_usage,
     TZ_EAST8,
     now_east8,
     set_user_security_and_password,
@@ -171,6 +193,22 @@ api_config = {
     "model": os.getenv("MODEL_NAME", "deepseek-chat"),
     "temperature": 0.3
 }
+
+def get_effective_api_config(user_id: str) -> Tuple[Dict[str, Any], bool]:
+    """
+    获取当前用户实际生效的 API 配置。
+    优先使用用户导入的专属 DeepSeek API Key（固定官方 base_url 和 deepseek-chat），返回 (cfg, True)。
+    若未导入则返回学校全局分配的 api_config，返回 (cfg, False)。
+    """
+    custom_key = get_user_custom_api_key(user_id)
+    if custom_key and custom_key.strip().startswith("sk-"):
+        cfg = dict(api_config)
+        cfg["api_key"] = custom_key.strip()
+        cfg["base_url"] = "https://api.deepseek.com"
+        cfg["model"] = "deepseek-chat"
+        return cfg, True
+    return api_config, False
+
 
 
 async def _warmup_deepseek_connection():
@@ -389,11 +427,14 @@ def build_user_response_info(user: dict) -> dict:
     remaining_pct = round((remaining_tokens / limit_tokens) * 100) if (not is_admin and limit_tokens > 0) else 100
     remaining_pct = max(0, min(100, remaining_pct))
 
+    has_custom = bool(user.get("custom_api_key_enc")) or bool(get_user_custom_api_key(user["id"]))
     return {
         "id": user["id"],
         "username": user["username"],
         "display_name": user["display_name"],
+        "class_name": user.get("class_name", ""),
         "role": user["role"],
+        "has_custom_key": has_custom,
         "quota": {
             "can_create": can_create and can_tokens,
             "can_chat": can_tokens,
@@ -793,6 +834,7 @@ async def switch_session(request: Request, data: dict):
 
     s_id = data.get("session_id")
     user_id = user["id"]
+    effective_api_config, is_custom_key = get_effective_api_config(user_id)
     store = get_user_store(user_id)
     if s_id in store.get("active_sessions", {}):
         set_user_current_session(user_id, s_id)
@@ -928,8 +970,10 @@ async def init_question(request: Request, data: dict):
         s_id = sess["id"]
 
     # 提问额度与 Token 门禁检测（非管理员账号受约束）
+    effective_api_config, is_custom_key = get_effective_api_config(user_id)
+    effective_api_config, is_custom_key = get_effective_api_config(user_id)
     is_admin = (user.get("role") == "admin")
-    if not is_admin:
+    if not is_admin and not is_custom_key:
         can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user_id, is_admin=is_admin)
         if not can_tokens:
             raise HTTPException(
@@ -1178,8 +1222,8 @@ async def upload_image(
         raise HTTPException(status_code=400, detail="不支持的图片格式，仅支持 JPG、PNG、WebP 图片")
 
     is_admin = (user.get("role") == "admin")
-    if not is_admin:
-        can_tokens, used_tokens, limit_tokens = check_can_consume_tokens(user["id"], is_admin=is_admin)
+    if not is_admin and not is_custom_key:
+        can_tokens_tokens = check_can_consume_tokens(user["id"], is_admin=is_admin)
         if not can_tokens:
             raise HTTPException(
                 status_code=429,
@@ -1288,6 +1332,7 @@ async def chat_stream(session_id: str, request: Request, data: dict):
 
     async def event_generator():
         nonlocal sess
+        effective_api_config, is_custom_key = get_effective_api_config(user_id)
         # 使用 async with 保证生成器在任意位置被取消时锁都能释放，避免会话永久死锁
         async with lock:
             # 抢到锁后重新加载会话快照，避免并发请求用旧快照覆盖上一轮消息
@@ -1430,10 +1475,13 @@ async def chat_stream(session_id: str, request: Request, data: dict):
                     usage_dict = {}
 
                     # 使用轻量异步流迭代器驱动，零线程调度争用并自带保活穿透代理
-                    tutor_gen = stream_tutor_response(
-                        temp_history, sess.get("solver_blueprint", ""), api_config, usage_dict=usage_dict
-                    )
+                    active_api_config = effective_api_config
+                    used_fallback = False
+
                     try:
+                        tutor_gen = stream_tutor_response(
+                            temp_history, sess.get("solver_blueprint", ""), active_api_config, usage_dict=usage_dict
+                        )
                         async for chunk in aiter_sync_generator(tutor_gen, keepalive_interval=3.0):
                             if await request.is_disconnected():
                                 print(f"[Chat Stream] Client disconnected prematurely for session {session_id}")
@@ -1445,6 +1493,30 @@ async def chat_stream(session_id: str, request: Request, data: dict):
                             clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
                             if clean_chunk:
                                 yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                    except Exception as stream_err:
+                        if is_custom_key and not used_fallback and not full_response:
+                            print(f"[Custom API Fallback] Key failed ({stream_err}), falling back to school api_config")
+                            used_fallback = True
+                            fallback_notice = "⚠️ 您的专属 API Key 调用受限或余额不足，系统已自动无缝切换至学校公共配额继续服务。"
+                            yield f"data: {json.dumps({'type': 'api_fallback', 'message': fallback_notice}, ensure_ascii=False)}\n\n"
+                            
+                            usage_dict = {}
+                            active_api_config = api_config
+                            tutor_gen = stream_tutor_response(
+                                temp_history, sess.get("solver_blueprint", ""), api_config, usage_dict=usage_dict
+                            )
+                            async for chunk in aiter_sync_generator(tutor_gen, keepalive_interval=3.0):
+                                if await request.is_disconnected():
+                                    break
+                                if chunk.startswith(":"):
+                                    yield chunk
+                                    continue
+                                full_response += chunk
+                                clean_chunk = chunk.replace("[TRIGGER_DIAGNOSIS]", "")
+                                if clean_chunk:
+                                    yield f"data: {json.dumps({'type': 'chunk', 'content': clean_chunk, 'role': 'assistant'}, ensure_ascii=False)}\n\n"
+                        else:
+                            raise stream_err
                     finally:
                         try:
                             tutor_gen.close()
@@ -1535,11 +1607,12 @@ async def admin_get_users(
     search: str = "",
     role: str = "",
     status: str = "",
+    class_name: str = "",
     page_size: int = 500
 ):
     require_admin(request)
     page_size = max(1, min(int(page_size), 500))
-    users = get_admin_users_list(search=search, role=role, status=status, limit=page_size)
+    users = get_admin_users_list(search=search, role=role, status=status, limit=page_size, class_filter=class_name)
     return {"status": "ok", "users": users, "total_count": len(users)}
 
 
@@ -1556,20 +1629,21 @@ async def admin_batch_users(request: Request, data: dict):
             start = int(data.get("start", 1))
             end = int(data.get("end", 10))
         except (TypeError, ValueError):
-            raise HTTPException(status_code=400, detail="起始编号与结束编号必须为整数")
+            raise HTTPException(status_code=400, detail="起始与结束序号必须为整数")
         default_pwd = str(data.get("default_password", "CogniScaffold123!")).strip()
         role = str(data.get("role", "student")).strip()
+        class_name = str(data.get("class_name", "")).strip()[:40]
 
         if role not in ("student", "admin"):
             raise HTTPException(status_code=400, detail="非法的用户角色")
         if not re.fullmatch(r"[A-Za-z0-9_.@-]{2,32}", prefix):
-            raise HTTPException(status_code=400, detail="账号前缀仅允许 2-32 位字母、数字、下划线、点、@ 或连字符")
+            raise HTTPException(status_code=400, detail="账号前缀仅限 2-32 位字母、数字、下划线、点、@ 字符")
         if start < 1 or end > 999999:
-            raise HTTPException(status_code=400, detail="编号范围必须在 1-999999 之间")
+            raise HTTPException(status_code=400, detail="序号范围须在 1-999999 之间")
         if end < start:
-            raise HTTPException(status_code=400, detail="结束编号不能小于起始编号")
-        if (end - start + 1) > 200:
-            raise HTTPException(status_code=400, detail="单次批量生成账号数量不能超过 200 个")
+            raise HTTPException(status_code=400, detail="结束序号不能小于起始序号")
+        if (end - start + 1) > 500:
+            raise HTTPException(status_code=400, detail="单次批量创建账号总数不能超过 500 个")
 
         valid_pwd, pwd_err = validate_password_strength(default_pwd)
         if not valid_pwd:
@@ -1584,6 +1658,7 @@ async def admin_batch_users(request: Request, data: dict):
                 "username": uname,
                 "password": default_pwd,
                 "display_name": dname,
+                "class_name": class_name,
                 "role": role
             })
     elif mode == "table":
@@ -1593,33 +1668,36 @@ async def admin_batch_users(request: Request, data: dict):
         
         lines = [line.strip() for line in table_text.splitlines() if line.strip()]
         for line in lines:
-            parts = [p.strip() for p in re.split(r'[\t,，|]+', line)]
+            parts = [p.strip() for p in re.split(r'[	,，|]+', line)]
             if len(parts) < 2:
                 continue
+            # 严格按照规范：账号, 密码, 姓名, 班级（禁止粘贴创建管理员，角色统一锁死为 student）
             uname = parts[0]
             pwd = parts[1]
-            dname = parts[2] if len(parts) > 2 else uname
-            role = parts[3] if len(parts) > 3 and parts[3] in ["student", "admin"] else "student"
+            dname = parts[2] if len(parts) > 2 and parts[2] else uname
+            cname = parts[3] if len(parts) > 3 else ""
             if not re.fullmatch(r"[A-Za-z0-9_.@-]{2,32}", uname):
-                raise HTTPException(status_code=400, detail=f"账号格式非法：{uname[:32]}")
+                raise HTTPException(status_code=400, detail=f"账号格式不符合规范：{uname[:32]}")
             if len(pwd) > 256 or len(dname) > 40:
                 raise HTTPException(status_code=400, detail=f"账号 {uname[:32]} 的密码或显示名称过长")
             valid_pwd, pwd_err = validate_password_strength(pwd)
             if not valid_pwd:
-                raise HTTPException(status_code=400, detail=f"账号 {uname[:32]} 的密码不符合强度要求：{pwd_err}")
+                raise HTTPException(status_code=400, detail=f"账号 {uname[:32]} 密码不符合强度要求：{pwd_err}")
             users_to_create.append({
                 "username": uname,
                 "password": pwd,
                 "display_name": dname,
-                "role": role
+                "class_name": cname,
+                "role": "student"
             })
     else:
         raise HTTPException(status_code=400, detail="未知的批量创建模式")
 
     if not users_to_create:
-        raise HTTPException(status_code=400, detail="未解析到有效的用户数据，请检查输入格式")
+        raise HTTPException(status_code=400, detail="未解析到有效用户数据，请检查输入格式")
 
-    results = batch_create_users(users_to_create)
+    # 关键修复：使用 asyncio.to_thread 移入线程池执行 PBKDF2 哈希计算，彻底消除批量导入时的前端阻塞卡死
+    results = await asyncio.to_thread(batch_create_users, users_to_create)
     return {"status": "ok", "results": results}
 
 
@@ -1970,3 +2048,235 @@ async def admin_reply_feedback_endpoint(feedback_id: int, request: Request, data
         raise HTTPException(status_code=404, detail="反馈记录不存在")
     return {"status": "ok", "message": "回复成功！"}
 
+
+
+
+# ============================================================
+# 班级管理、回收站与高级批量控制台 API
+# ============================================================
+
+@app.get("/api/admin/classes")
+@app.get("/cogni-scaffold/api/admin/classes")
+async def admin_get_classes(request: Request):
+    require_admin(request)
+    classes = get_all_class_names()
+    return {"status": "ok", "classes": classes}
+
+
+@app.post("/api/admin/users/batch_actions")
+@app.post("/cogni-scaffold/api/admin/users/batch_actions")
+async def admin_users_batch_actions(request: Request, data: dict):
+    admin = require_admin(request)
+    action = data.get("action")
+    user_ids = data.get("user_ids", [])
+    params = data.get("params", {})
+
+    if not isinstance(user_ids, list) or not user_ids:
+        raise HTTPException(status_code=400, detail="请至少勾选一个账号")
+
+    if action == "delete_trash":
+        res = batch_soft_delete_users(user_ids, admin["id"])
+        return {"status": "ok", "message": f"成功将 {res['success']} 个账号移入回收站", "result": res}
+    elif action == "restore":
+        res = batch_restore_users(user_ids)
+        return {"status": "ok", "message": f"成功从回收站恢复 {res['success']} 个账号", "result": res}
+    elif action == "purge":
+        res = batch_purge_users(user_ids, admin["id"])
+        return {"status": "ok", "message": f"成功彻底粉碎 {res['success']} 个账号及关联数据", "result": res}
+    elif action == "reset_pwd":
+        new_pwd = str(params.get("new_password") or "CogniScaffold123!").strip()
+        valid, err = validate_password_strength(new_pwd)
+        if not valid:
+            raise HTTPException(status_code=400, detail=f"新密码不符合强度要求：{err}")
+        res = batch_reset_user_passwords(user_ids, new_pwd)
+        return {"status": "ok", "message": f"已将选中的 {res['success']} 个账号密码重置为统一密码，并将在下次登入时强制修改", "result": res}
+    elif action == "set_limit":
+        try:
+            new_limit = int(params.get("new_limit", 50000))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Token 上限必须为整数")
+        if new_limit < 1000 or new_limit > 5000000:
+            raise HTTPException(status_code=400, detail="Token 上限应在 1,000 ~ 5,000,000 之间")
+        res = batch_set_user_token_limits(user_ids, new_limit)
+        return {"status": "ok", "message": f"已成功将 {res['success']} 个账号每日 Token 限额设为 {new_limit:,}", "result": res}
+    elif action == "ban":
+        res = batch_set_user_status(user_ids, "banned")
+        return {"status": "ok", "message": f"已封禁 {res['success']} 个账号", "result": res}
+    elif action == "unban":
+        res = batch_set_user_status(user_ids, "active")
+        return {"status": "ok", "message": f"已解封 {res['success']} 个账号", "result": res}
+    elif action == "reset_quota":
+        res = batch_reset_user_today_usage(user_ids)
+        return {"status": "ok", "message": f"已重置 {res['success']} 个账号今日消耗基准", "result": res}
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的批量操作：{action}")
+
+
+@app.delete("/api/admin/users/{user_id}")
+@app.delete("/cogni-scaffold/api/admin/users/{user_id}")
+async def admin_delete_user_endpoint(user_id: str, request: Request):
+    admin = require_admin(request)
+    ok, msg = soft_delete_user(user_id, admin["id"])
+    if not ok:
+        raise HTTPException(status_code=400, detail=msg)
+    return {"status": "ok", "message": msg}
+
+
+@app.delete("/api/admin/sessions/{session_id}")
+@app.delete("/cogni-scaffold/api/admin/sessions/{session_id}")
+async def admin_delete_session_endpoint(session_id: str, request: Request):
+    require_admin(request)
+    ok = soft_delete_session(session_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="会话不存在或已删除")
+    return {"status": "ok", "message": "会话已成功移入回收站"}
+
+
+@app.get("/api/admin/trash/items")
+@app.get("/cogni-scaffold/api/admin/trash/items")
+async def admin_get_trash_items(request: Request):
+    require_admin(request)
+    items = get_trash_items()
+    return {"status": "ok", "trash": items}
+
+
+@app.post("/api/admin/trash/sessions/action")
+@app.post("/cogni-scaffold/api/admin/trash/sessions/action")
+async def admin_trash_sessions_action(request: Request, data: dict):
+    require_admin(request)
+    action = data.get("action")
+    session_ids = data.get("session_ids", [])
+    if not isinstance(session_ids, list) or not session_ids:
+        raise HTTPException(status_code=400, detail="请至少选择一个对话")
+
+    if action == "restore":
+        res = batch_restore_sessions(session_ids)
+        return {"status": "ok", "message": f"成功恢复 {res['success']} 个对话", "result": res}
+    elif action == "purge":
+        res = batch_purge_sessions(session_ids)
+        return {"status": "ok", "message": f"成功彻底粉碎 {res['success']} 个对话", "result": res}
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的操作：{action}")
+
+
+@app.get("/api/admin/analytics/class_report")
+@app.get("/cogni-scaffold/api/admin/analytics/class_report")
+async def admin_class_report_endpoint(
+    request: Request,
+    class_name: Optional[str] = None,
+    format: Optional[str] = None
+):
+    require_admin(request)
+    cname = (class_name or "").strip() or None
+    analytics = get_class_analytics(cname)
+    
+    if format == "csv":
+        import io
+        import csv
+        output = io.StringIO()
+        output.write("\ufeff")  # UTF-8 BOM
+        writer = csv.writer(output)
+        writer.writerow(["学号/账号", "学生姓名", "班级", "探究会话数", "达成突破数(阶段4+)", "主要思维盲区类型"])
+        for s in analytics.get("student_reports", []):
+            blindspots_str = "、".join(set(s.get("blindspots", []))) if s.get("blindspots") else "暂无记录"
+            writer.writerow([
+                s.get("username", ""),
+                s.get("display_name", ""),
+                s.get("class_name", "") or "未分班",
+                s.get("sessions_count", 0),
+                s.get("breakthroughs", 0),
+                blindspots_str
+            ])
+        csv_bytes = output.getvalue().encode("utf-8")
+        filename = f"class_report_{(cname or 'all')}_{today_east8_str()}.csv"
+        return Response(
+            content=csv_bytes,
+            media_type="text/csv; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
+    return {"status": "ok", "report": analytics}
+
+
+# ============================================================
+# 用户自定义专属 API Key 管理 API
+# ============================================================
+
+@app.post("/api/user/custom_api_key")
+@app.post("/cogni-scaffold/api/user/custom_api_key")
+async def set_custom_api_key_endpoint(request: Request, data: dict):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登入账号")
+
+    raw_key = str(data.get("api_key") or "").strip()
+    if not raw_key:
+        raise HTTPException(status_code=400, detail="API Key 不能为空")
+
+    if not raw_key.startswith("sk-") or len(raw_key) < 15 or len(raw_key) > 128:
+        raise HTTPException(status_code=400, detail="API Key 格式不合规：必须为 sk- 开头的有效密钥字符串")
+
+    # 连通性探测
+    def _probe():
+        from core.engine import get_openai_client
+        client = get_openai_client(raw_key, "https://api.deepseek.com")
+        return client.models.list()
+
+    try:
+        await asyncio.to_thread(_probe)
+    except Exception as e:
+        err_msg = str(e)
+        err_lower = err_msg.lower()
+        if "401" in err_msg or "authentication" in err_lower or "invalid" in err_lower:
+            raise HTTPException(
+                status_code=400,
+                detail="API Key 校验失败（HTTP 401 认证失败）：密钥无效或未激活，请确认是从 DeepSeek 官方开放平台完整复制的 sk- 密钥。"
+            )
+        elif "402" in err_msg or "insufficient_quota" in err_lower or "balance" in err_lower or "quota" in err_lower:
+            raise HTTPException(
+                status_code=400,
+                detail="API Key 校验失败（HTTP 402 账户余额不足）：请先前往 DeepSeek 官方开放平台充值（推荐充值 10 元）后再绑定使用。"
+            )
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail=f"连接 DeepSeek 官方 API 失败：{type(e).__name__} - {err_msg}。请检查网络或稍后重试。"
+            )
+
+    set_user_custom_api_key(str(user["id"]), raw_key)
+    masked = raw_key[:5] + "****" + raw_key[-4:]
+    return {"status": "ok", "message": "DeepSeek API Key 验证成功并已成功绑定！后续提问将优先使用您的专属 Key。", "masked_key": masked}
+
+
+@app.get("/api/user/custom_api_key")
+@app.get("/cogni-scaffold/api/user/custom_api_key")
+async def get_custom_api_key_endpoint(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登入账号")
+
+    k = get_user_custom_api_key(str(user["id"]))
+    if k and k.strip().startswith("sk-"):
+        masked = k[:5] + "****" + k[-4:]
+        return {
+            "status": "ok",
+            "has_custom_key": True,
+            "masked_key": masked,
+            "mode": "custom"
+        }
+    return {
+        "status": "ok",
+        "has_custom_key": False,
+        "masked_key": "",
+        "mode": "school"
+    }
+
+
+@app.delete("/api/user/custom_api_key")
+@app.delete("/cogni-scaffold/api/user/custom_api_key")
+async def delete_custom_api_key_endpoint(request: Request):
+    user = get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="请先登入账号")
+
+    clear_user_custom_api_key(str(user["id"]))
+    return {"status": "ok", "message": "已解除专属 API Key 绑定，已切换回学校公共每日配额。"}

@@ -42,3 +42,6 @@ build/
 *.egg-info/
 edge_*_profile/
 test_profile/
+
+scratch/
+release_staging/

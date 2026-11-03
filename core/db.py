@@ -13,6 +13,8 @@ import sqlite3
 import json
 import time
 import uuid
+import hashlib
+import base64
 from typing import Dict, Any, List, Optional, Tuple, Union
 from datetime import datetime, timezone, timedelta
 from core.auth import hash_password, generate_salt, hash_token
@@ -269,7 +271,7 @@ def init_db():
 
 
 def _migrate_user_columns(conn: sqlite3.Connection):
-    """自动向 users 表迁移新增字段：封禁时间、封禁原因、自定义开题限额、自定义轮次限额、自定义Token限额"""
+    """自动对 users 与 sessions 表迁移必要字段与索引"""
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(users);")
     cols = [r["name"] for r in cur.fetchall()]
@@ -293,6 +295,21 @@ def _migrate_user_columns(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE users ADD COLUMN security_answer_salt TEXT;")
     if "quota_reset_at" not in cols:
         cur.execute("ALTER TABLE users ADD COLUMN quota_reset_at TEXT;")
+    if "custom_api_key_enc" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN custom_api_key_enc TEXT;")
+    if "class_name" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN class_name TEXT DEFAULT '';")
+    if "is_deleted" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN is_deleted INTEGER DEFAULT 0;")
+    if "deleted_at" not in cols:
+        cur.execute("ALTER TABLE users ADD COLUMN deleted_at TEXT;")
+
+    cur.execute("PRAGMA table_info(sessions);")
+    s_cols = [r["name"] for r in cur.fetchall()]
+    if "is_deleted" not in s_cols:
+        cur.execute("ALTER TABLE sessions ADD COLUMN is_deleted INTEGER DEFAULT 0;")
+    if "deleted_at" not in s_cols:
+        cur.execute("ALTER TABLE sessions ADD COLUMN deleted_at TEXT;")
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS password_reset_tokens (
@@ -592,10 +609,13 @@ def _insert_session_record(conn: sqlite3.Connection, user_id: str, s: Dict[str, 
 # 用户与认证操作
 # ============================================================
 
-def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+def get_user_by_username(username: str, include_deleted: bool = False) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE username = ?;", (username,))
+    if include_deleted:
+        cur.execute("SELECT * FROM users WHERE username = ?;", (username,))
+    else:
+        cur.execute("SELECT * FROM users WHERE username = ? AND is_deleted = 0;", (username,))
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -614,10 +634,13 @@ def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
     return d
 
 
-def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
+def get_user_by_id(user_id: str, include_deleted: bool = False) -> Optional[Dict[str, Any]]:
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE id = ?;", (user_id,))
+    if include_deleted:
+        cur.execute("SELECT * FROM users WHERE id = ?;", (user_id,))
+    else:
+        cur.execute("SELECT * FROM users WHERE id = ? AND is_deleted = 0;", (user_id,))
     row = cur.fetchone()
     if not row:
         conn.close()
@@ -636,19 +659,20 @@ def get_user_by_id(user_id: str) -> Optional[Dict[str, Any]]:
     return d
 
 
-def create_user(username: str, plain_password: str, display_name: str = "", role: str = "student", must_change_password: int = 0) -> Dict[str, Any]:
+def create_user(username: str, plain_password: str, display_name: str = "", role: str = "student", must_change_password: int = 0, class_name: str = "") -> Dict[str, Any]:
     salt = generate_salt()
     pwd_hash = hash_password(plain_password, salt)
     user_id = str(uuid.uuid4().hex[:12])
     now = now_east8_str("%Y-%m-%d %H:%M:%S")
-    disp = display_name if display_name else f"知阶学者 {username}"
+    disp = display_name if display_name else f"知阶学子 {username}"
+    cname = (class_name or "").strip()[:40]
 
     conn = get_db_connection()
     cur = conn.cursor()
     cur.execute("""
-    INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at, must_change_password)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
-    """, (user_id, username, pwd_hash, salt, disp, role, "active", now, must_change_password))
+    INSERT INTO users (id, username, password_hash, salt, display_name, class_name, role, status, created_at, must_change_password)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    """, (user_id, username, pwd_hash, salt, disp, cname, role, "active", now, must_change_password))
     conn.commit()
     conn.close()
 
@@ -656,6 +680,7 @@ def create_user(username: str, plain_password: str, display_name: str = "", role
         "id": user_id,
         "username": username,
         "display_name": disp,
+        "class_name": cname,
         "role": role,
         "status": "active",
         "created_at": now
@@ -787,10 +812,22 @@ def set_user_status(user_id: str, status: str):
     conn.close()
 
 
-def list_all_users() -> List[Dict[str, Any]]:
+def list_all_users(class_filter: Optional[str] = None) -> List[Dict[str, Any]]:
     conn = get_db_connection()
     cur = conn.cursor()
-    cur.execute("SELECT id, username, display_name, role, status, created_at, last_login_at FROM users ORDER BY created_at ASC;")
+    sql = """
+    SELECT id, username, display_name, class_name, role, status, created_at, last_login_at,
+           custom_daily_limit, custom_turn_limit, custom_daily_token_limit, banned_until, ban_reason,
+           (CASE WHEN custom_api_key_enc IS NOT NULL AND length(custom_api_key_enc) > 0 THEN 1 ELSE 0 END) AS has_custom_key
+    FROM users 
+    WHERE is_deleted = 0
+    """
+    params = []
+    if class_filter:
+        sql += " AND class_name = ?"
+        params.append(class_filter)
+    sql += " ORDER BY created_at ASC;"
+    cur.execute(sql, tuple(params))
     rows = cur.fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -889,7 +926,7 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
 
     # 2. 查询活跃会话
     cur.execute("""
-    SELECT * FROM sessions WHERE user_id = ? AND is_archived = 0 ORDER BY sort_order ASC, created_at ASC;
+    SELECT * FROM sessions WHERE user_id = ? AND is_archived = 0 AND is_deleted = 0 ORDER BY sort_order ASC, created_at ASC;
     """, (user_id,))
     active_rows = cur.fetchall()
 
@@ -900,7 +937,7 @@ def get_user_store(user_id: str) -> Dict[str, Any]:
 
     # 3. 查询归档会话
     cur.execute("""
-    SELECT * FROM sessions WHERE user_id = ? AND is_archived = 1 ORDER BY updated_at DESC;
+    SELECT * FROM sessions WHERE user_id = ? AND is_archived = 1 AND is_deleted = 0 ORDER BY updated_at DESC;
     """, (user_id,))
     archived_rows = cur.fetchall()
 
@@ -1521,15 +1558,16 @@ def batch_create_users(user_list: List[Dict[str, str]]) -> Dict[str, Any]:
             skipped.append(uname)
             continue
 
+        cname = (item.get("class_name") or "").strip()[:40]
         salt = generate_salt()
         pwd_hash = hash_password(pwd, salt)
         u_id = str(uuid.uuid4().hex[:12])
 
         try:
             cur.execute("""
-            INSERT INTO users (id, username, password_hash, salt, display_name, role, status, created_at, must_change_password)
-            VALUES (?, ?, ?, ?, ?, ?, 'active', ?, 1);
-            """, (u_id, uname, pwd_hash, salt, disp, role, now))
+            INSERT INTO users (id, username, password_hash, salt, display_name, class_name, role, status, created_at, must_change_password)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, 1);
+            """, (u_id, uname, pwd_hash, salt, disp, cname, role, now))
             created.append(uname)
         except Exception as e:
             errors.append(f"{uname}: {str(e)}")
@@ -1717,7 +1755,7 @@ def get_admin_overview() -> Dict[str, Any]:
     }
 
 
-def get_admin_users_list(search: str = "", role: str = "", status: str = "", limit: int = 500) -> List[Dict[str, Any]]:
+def get_admin_users_list(search: str = "", role: str = "", status: str = "", limit: int = 500, class_filter: str = "") -> List[Dict[str, Any]]:
     """管理员账号列表检索与详细聚合"""
     today_str = today_east8_str()
     today_short = now_east8_str("%m-%d")
@@ -1726,8 +1764,9 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
 
     sql = """
     SELECT 
-        u.id, u.username, u.display_name, u.role, u.status, u.banned_until, u.ban_reason,
+        u.id, u.username, u.display_name, u.class_name, u.role, u.status, u.banned_until, u.ban_reason,
         u.created_at, u.last_login_at, u.custom_daily_limit, u.custom_turn_limit, u.custom_daily_token_limit,
+        (CASE WHEN u.custom_api_key_enc IS NOT NULL AND length(u.custom_api_key_enc) > 0 THEN 1 ELSE 0 END) AS has_custom_key,
         (SELECT COUNT(1) FROM sessions WHERE user_id = u.id AND is_initialized = 1 AND id NOT LIKE 'preset_%') as session_count,
         (SELECT COUNT(1) FROM question_submissions q WHERE q.user_id = u.id AND q.date = ? AND (u.quota_reset_at IS NULL OR u.quota_reset_at < ? OR q.created_at >= u.quota_reset_at))
         +
@@ -1736,7 +1775,7 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id AND date = ?) as today_tokens,
         (SELECT COALESCE(SUM(total_tokens), 0) FROM token_usage WHERE user_id = u.id) as total_tokens
     FROM users u
-    WHERE 1=1
+    WHERE u.is_deleted = 0
     """
     params: List[Any] = [today_str, today_str, f"{today_str}%", f"{today_short}%", today_str, today_str]
 
@@ -1751,6 +1790,10 @@ def get_admin_users_list(search: str = "", role: str = "", status: str = "", lim
     if status:
         sql += " AND u.status = ?"
         params.append(status)
+
+    if class_filter:
+        sql += " AND u.class_name = ?"
+        params.append(class_filter)
 
     sql += " ORDER BY u.role DESC, u.created_at ASC LIMIT ?;"
     params.append(max(1, min(int(limit), 500)))
@@ -1942,3 +1985,396 @@ def reply_user_feedback(feedback_id: int, admin_reply: str, admin_name: str, sta
     conn.commit()
     conn.close()
     return affected > 0
+
+
+# ============================================================
+# 用户自定义 API Key 加密与安全管理
+# ============================================================
+
+def encrypt_api_key(raw_key: str) -> str:
+    """使用 SHA-256 派生密钥进行可逆加密保存，避免在数据库中明文暴露出厂密钥"""
+    if not raw_key:
+        return ""
+    key_bytes = hashlib.sha256(b"CogniScaffold_API_Key_Secret_Salt_2026!").digest()
+    raw_bytes = raw_key.encode("utf-8")
+    enc = bytes(b ^ key_bytes[i % len(key_bytes)] for i, b in enumerate(raw_bytes))
+    return base64.b64encode(enc).decode("utf-8")
+
+
+def decrypt_api_key(enc_key: str) -> str:
+    """解密还原用户专属 API Key"""
+    if not enc_key:
+        return ""
+    try:
+        key_bytes = hashlib.sha256(b"CogniScaffold_API_Key_Secret_Salt_2026!").digest()
+        enc = base64.b64decode(enc_key.encode("utf-8"))
+        dec = bytes(b ^ key_bytes[i % len(key_bytes)] for i, b in enumerate(enc))
+        return dec.decode("utf-8")
+    except Exception:
+        return ""
+
+
+def set_user_custom_api_key(user_id: str, raw_key: str) -> bool:
+    """保存用户专属 API Key（安全加密落库）"""
+    enc = encrypt_api_key(raw_key.strip())
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET custom_api_key_enc = ? WHERE id = ?;", (enc, user_id))
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+
+def get_user_custom_api_key(user_id: str) -> Optional[str]:
+    """获取用户专属 API Key（解密明文，若未配置返回 None）"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT custom_api_key_enc FROM users WHERE id = ? AND is_deleted = 0;", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    if not row or not row["custom_api_key_enc"]:
+        return None
+    return decrypt_api_key(row["custom_api_key_enc"]) or None
+
+
+def clear_user_custom_api_key(user_id: str) -> bool:
+    """清除用户专属 API Key，恢复使用学校每日额度"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET custom_api_key_enc = NULL WHERE id = ?;", (user_id,))
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return affected > 0
+
+
+# ============================================================
+# 班级管理与班级学情报表
+# ============================================================
+
+def get_all_class_names() -> List[str]:
+    """获取系统中所有已存在的班级名称列表"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT DISTINCT class_name FROM users 
+    WHERE class_name IS NOT NULL AND TRIM(class_name) != '' AND is_deleted = 0
+    ORDER BY class_name ASC;
+    """)
+    rows = cur.fetchall()
+    conn.close()
+    return [r[0] for r in rows if r[0]]
+
+
+def get_class_analytics(class_name: Optional[str] = None) -> Dict[str, Any]:
+    """获取指定班级（或全校学生）的学情与思维盲区统计报表"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+
+    query_u = "SELECT id, username, display_name, class_name FROM users WHERE role != 'admin' AND is_deleted = 0"
+    params_u = []
+    if class_name:
+        query_u += " AND class_name = ?"
+        params_u.append(class_name)
+    cur.execute(query_u, params_u)
+    students = [dict(r) for r in cur.fetchall()]
+    student_ids = [s["id"] for s in students]
+
+    if not student_ids:
+        conn.close()
+        return {
+            "student_count": 0,
+            "session_count": 0,
+            "breakthrough_count": 0,
+            "blindspot_stats": {},
+            "student_reports": []
+        }
+
+    placeholders = ",".join(["?"] * len(student_ids))
+    cur.execute(f"""
+    SELECT id, user_id, title, question, current_stage, diagnostic_result, tutor_turns, created_at
+    FROM sessions
+    WHERE user_id IN ({placeholders}) AND is_deleted = 0;
+    """, student_ids)
+    sessions = [dict(r) for r in cur.fetchall()]
+
+    blindspot_counts = {}
+    breakthrough_count = 0
+    student_map = {s["id"]: {**s, "sessions_count": 0, "breakthroughs": 0, "blindspots": []} for s in students}
+
+    for sess in sessions:
+        u_id = sess["user_id"]
+        if u_id in student_map:
+            student_map[u_id]["sessions_count"] += 1
+            stage = sess.get("current_stage") or 1
+            if stage >= 4:
+                student_map[u_id]["breakthroughs"] += 1
+                breakthrough_count += 1
+            diag_raw = sess.get("diagnostic_result")
+            if diag_raw:
+                try:
+                    d = json.loads(diag_raw) if isinstance(diag_raw, str) else diag_raw
+                    b_type = d.get("blindspot_type") or "其他思维断点"
+                    blindspot_counts[b_type] = blindspot_counts.get(b_type, 0) + 1
+                    student_map[u_id]["blindspots"].append(b_type)
+                except Exception:
+                    pass
+
+    conn.close()
+    return {
+        "student_count": len(students),
+        "session_count": len(sessions),
+        "breakthrough_count": breakthrough_count,
+        "blindspot_stats": blindspot_counts,
+        "student_reports": list(student_map.values())
+    }
+
+
+# ============================================================
+# 回收站 / 垃圾箱（软删除、恢复与永久粉碎）
+# ============================================================
+
+def soft_delete_user(user_id: str, admin_user_id: str) -> Tuple[bool, str]:
+    """将账号软删除移入垃圾箱（严禁删除自身与最后一个管理员）"""
+    if str(user_id) == str(admin_user_id):
+        return False, "安全保护：严禁删除当前登录的超级管理员自身账号"
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT role FROM users WHERE id = ?;", (user_id,))
+    row = cur.fetchone()
+    if not row:
+        conn.close()
+        return False, "账号不存在"
+    if row["role"] == "admin":
+        cur.execute("SELECT COUNT(1) as admin_cnt FROM users WHERE role = 'admin' AND is_deleted = 0;")
+        if cur.fetchone()["admin_cnt"] <= 1:
+            conn.close()
+            return False, "系统必须保留至少一个管理员账号，禁止删除"
+
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
+    cur.execute("UPDATE users SET is_deleted = 1, deleted_at = ? WHERE id = ?;", (now, user_id))
+    cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (user_id,))
+    conn.commit()
+    conn.close()
+    return True, "账号已成功移入回收站"
+
+
+def restore_user(user_id: str) -> bool:
+    """从回收站恢复已删除账号"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE users SET is_deleted = 0, deleted_at = NULL WHERE id = ?;", (user_id,))
+    success = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success
+
+
+def purge_user(user_id: str, admin_user_id: str) -> Tuple[bool, str]:
+    """彻底物理粉碎账号及所有关联数据"""
+    if str(user_id) == str(admin_user_id):
+        return False, "严禁彻底粉碎当前管理员账号"
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM users WHERE id = ?;", (user_id,))
+    cur.execute("DELETE FROM sessions WHERE user_id = ?;", (user_id,))
+    cur.execute("DELETE FROM messages WHERE user_id = ?;", (user_id,))
+    cur.execute("DELETE FROM token_usage WHERE user_id = ?;", (user_id,))
+    cur.execute("DELETE FROM user_preferences WHERE user_id = ?;", (user_id,))
+    conn.commit()
+    conn.close()
+    return True, "账号及所有关联数据已永久粉碎"
+
+
+def soft_delete_session(session_id: str) -> bool:
+    """将对话移入回收站"""
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE sessions SET is_deleted = 1, deleted_at = ? WHERE id = ?;", (now, session_id))
+    success = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success
+
+
+def restore_session_from_trash(session_id: str) -> bool:
+    """从回收站恢复对话"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("UPDATE sessions SET is_deleted = 0, deleted_at = NULL WHERE id = ?;", (session_id,))
+    success = cur.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success
+
+
+def purge_session(session_id: str) -> bool:
+    """彻底粉碎对话"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM sessions WHERE id = ?;", (session_id,))
+    cur.execute("DELETE FROM messages WHERE session_id = ?;", (session_id,))
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_trash_items() -> Dict[str, Any]:
+    """获取回收站中的全部已删账号与已删会话"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("""
+    SELECT id, username, display_name, class_name, role, deleted_at
+    FROM users WHERE is_deleted = 1 ORDER BY deleted_at DESC;
+    """)
+    trash_users = [dict(r) for r in cur.fetchall()]
+
+    cur.execute("""
+    SELECT s.id, s.user_id, s.title, s.question, s.current_stage, s.deleted_at, u.username, u.display_name, u.class_name
+    FROM sessions s
+    LEFT JOIN users u ON s.user_id = u.id
+    WHERE s.is_deleted = 1 ORDER BY s.deleted_at DESC;
+    """)
+    trash_sessions = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return {
+        "users": trash_users,
+        "sessions": trash_sessions
+    }
+
+
+# ============================================================
+# 账号页面多选批量操作
+# ============================================================
+
+def batch_soft_delete_users(user_ids: List[str], admin_user_id: str) -> Dict[str, Any]:
+    """批量将勾选账号移入垃圾箱"""
+    success = 0
+    skipped = 0
+    for uid in user_ids:
+        ok, _ = soft_delete_user(uid, admin_user_id)
+        if ok:
+            success += 1
+        else:
+            skipped += 1
+    return {"success": success, "skipped": skipped}
+
+
+def batch_restore_users(user_ids: List[str]) -> Dict[str, Any]:
+    """批量从回收站恢复账号"""
+    success = 0
+    for uid in user_ids:
+        if restore_user(uid):
+            success += 1
+    return {"success": success}
+
+
+def batch_purge_users(user_ids: List[str], admin_user_id: str) -> Dict[str, Any]:
+    """批量彻底粉碎回收站账号"""
+    success = 0
+    skipped = 0
+    for uid in user_ids:
+        ok, _ = purge_user(uid, admin_user_id)
+        if ok:
+            success += 1
+        else:
+            skipped += 1
+    return {"success": success, "skipped": skipped}
+
+
+def batch_soft_delete_sessions(session_ids: List[str]) -> Dict[str, Any]:
+    """批量将对话移入回收站"""
+    success = 0
+    for sid in session_ids:
+        if soft_delete_session(sid):
+            success += 1
+    return {"success": success}
+
+
+def batch_restore_sessions(session_ids: List[str]) -> Dict[str, Any]:
+    """批量从回收站恢复会话"""
+    success = 0
+    for sid in session_ids:
+        if restore_session_from_trash(sid):
+            success += 1
+    return {"success": success}
+
+
+def batch_purge_sessions(session_ids: List[str]) -> Dict[str, Any]:
+    """批量彻底粉碎会话"""
+    success = 0
+    for sid in session_ids:
+        if purge_session(sid):
+            success += 1
+    return {"success": success}
+
+
+def batch_reset_user_passwords(user_ids: List[str], new_pwd: str) -> Dict[str, Any]:
+    """批量重置用户密码为指定默认密码，并强制下次登录改密"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    success = 0
+    for uid in user_ids:
+        salt = generate_salt()
+        pwd_hash = hash_password(new_pwd, salt)
+        cur.execute("""
+        UPDATE users 
+        SET password_hash = ?, salt = ?, must_change_password = 1 
+        WHERE id = ? AND is_deleted = 0;
+        """, (pwd_hash, salt, uid))
+        if cur.rowcount > 0:
+            success += 1
+        cur.execute("DELETE FROM auth_tokens WHERE user_id = ?;", (uid,))
+    conn.commit()
+    conn.close()
+    return {"success": success}
+
+
+def batch_set_user_token_limits(user_ids: List[str], new_limit: int) -> Dict[str, Any]:
+    """批量调整用户每日 Token 上限"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(user_ids))
+    cur.execute(f"""
+    UPDATE users SET custom_daily_token_limit = ?
+    WHERE id IN ({placeholders}) AND is_deleted = 0;
+    """, [new_limit] + user_ids)
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return {"success": affected}
+
+
+def batch_set_user_status(user_ids: List[str], status: str) -> Dict[str, Any]:
+    """批量封禁或解封账号"""
+    conn = get_db_connection()
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(user_ids))
+    cur.execute(f"""
+    UPDATE users SET status = ?
+    WHERE id IN ({placeholders}) AND is_deleted = 0;
+    """, [status] + user_ids)
+    affected = cur.rowcount
+    if status == "banned":
+        cur.execute(f"DELETE FROM auth_tokens WHERE user_id IN ({placeholders});", user_ids)
+    conn.commit()
+    conn.close()
+    return {"success": affected}
+
+
+def batch_reset_user_today_usage(user_ids: List[str]) -> Dict[str, Any]:
+    """批量重置今日已消耗额度基线"""
+    now = now_east8_str("%Y-%m-%d %H:%M:%S")
+    conn = get_db_connection()
+    cur = conn.cursor()
+    placeholders = ",".join(["?"] * len(user_ids))
+    cur.execute(f"""
+    UPDATE users SET quota_reset_at = ?
+    WHERE id IN ({placeholders}) AND is_deleted = 0;
+    """, [now] + user_ids)
+    affected = cur.rowcount
+    conn.commit()
+    conn.close()
+    return {"success": affected}

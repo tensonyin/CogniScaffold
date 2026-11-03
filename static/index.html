@@ -2605,6 +2605,136 @@
       margin: 4px 0;
     }
 
+        /* 弹窗专用高不透明度纯净背景（彻底消除黑暗模式下半透明透光文字杂乱问题） */
+    :root {
+      --modal-card-bg: #121622;
+      --modal-card-border: rgba(255, 255, 255, 0.14);
+    }
+    [data-theme="light"] {
+      --modal-card-bg: #ffffff;
+      --modal-card-border: #e2e8f0;
+    }
+    .theme-modal-card,
+    .auth-modal-card,
+    .feedback-modal-card,
+    .changelog-modal-card,
+    .guide-tour-modal-card,
+    .admin-session-modal-card,
+    .admin-modal-card {
+      background: var(--modal-card-bg) !important;
+      border: 1px solid var(--modal-card-border) !important;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.7) !important;
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+
+    /* 批量操作浮动/吸顶工具栏 */
+    .admin-batch-toolbar {
+      background: rgba(37, 99, 235, 0.12);
+      border: 1px solid rgba(37, 99, 235, 0.35);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+    .batch-toolbar-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .batch-select-badge {
+      font-size: 0.84rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+    .batch-toolbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    .btn-sm {
+      padding: 4px 10px !important;
+      font-size: 0.78rem !important;
+      border-radius: 5px !important;
+    }
+    .btn-danger {
+      background: #dc2626 !important;
+      color: #fff !important;
+      border: none !important;
+    }
+    .btn-danger:hover {
+      background: #b91c1c !important;
+    }
+    .btn-warning {
+      background: #d97706 !important;
+      color: #fff !important;
+      border: none !important;
+    }
+    .btn-warning:hover {
+      background: #b45309 !important;
+    }
+    .btn-success {
+      background: #059669 !important;
+      color: #fff !important;
+      border: none !important;
+    }
+    .btn-success:hover {
+      background: #047857 !important;
+    }
+    .badge-count {
+      display: inline-block;
+      padding: 1px 6px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      border-radius: 10px;
+      background: #ef4444;
+      color: #fff;
+      margin-left: 4px;
+    }
+    .batch-result-card {
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 10px;
+    }
+    .batch-result-header {
+      font-weight: 700;
+      color: #10b981;
+      margin-bottom: 8px;
+      font-size: 0.92rem;
+    }
+    .batch-result-stats {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+    .stat-pill {
+      font-size: 0.78rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+    .stat-pill.success { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+    .stat-pill.warning { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+    .stat-pill.error { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+    .batch-result-details {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+      max-height: 120px;
+      overflow-y: auto;
+      border-top: 1px dashed var(--card-border);
+      padding-top: 6px;
+      margin-top: 6px;
+    }
+
     /* 认证弹窗样式 */
     .auth-modal-card {
       width: 100%;
@@ -3360,7 +3490,7 @@
       </button>
 
       <!-- 实时 Token 额度胶囊 -->
-      <div class="token-capsule-badge" id="headerTokenCapsule" style="display: none;" title="今日 Token 额度实时余额">
+      <div class="token-capsule-badge" id="headerTokenCapsule" style="display: none; cursor: pointer;" title="点击导入个人专属 DeepSeek API Key / 查看额度" onclick="openCustomApiModal()">
         <span class="token-capsule-icon">⚡</span>
         <span class="token-capsule-text" id="headerTokenText">Token 100%</span>
       </div>
@@ -3443,7 +3573,7 @@
 
           <!-- 非管理员专属提问额度提示 -->
           <div id="studentQuotaContainer" style="margin-top: 12px; display: none;">
-            <div class="quota-pill-banner" id="studentQuotaBanner">
+            <div class="quota-pill-banner" id="studentQuotaBanner" style="cursor: pointer;" onclick="openCustomApiModal()" title="点击导入个人专属 DeepSeek API Key">
               <svg class="ui-icon" style="width: 14px; height: 14px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span>今日提问额度：剩余 <span class="quota-badge-highlight" id="quotaRemainingCount">--</span> / <span id="quotaTotalCount">--</span> 道</span>
               <span style="opacity: 0.5;">|</span>
@@ -3684,6 +3814,9 @@
         <button class="admin-nav-tab" id="adminNavTabSecurity" onclick="switchAdminTab('security')">
           🛡️ 安全合规日志与 API 探针
         </button>
+        <button class="admin-nav-tab" id="adminNavTabTrash" onclick="switchAdminTab('trash')">
+          🗑️ 回收站 <span class="badge-count" id="adminTrashBadge" style="display: none;">0</span>
+        </button>
       </div>
 
       <!-- Tab 1: 👥 账号管理与批量创建 -->
@@ -3696,10 +3829,13 @@
             </div>
             <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
               <input type="text" id="adminUserSearchInput" class="history-search-line" style="width: 180px; padding: 6px 10px; font-size: 0.82rem;" placeholder="搜索用户名或姓名..." oninput="filterAdminUsersTable()">
-              <select id="adminUserRoleFilter" style="width: 110px; padding: 6px 10px; font-size: 0.82rem; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; color: var(--text-main); outline: none; box-sizing: border-box;" onchange="filterAdminUsersTable()">
+              <select id="adminUserRoleFilter" style="width: 100px; padding: 6px 10px; font-size: 0.82rem; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; color: var(--text-main); outline: none; box-sizing: border-box;" onchange="filterAdminUsersTable()">
                 <option value="">全部角色</option>
                 <option value="student">学生</option>
                 <option value="admin">管理员</option>
+              </select>
+              <select id="adminUserClassFilter" style="width: 110px; padding: 6px 10px; font-size: 0.82rem; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; color: var(--text-main); outline: none; box-sizing: border-box;" onchange="filterAdminUsersTable()">
+                <option value="">全部班级</option>
               </select>
               <button class="btn btn-primary" onclick="openAdminBatchModal()" style="padding: 6px 12px; font-size: 0.82rem; font-weight: 600;">
                 ➕ 批量添加账号
@@ -3710,14 +3846,32 @@
             </div>
           </div>
 
+          <!-- 批量选择与批量快捷操作工具栏 -->
+          <div id="adminBatchToolbar" class="admin-batch-toolbar" style="display: none;">
+            <div class="batch-toolbar-left">
+              <span class="batch-select-badge">已选中 <strong id="selectedUsersCount">0</strong> 个账号</span>
+            </div>
+            <div class="batch-toolbar-actions">
+              <button class="btn btn-sm btn-danger" onclick="triggerBatchAction('delete_trash')">🗑️ 移入回收站</button>
+              <button class="btn btn-sm btn-secondary" onclick="openBatchResetPasswordModal()">🔑 批量重置密码</button>
+              <button class="btn btn-sm btn-secondary" onclick="openBatchSetLimitModal()">⚡ 设 Token 上限</button>
+              <button class="btn btn-sm btn-warning" onclick="triggerBatchAction('ban')">🚫 批量封禁</button>
+              <button class="btn btn-sm btn-success" onclick="triggerBatchAction('unban')">✅ 批量解封</button>
+              <button class="btn btn-sm btn-secondary" onclick="triggerBatchAction('reset_quota')">🔄 重置今日额度</button>
+            </div>
+          </div>
+
           <div class="admin-table-wrapper">
             <table class="admin-table" id="adminUsersTable">
               <thead>
                 <tr>
+                  <th style="width: 38px; text-align: center;"><input type="checkbox" id="selectAllUsersCheckbox" onchange="toggleSelectAllUsers(this)" title="全选/反选本页账号"></th>
                   <th>用户名</th>
                   <th>显示姓名</th>
+                  <th>班级</th>
                   <th>角色</th>
-                  <th>当前状态</th>
+                  <th>状态</th>
+                  <th>API 模式</th>
                   <th>封禁截止 / 原因</th>
                   <th>专属限额 (日/题/Token)</th>
                   <th>今日提问 / Token</th>
@@ -3836,6 +3990,45 @@
 
       <!-- Tab 4: 📊 Token 监控与运营大屏 -->
       <div id="adminPanelTokens" class="admin-tab-panel" style="display: none;">
+        <!-- 班级学情报表与盲区诊断 -->
+        <div class="admin-card" style="margin-bottom: 20px;">
+          <div class="admin-card-header">
+            <div class="admin-card-title">
+              🎓 班级学情诊断与深度报表
+              <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(统计各班级探究题数、思维断点盲区分布及阶段突破率)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <select id="classAnalyticsFilter" style="width: 130px; padding: 6px 10px; font-size: 0.82rem; background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px; color: var(--text-main); outline: none;" onchange="loadClassAnalytics()">
+                <option value="">全校全部班级</option>
+              </select>
+              <button class="btn btn-primary" onclick="downloadClassReportCsv()" style="padding: 6px 12px; font-size: 0.82rem; font-weight: 600;">
+                📥 导出班级学情 CSV 报表
+              </button>
+            </div>
+          </div>
+          <div class="admin-stats-grid" style="margin-bottom: 12px;">
+            <div class="admin-stat-card">
+              <span class="admin-stat-label">所选班级学生总数</span>
+              <span class="admin-stat-val" id="statClassStudentCount">0</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="admin-stat-label">探究会话总数</span>
+              <span class="admin-stat-val" id="statClassSessionCount">0</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="admin-stat-label">达成深度突破数 (阶段4+)</span>
+              <span class="admin-stat-val" style="color: #34d399;" id="statClassBreakthroughCount">0</span>
+            </div>
+            <div class="admin-stat-card">
+              <span class="admin-stat-label">平均突破成功率</span>
+              <span class="admin-stat-val" style="color: #60a5fa;" id="statClassRate">0%</span>
+            </div>
+          </div>
+          <div id="classBlindspotContainer" style="font-size: 0.82rem; color: var(--text-sub); line-height: 1.6; padding: 10px 14px; background: var(--input-bg); border-radius: 8px; border: 1px solid var(--card-border);">
+            思维盲区分布统计：载入中...
+          </div>
+        </div>
+
         <!-- 核心指标卡片 -->
         <div class="admin-stats-grid">
           <div class="admin-stat-card">
@@ -3942,7 +4135,65 @@
             </table>
           </div>
         </div>
+      
+      <!-- Tab 6: 🗑️ 回收站与安全隔离恢复 -->
+      <div id="adminPanelTrash" class="admin-tab-panel" style="display: none;">
+        <div class="admin-card">
+          <div class="admin-card-header">
+            <div class="admin-card-title">
+              🗑️ 回收站与安全隔离保护
+              <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">(删除账号或对话首先移入回收站，防误删防丢失，支持随时无损恢复或彻底永久粉碎)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <button class="btn btn-secondary" onclick="loadTrashItems()" style="padding: 6px 12px; font-size: 0.82rem;">🔄 刷新回收站</button>
+            </div>
+          </div>
+
+          <div class="st-tabs-header" style="margin-bottom: 14px;">
+            <button class="st-tab-button active" id="btnTrashUsersTab" onclick="switchTrashSubTab('users')">已删除账号 (<span id="trashUsersCount">0</span>)</button>
+            <button class="st-tab-button" id="btnTrashSessionsTab" onclick="switchTrashSubTab('sessions')">已删除对话 (<span id="trashSessionsCount">0</span>)</button>
+          </div>
+
+          <!-- Trash Users Sub-view -->
+          <div id="trashUsersSubView" class="admin-table-wrapper">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>用户名</th>
+                  <th>显示姓名</th>
+                  <th>班级</th>
+                  <th>角色</th>
+                  <th>移入回收站时间</th>
+                  <th style="text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="trashUsersTableBody">
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">回收站暂无被删除的账号</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Trash Sessions Sub-view -->
+          <div id="trashSessionsSubView" class="admin-table-wrapper" style="display: none;">
+            <table class="admin-table">
+              <thead>
+                <tr>
+                  <th>对话标题 / 题目</th>
+                  <th>所属学生</th>
+                  <th>班级</th>
+                  <th>探究阶段</th>
+                  <th>移入回收站时间</th>
+                  <th style="text-align: right;">操作</th>
+                </tr>
+              </thead>
+              <tbody id="trashSessionsTableBody">
+                <tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">回收站暂无被删除的对话</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
+</div>
     </div>
 
     <!-- 视图 B: 主双栏解题工作区 (Main Workspace) -->
@@ -4330,7 +4581,7 @@
           <span class="auth-icon-badge">➕</span>
           <div>
             <h3 class="auth-title">批量添加账号</h3>
-            <p class="auth-subtitle">支持前缀规律序列自动生成，或多行表格粘贴导入</p>
+            <p class="auth-subtitle">批量快速创建学生账号（管理员需单独在控制台创建）</p>
           </div>
         </div>
         <button class="auth-close-btn" onclick="closeAdminBatchModal()">✕</button>
@@ -4349,6 +4600,10 @@
           <div class="auth-input-group">
             <label class="auth-label">账号前缀</label>
             <input type="text" class="auth-input" id="batchPrefix" value="student" required>
+          </div>
+          <div class="auth-input-group">
+            <label class="auth-label">所属班级 (可选)</label>
+            <input type="text" class="auth-input" id="batchClassName" placeholder="如：高一(1)班" maxlength="40">
           </div>
           <div class="auth-input-group">
             <label class="auth-label">分配角色</label>
@@ -4383,11 +4638,11 @@
       <form id="adminBatchTableForm" class="auth-form" style="display: none;" onsubmit="handleAdminBatchTableSubmit(event)">
         <div class="auth-input-group">
           <label class="auth-label">粘贴表格文本 (Excel / CSV)</label>
-          <textarea class="auth-input" id="batchTableText" style="height: 140px; font-family: monospace; font-size: 0.8rem; resize: vertical;" placeholder="支持制表符/逗号隔开，每行格式：
-username, password, display_name
+          <textarea class="auth-input" id="batchTableText" style="height: 140px; font-family: monospace; font-size: 0.8rem; resize: vertical;" placeholder="支持制表符/逗号隔开，每行格式（严禁批量创建管理员，统一创建学生）：
+账号, 密码, 姓名, 班级
 例如：
-student03, CogniScaffold123!, 张小华
-student04, CogniScaffold123!, 李小明"></textarea>
+student03, CogniScaffold123!, 张小华, 高一(1)班
+student04, CogniScaffold123!, 李小明, 高一(1)班"></textarea>
         </div>
         <div class="auth-btn-row" style="margin-top: 10px;">
           <button type="button" class="auth-cancel-btn" onclick="closeAdminBatchModal()">取消</button>
@@ -4946,7 +5201,29 @@ student04, CogniScaffold123!, 李小明"></textarea>
       return fetch(fullPath, opts);
     }
 
-    let currentUser = null;
+    
+    // ============================================================
+    // 🔔 全局轻量气泡 Toast 通知系统
+    // ============================================================
+    function showToast(msg, duration = 4000) {
+      let toast = document.getElementById('globalAppToast');
+      if (!toast) {
+        toast = document.createElement('div');
+        toast.id = 'globalAppToast';
+        toast.style.cssText = 'position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: rgba(18, 22, 34, 0.96); color: #f1f5f9; padding: 10px 20px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.16); box-shadow: 0 12px 32px rgba(0,0,0,0.6); z-index: 999999; font-size: 0.86rem; pointer-events: none; transition: opacity 0.3s ease, transform 0.3s ease; opacity: 0;';
+        document.body.appendChild(toast);
+      }
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      toast.style.transform = 'translateX(-50%) translateY(0)';
+      clearTimeout(toast._timer);
+      toast._timer = setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(6px)';
+      }, duration);
+    }
+
+let currentUser = null;
         let pendingActionAfterLogin = null;
     let appState = null;
     let latexTree = null;
@@ -5879,6 +6156,18 @@ student04, CogniScaffold123!, 李小明"></textarea>
         } else {
           if (adminNavBtn) adminNavBtn.style.display = 'none';
           if (menuItemAdmin) menuItemAdmin.style.display = 'none';
+
+          // 若已绑定专属 API Key，优先呈现专属 Key 胶囊指示
+          if (currentUser.has_custom_key) {
+            if (tokenCapsule) {
+              tokenCapsule.style.display = 'inline-flex';
+              tokenCapsule.classList.remove('exhausted', 'warning');
+              tokenCapsule.title = '🟢 个人专属 DeepSeek API Key 已激活（不扣除学校限额，点击管理）';
+            }
+            if (tokenText) tokenText.textContent = '⚡ 专属 Key';
+            if (quotaContainer) quotaContainer.style.display = 'none';
+            return;
+          }
 
           // 呈现学生限额指示与实时 Token 状态
           const q = currentUser.quota || {};
@@ -7520,6 +7809,9 @@ student04, CogniScaffold123!, 李小明"></textarea>
           for (const line of lines) {
             if (line.startsWith("data: ")) {
               const data = JSON.parse(line.slice(6));
+              if (data.type === 'api_fallback') {
+                showToast(data.message || '⚠️ 专属 API Key 额度不足，系统已自动切换至学校公共配额。', 6000);
+              }
               if (data.type === 'chunk') {
                 streamedText += data.content;
                 if (window.activeStreaming && window.activeStreaming.sessionId === curId) {
@@ -7916,7 +8208,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
     function switchAdminTab(tab) {
       activeAdminTab = tab;
-      const tabNames = ['users', 'sessions', 'configs', 'tokens', 'security'];
+      const tabNames = ['users', 'sessions', 'configs', 'tokens', 'security', 'trash'];
       tabNames.forEach(t => {
         const btn = document.getElementById(`adminNavTab${t.charAt(0).toUpperCase() + t.slice(1)}`);
         const panel = document.getElementById(`adminPanel${t.charAt(0).toUpperCase() + t.slice(1)}`);
@@ -7928,6 +8220,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
       else if (tab === 'configs') loadAdminConfigs();
       else if (tab === 'tokens') loadAdminOverview();
       else if (tab === 'security') loadAdminSecurityLogs();
+      else if (tab === 'trash') loadTrashItems();
     }
 
     async function loadAdminOverview() {
@@ -8006,30 +8299,77 @@ student04, CogniScaffold123!, 李小明"></textarea>
           userSelect.value = prevVal;
         }
 
+        loadClassList();
         filterAdminUsersTable();
       } catch (e) {
         console.warn('loadAdminUsers error:', e);
       }
     }
 
+    // ============================================================
+    // 👥 账号管理、多选批量操作与班级筛选
+    // ============================================================
+    let selectedUserIds = new Set();
+    let currentTrashSubTab = 'users';
+
+    function toggleSelectAllUsers(masterCheckbox) {
+      const checkboxes = document.querySelectorAll('.user-row-checkbox:not(:disabled)');
+      checkboxes.forEach(cb => {
+        cb.checked = masterCheckbox.checked;
+        if (masterCheckbox.checked) {
+          selectedUserIds.add(cb.value);
+        } else {
+          selectedUserIds.delete(cb.value);
+        }
+      });
+      updateBatchToolbar();
+    }
+
+    function handleUserRowCheckboxChange(cb) {
+      if (cb.checked) {
+        selectedUserIds.add(cb.value);
+      } else {
+        selectedUserIds.delete(cb.value);
+      }
+      updateBatchToolbar();
+    }
+
+    function updateBatchToolbar() {
+      const toolbar = document.getElementById('adminBatchToolbar');
+      const countSpan = document.getElementById('selectedUsersCount');
+      const masterCb = document.getElementById('selectAllUsersCheckbox');
+      const totalCbs = document.querySelectorAll('.user-row-checkbox:not(:disabled)');
+
+      if (countSpan) countSpan.textContent = selectedUserIds.size;
+      if (toolbar) {
+        toolbar.style.display = selectedUserIds.size > 0 ? 'flex' : 'none';
+      }
+      if (masterCb && totalCbs.length > 0) {
+        masterCb.checked = (selectedUserIds.size === totalCbs.length);
+      }
+    }
+
     function filterAdminUsersTable() {
       const q = (document.getElementById('adminUserSearchInput')?.value || '').trim().toLowerCase();
       const roleFilter = document.getElementById('adminUserRoleFilter')?.value || '';
+      const classFilter = document.getElementById('adminUserClassFilter')?.value || '';
       const tbody = document.getElementById('adminUsersTableBody');
       if (!tbody) return;
 
       const filtered = adminUsersCache.filter(u => {
         if (roleFilter && u.role !== roleFilter) return false;
+        if (classFilter && (u.class_name || '') !== classFilter) return false;
         if (q) {
           const matchU = u.username.toLowerCase().includes(q);
           const matchD = (u.display_name || '').toLowerCase().includes(q);
-          if (!matchU && !matchD) return false;
+          const matchC = (u.class_name || '').toLowerCase().includes(q);
+          if (!matchU && !matchD && !matchC) return false;
         }
         return true;
       });
 
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; color: var(--text-muted); padding: 26px;">未找到匹配的用户账号</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align: center; color: var(--text-muted); padding: 26px;">未找到匹配的用户账号</td></tr>';
         return;
       }
 
@@ -8038,16 +8378,25 @@ student04, CogniScaffold123!, 李小明"></textarea>
         const isMe = currentUser && currentUser.id === u.id;
         const banInfo = isLocked ? `<span style="color: #f87171; font-weight: 600;">${escapeHtml(u.banned_until === 'permanent' ? '永久' : u.banned_until)}</span><br><span style="font-size: 0.72rem; color: var(--text-muted);">${escapeHtml(u.ban_reason || '违规')}</span>` : '<span style="color: var(--text-muted);">-</span>';
         const quotaInfo = (u.role === 'admin') ? '<span style="color: #60a5fa;">管理员无限制</span>' : `日: ${u.custom_daily_limit != null ? u.custom_daily_limit : '默认15'} / 题: ${u.custom_turn_limit != null ? u.custom_turn_limit : '默认30'}<br><span style="font-size: 0.72rem; color: var(--text-muted);">Token: ${u.custom_daily_token_limit != null ? u.custom_daily_token_limit.toLocaleString() : '默认50k'}</span>`;
+        const hasKey = u.has_custom_key;
+        const isChecked = selectedUserIds.has(u.id);
 
         return `
           <tr>
+            <td style="text-align: center;">
+              <input type="checkbox" class="user-row-checkbox" value="${u.id}" onchange="handleUserRowCheckboxChange(this)" ${isChecked ? 'checked' : ''} ${isMe ? 'disabled title="不可操作当前管理员自身"' : ''}>
+            </td>
             <td>
               <div style="font-weight: 600; font-family: monospace;">${escapeHtml(u.username)}</div>
               <div style="font-size: 0.7rem; color: var(--text-muted);">${u.id}</div>
             </td>
             <td>${escapeHtml(u.display_name || u.username)}</td>
+            <td><span style="font-size: 0.8rem; color: var(--text-sub);">${escapeHtml(u.class_name || '未分班')}</span></td>
             <td><span class="sec-badge" style="background: ${u.role === 'admin' ? 'rgba(59, 130, 246, 0.2)' : 'rgba(100, 116, 139, 0.15)'}; color: ${u.role === 'admin' ? '#60a5fa' : 'var(--text-main)'};">${u.role === 'admin' ? '管理员' : '学生'}</span></td>
-            <td><span class="user-status-badge ${u.status}">${isLocked ? '🚫 临时封禁' : '🟢 正常'}</span></td>
+            <td><span class="user-status-badge ${u.status}">${isLocked ? '🚫 封禁' : '🟢 正常'}</span></td>
+            <td>
+              ${hasKey ? '<span class="status-badge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; font-size: 0.72rem; padding: 2px 6px; border-radius: 4px;">🟢 专属Key</span>' : '<span style="color: var(--text-muted); font-size: 0.72rem;">学校配额</span>'}
+            </td>
             <td>${banInfo}</td>
             <td style="font-size: 0.78rem;">${quotaInfo}</td>
             <td style="font-family: monospace; font-weight: 600;">${u.today_questions != null ? u.today_questions : (u.today_questions_count != null ? u.today_questions_count : 0)} 道<br><span style="font-size: 0.72rem; color: var(--text-muted); font-weight: normal;">${(u.today_tokens != null ? u.today_tokens : 0).toLocaleString()} Tokens</span></td>
@@ -8055,18 +8404,219 @@ student04, CogniScaffold123!, 李小明"></textarea>
             <td>
               <div class="admin-action-btn-group" style="justify-content: flex-end;">
                 ${isLocked ? `
-                  <button class="admin-btn-sm" style="color: #34d399; border-color: rgba(16, 185, 129, 0.3);" onclick="handleAdminUnban('${u.id}')">解除封禁</button>
+                  <button class="admin-btn-sm" style="color: #34d399; border-color: rgba(16, 185, 129, 0.3);" onclick="handleAdminUnban('${u.id}')">解封</button>
                 ` : `
-                  ${!isMe ? `<button class="admin-btn-sm danger" onclick="openAdminBanModal('${u.id}')">临时封禁</button>` : ''}
+                  ${!isMe ? `<button class="admin-btn-sm danger" onclick="openAdminBanModal('${u.id}')">封禁</button>` : ''}
                 `}
                 <button class="admin-btn-sm" onclick="openAdminQuotaModal('${u.id}')">限额</button>
                 <button class="admin-btn-sm" onclick="openAdminResetPwdModal('${u.id}')">改密</button>
                 <button class="admin-btn-sm" onclick="viewUserSessions('${u.id}')">查记录</button>
+                ${!isMe ? `<button class="admin-btn-sm danger" style="padding: 2px 6px;" onclick="softDeleteUser('${u.id}', '${escapeHtml(u.username)}')" title="移入回收站">🗑️</button>` : ''}
               </div>
             </td>
           </tr>
         `;
       }).join('');
+
+      updateBatchToolbar();
+    }
+
+    async function triggerBatchAction(action) {
+      const uids = Array.from(selectedUserIds);
+      if (!uids.length) {
+        showToast('请先勾选需要操作的账号');
+        return;
+      }
+
+      if (action === 'delete_trash') {
+        if (!confirm(`确定将选中的 ${uids.length} 个账号移入回收站吗？移入后可在回收站查看或随时恢复。`)) return;
+      } else if (action === 'ban') {
+        if (!confirm(`确定封禁选中的 ${uids.length} 个账号吗？封禁后学生将无法继续探究。`)) return;
+      } else if (action === 'unban') {
+        if (!confirm(`确定解封选中的 ${uids.length} 个账号吗？`)) return;
+      } else if (action === 'reset_quota') {
+        if (!confirm(`确定重置选中的 ${uids.length} 个账号的今日额度消耗记录吗？`)) return;
+      }
+
+      try {
+        const res = await apiFetch('/api/admin/users/batch_actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: action, user_ids: uids })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.detail || '操作失败');
+          return;
+        }
+        showToast(data.message || '批量操作成功');
+        selectedUserIds.clear();
+        loadAdminUsers();
+        loadTrashItems();
+      } catch (err) {
+        showToast('网络异常，请重试');
+      }
+    }
+
+    function openBatchResetPasswordModal() {
+      const uids = Array.from(selectedUserIds);
+      if (!uids.length) {
+        showToast('请先勾选需要重置密码的账号');
+        return;
+      }
+      const subtitle = document.getElementById('batchResetPwdSubtitle');
+      if (subtitle) subtitle.textContent = `为选中的 ${uids.length} 个账号设置统一初始密码`;
+      const alertBox = document.getElementById('batchResetPwdAlertBox');
+      if (alertBox) alertBox.style.display = 'none';
+      const modal = document.getElementById('adminBatchResetPwdModal');
+      if (modal) modal.classList.add('show');
+    }
+
+    function closeBatchResetPwdModal() {
+      const modal = document.getElementById('adminBatchResetPwdModal');
+      if (modal) modal.classList.remove('show');
+    }
+
+    async function handleBatchResetPwdSubmit(e) {
+      e.preventDefault();
+      const uids = Array.from(selectedUserIds);
+      const newPwd = document.getElementById('batchResetNewPwdInput').value.trim();
+      const alertBox = document.getElementById('batchResetPwdAlertBox');
+      const btn = document.getElementById('batchResetPwdSubmitBtn');
+
+      btn.disabled = true;
+      btn.textContent = '重置中...';
+
+      try {
+        const res = await apiFetch('/api/admin/users/batch_actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'reset_pwd',
+            user_ids: uids,
+            params: { new_password: newPwd }
+          })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = '确认批量重置';
+
+        if (!res.ok) {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || '重置失败';
+          return;
+        }
+
+        showToast(data.message || '密码批量重置成功');
+        closeBatchResetPwdModal();
+        selectedUserIds.clear();
+        loadAdminUsers();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '确认批量重置';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络异常，请重试';
+      }
+    }
+
+    function openBatchSetLimitModal() {
+      const uids = Array.from(selectedUserIds);
+      if (!uids.length) {
+        showToast('请先勾选需要调整限额的账号');
+        return;
+      }
+      const subtitle = document.getElementById('batchSetLimitSubtitle');
+      if (subtitle) subtitle.textContent = `调整选中的 ${uids.length} 个账号每日 Token 限额`;
+      const alertBox = document.getElementById('batchSetLimitAlertBox');
+      if (alertBox) alertBox.style.display = 'none';
+      const modal = document.getElementById('adminBatchSetLimitModal');
+      if (modal) modal.classList.add('show');
+    }
+
+    function closeBatchSetLimitModal() {
+      const modal = document.getElementById('adminBatchSetLimitModal');
+      if (modal) modal.classList.remove('show');
+    }
+
+    async function handleBatchSetLimitSubmit(e) {
+      e.preventDefault();
+      const uids = Array.from(selectedUserIds);
+      const newLimit = parseInt(document.getElementById('batchSetLimitInput').value, 10);
+      const alertBox = document.getElementById('batchSetLimitAlertBox');
+      const btn = document.getElementById('batchSetLimitSubmitBtn');
+
+      btn.disabled = true;
+      btn.textContent = '生效中...';
+
+      try {
+        const res = await apiFetch('/api/admin/users/batch_actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'set_limit',
+            user_ids: uids,
+            params: { new_limit: newLimit }
+          })
+        });
+        const data = await res.json();
+        btn.disabled = false;
+        btn.textContent = '确认批量生效';
+
+        if (!res.ok) {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || '设置失败';
+          return;
+        }
+
+        showToast(data.message || '限额批量设置成功');
+        closeBatchSetLimitModal();
+        selectedUserIds.clear();
+        loadAdminUsers();
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = '确认批量生效';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络异常，请重试';
+      }
+    }
+
+    async function softDeleteUser(userId, username) {
+      if (!confirm(`确定将账号【${username}】移入回收站吗？`)) return;
+      try {
+        const res = await apiFetch(`/api/admin/users/${userId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.detail || '删除失败');
+          return;
+        }
+        showToast(data.message || '账号已移入回收站');
+        selectedUserIds.delete(userId);
+        loadAdminUsers();
+        loadTrashItems();
+      } catch (err) {
+        showToast('网络异常，请重试');
+      }
+    }
+
+    async function adminDeleteSession(sessionId) {
+      if (!confirm(`确定将该对话记录移入回收站吗？`)) return;
+      try {
+        const res = await apiFetch(`/api/admin/sessions/${sessionId}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.detail || '删除失败');
+          return;
+        }
+        showToast(data.message || '对话已移入回收站');
+        loadAdminSessions();
+        loadTrashItems();
+      } catch (err) {
+        showToast('网络异常，请重试');
+      }
     }
 
     function viewUserSessions(userId) {
@@ -8082,7 +8632,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
     function openAdminBatchModal() {
       const modal = document.getElementById('adminBatchModal');
       const alertBox = document.getElementById('adminBatchAlertBox');
-      if (alertBox) alertBox.className = 'auth-alert-box';
+      if (alertBox) {
+        alertBox.className = 'auth-alert-box';
+        alertBox.innerHTML = '';
+        alertBox.style.display = 'none';
+      }
       if (modal) modal.classList.add('show');
       switchBatchModalMode('pattern');
     }
@@ -8090,6 +8644,11 @@ student04, CogniScaffold123!, 李小明"></textarea>
     function closeAdminBatchModal() {
       const modal = document.getElementById('adminBatchModal');
       if (modal) modal.classList.remove('show');
+    }
+
+    function closeAdminBatchModalAndRefresh() {
+      closeAdminBatchModal();
+      loadAdminUsers();
     }
 
     function switchBatchModalMode(mode) {
@@ -8111,6 +8670,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
       const end = parseInt(document.getElementById('batchEnd').value, 10);
       const defaultPwd = document.getElementById('batchPassword').value.trim();
       const role = document.getElementById('batchRole').value;
+      const className = document.getElementById('batchClassName')?.value.trim() || '';
       const alertBox = document.getElementById('adminBatchAlertBox');
       const submitBtn = document.getElementById('btnSubmitBatchPattern');
 
@@ -8127,7 +8687,8 @@ student04, CogniScaffold123!, 李小明"></textarea>
             start: start,
             end: end,
             default_password: defaultPwd,
-            role: role
+            role: role,
+            class_name: className
           })
         });
         const data = await res.json();
@@ -8136,19 +8697,24 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
         if (!res.ok) {
           alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
           alertBox.textContent = data.detail || '批量创建失败';
           return;
         }
 
         const r = data.results || {};
         alertBox.className = 'auth-alert-box success';
-        alertBox.textContent = `成功添加 ${r.success_count || 0} 个新账号，跳过已存在 ${r.skipped_count || 0} 个账号。`;
-        loadAdminUsers();
-        setTimeout(() => closeAdminBatchModal(), 1800);
+        alertBox.style.display = 'block';
+        alertBox.innerHTML = `
+          <div style="font-weight: 600; margin-bottom: 4px;">✅ 序列生成完成！</div>
+          <div>成功创建 <strong>${r.success_count || 0}</strong> 个新账号，跳过已存在 <strong>${r.skipped_count || 0}</strong> 个账号。</div>
+          <button type="button" class="auth-submit-btn" style="margin-top: 10px; width: 100%;" onclick="closeAdminBatchModalAndRefresh()">完成并关闭</button>
+        `;
       } catch (err) {
         submitBtn.disabled = false;
         submitBtn.textContent = '🚀 确认生成';
         alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
         alertBox.textContent = '网络异常，请重试';
       }
     }
@@ -8161,12 +8727,13 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
       if (!tableText) {
         alertBox.className = 'auth-alert-box error';
-        alertBox.textContent = '请先粘贴文本数据';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '请先粘贴多行数据';
         return;
       }
 
       submitBtn.disabled = true;
-      submitBtn.textContent = '正在解析导入中...';
+      submitBtn.textContent = '正在解析并批量导入...';
 
       try {
         const res = await apiFetch('/api/admin/users/batch', {
@@ -8183,22 +8750,410 @@ student04, CogniScaffold123!, 李小明"></textarea>
 
         if (!res.ok) {
           alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
           alertBox.textContent = data.detail || '导入失败';
           return;
         }
 
         const r = data.results || {};
+        const skippedDetails = (r.skipped_users && r.skipped_users.length) ? `<div class="batch-result-details">已跳过重复账号：${r.skipped_users.slice(0, 15).join(', ')}${r.skipped_users.length > 15 ? '等...' : ''}</div>` : '';
+        const errorDetails = (r.errors && r.errors.length) ? `<div class="batch-result-details error">${r.errors.join('<br>')}</div>` : '';
+
         alertBox.className = 'auth-alert-box success';
-        alertBox.textContent = `导入完成：成功创建 ${r.success_count || 0} 个账号，跳过 ${r.skipped_count || 0} 个已存在账号。`;
-        loadAdminUsers();
-        setTimeout(() => closeAdminBatchModal(), 1800);
+        alertBox.style.display = 'block';
+        alertBox.innerHTML = `
+          <div class="batch-result-card">
+            <div class="batch-result-header">✅ 批量导入处理完成！</div>
+            <div class="batch-result-stats">
+              <span class="stat-pill success">成功创建: <strong>${r.success_count || 0}</strong></span>
+              <span class="stat-pill warning">跳过重复: <strong>${r.skipped_count || 0}</strong></span>
+              ${(r.errors && r.errors.length) ? `<span class="stat-pill error">异常: <strong>${r.errors.length}</strong></span>` : ''}
+            </div>
+            ${skippedDetails}
+            ${errorDetails}
+            <button type="button" class="auth-submit-btn" style="margin-top: 12px; width: 100%;" onclick="closeAdminBatchModalAndRefresh()">完成并关闭</button>
+          </div>
+        `;
+        document.getElementById('batchTableText').value = '';
       } catch (err) {
         submitBtn.disabled = false;
         submitBtn.textContent = '📥 确认导入';
         alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
         alertBox.textContent = '网络异常，请重试';
       }
     }
+
+    // ============================================================
+    // 🗑️ 回收站核心管理（查看、还原与彻底永久粉碎）
+    // ============================================================
+    let trashCache = { users: [], sessions: [] };
+
+    async function loadTrashItems() {
+      try {
+        const res = await apiFetch('/api/admin/trash/items');
+        if (!res.ok) return;
+        const data = await res.json();
+        trashCache = data.trash || { users: [], sessions: [] };
+
+        const uCnt = (trashCache.users || []).length;
+        const sCnt = (trashCache.sessions || []).length;
+        const total = uCnt + sCnt;
+
+        const badge = document.getElementById('adminTrashBadge');
+        if (badge) {
+          badge.textContent = total;
+          badge.style.display = total > 0 ? 'inline-block' : 'none';
+        }
+        const uBadge = document.getElementById('trashUsersCount');
+        if (uBadge) uBadge.textContent = uCnt;
+        const sBadge = document.getElementById('trashSessionsCount');
+        if (sBadge) sBadge.textContent = sCnt;
+
+        renderTrashSubViews();
+      } catch (err) {
+        console.warn('loadTrashItems error:', err);
+      }
+    }
+
+    function switchTrashSubTab(tab) {
+      currentTrashSubTab = tab;
+      const btnU = document.getElementById('btnTrashUsersTab');
+      const btnS = document.getElementById('btnTrashSessionsTab');
+      const viewU = document.getElementById('trashUsersSubView');
+      const viewS = document.getElementById('trashSessionsSubView');
+
+      if (btnU) btnU.classList.toggle('active', tab === 'users');
+      if (btnS) btnS.classList.toggle('active', tab === 'sessions');
+      if (viewU) viewU.style.display = tab === 'users' ? 'block' : 'none';
+      if (viewS) viewS.style.display = tab === 'sessions' ? 'block' : 'none';
+    }
+
+    function renderTrashSubViews() {
+      const uTbody = document.getElementById('trashUsersTableBody');
+      const sTbody = document.getElementById('trashSessionsTableBody');
+
+      if (uTbody) {
+        const users = trashCache.users || [];
+        if (!users.length) {
+          uTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">回收站暂无被删除的账号</td></tr>';
+        } else {
+          uTbody.innerHTML = users.map(u => `
+            <tr>
+              <td style="font-family: monospace; font-weight: 600;">${escapeHtml(u.username)}</td>
+              <td>${escapeHtml(u.display_name || u.username)}</td>
+              <td>${escapeHtml(u.class_name || '未分班')}</td>
+              <td><span class="sec-badge">${escapeHtml(u.role)}</span></td>
+              <td style="font-size: 0.76rem; color: var(--text-muted);">${u.deleted_at || '-'}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-sm btn-success" style="margin-right: 4px;" onclick="restoreTrashUser('${u.id}')">🔄 恢复</button>
+                <button class="btn btn-sm btn-danger" onclick="purgeTrashUser('${u.id}', '${escapeHtml(u.username)}')">💥 永久粉碎</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+
+      if (sTbody) {
+        const sessions = trashCache.sessions || [];
+        if (!sessions.length) {
+          sTbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-muted); padding: 30px;">回收站暂无被删除的对话</td></tr>';
+        } else {
+          sTbody.innerHTML = sessions.map(s => `
+            <tr>
+              <td>
+                <div style="font-weight: 600; color: var(--text-main);">${escapeHtml(s.title || '无标题对话')}</div>
+                <div style="font-size: 0.72rem; color: var(--text-muted); max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(s.question || '')}</div>
+              </td>
+              <td>${escapeHtml(s.display_name || s.username || '学生')}</td>
+              <td>${escapeHtml(s.class_name || '未分班')}</td>
+              <td><span class="sec-badge">阶段 ${s.current_stage || 1}</span></td>
+              <td style="font-size: 0.76rem; color: var(--text-muted);">${s.deleted_at || '-'}</td>
+              <td style="text-align: right;">
+                <button class="btn btn-sm btn-success" style="margin-right: 4px;" onclick="restoreTrashSession('${s.id}')">🔄 恢复</button>
+                <button class="btn btn-sm btn-danger" onclick="purgeTrashSession('${s.id}')">💥 永久粉碎</button>
+              </td>
+            </tr>
+          `).join('');
+        }
+      }
+    }
+
+    async function restoreTrashUser(userId) {
+      try {
+        const res = await apiFetch('/api/admin/users/batch_actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'restore', user_ids: [userId] })
+        });
+        const data = await res.json();
+        showToast(data.message || '账号已成功恢复');
+        loadTrashItems();
+        loadAdminUsers();
+      } catch (err) {
+        showToast('网络异常');
+      }
+    }
+
+    async function purgeTrashUser(userId, username) {
+      if (!confirm(`⚠️ 危险警告：确定彻底物理粉碎账号【${username}】吗？\n此操作将永久抹除该账号的所有历史对话、探究记录及 Token 记录，且不可撤销！`)) return;
+      try {
+        const res = await apiFetch('/api/admin/users/batch_actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'purge', user_ids: [userId] })
+        });
+        const data = await res.json();
+        showToast(data.message || '账号已永久粉碎');
+        loadTrashItems();
+      } catch (err) {
+        showToast('网络异常');
+      }
+    }
+
+    async function restoreTrashSession(sessionId) {
+      try {
+        const res = await apiFetch('/api/admin/trash/sessions/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'restore', session_ids: [sessionId] })
+        });
+        const data = await res.json();
+        showToast(data.message || '对话已恢复');
+        loadTrashItems();
+        loadAdminSessions();
+      } catch (err) {
+        showToast('网络异常');
+      }
+    }
+
+    async function purgeTrashSession(sessionId) {
+      if (!confirm('确定彻底粉碎该对话记录吗？粉碎后数据将无法恢复。')) return;
+      try {
+        const res = await apiFetch('/api/admin/trash/sessions/action', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'purge', session_ids: [sessionId] })
+        });
+        const data = await res.json();
+        showToast(data.message || '对话已彻底粉碎');
+        loadTrashItems();
+      } catch (err) {
+        showToast('网络异常');
+      }
+    }
+
+    // ============================================================
+    // 🎓 班级管理、学情诊断与 CSV 报表导出
+    // ============================================================
+    async function loadClassList() {
+      try {
+        const res = await apiFetch('/api/admin/classes');
+        if (!res.ok) return;
+        const data = await res.json();
+        const classes = data.classes || [];
+
+        const populate = (elemId, defaultText) => {
+          const sel = document.getElementById(elemId);
+          if (sel) {
+            const curVal = sel.value;
+            sel.innerHTML = `<option value="">${defaultText}</option>` + classes.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+            sel.value = curVal;
+          }
+        };
+
+        populate('adminUserClassFilter', '全部班级');
+        populate('classAnalyticsFilter', '全校全部班级');
+      } catch (err) {
+        console.warn('loadClassList error:', err);
+      }
+    }
+
+    async function loadClassAnalytics() {
+      const classSelect = document.getElementById('classAnalyticsFilter');
+      const cname = classSelect ? classSelect.value : '';
+      const url = cname ? `/api/admin/analytics/class_report?class_name=${encodeURIComponent(cname)}` : '/api/admin/analytics/class_report';
+
+      try {
+        const res = await apiFetch(url);
+        if (!res.ok) return;
+        const data = await res.json();
+        const rep = data.report || {};
+
+        const sCnt = rep.student_count || 0;
+        const sessCnt = rep.session_count || 0;
+        const bCnt = rep.breakthrough_count || 0;
+        const rate = sessCnt > 0 ? Math.round((bCnt / sessCnt) * 100) : 0;
+
+        document.getElementById('statClassStudentCount').textContent = sCnt;
+        document.getElementById('statClassSessionCount').textContent = sessCnt;
+        document.getElementById('statClassBreakthroughCount').textContent = bCnt;
+        document.getElementById('statClassRate').textContent = `${rate}%`;
+
+        const blindspotBox = document.getElementById('classBlindspotContainer');
+        if (blindspotBox) {
+          const bStats = rep.blindspot_stats || {};
+          const bKeys = Object.keys(bStats);
+          if (!bKeys.length) {
+            blindspotBox.innerHTML = '<span style="color: var(--text-muted);">暂无记录到的思维盲区数据</span>';
+          } else {
+            const sorted = bKeys.sort((a,b) => bStats[b] - bStats[a]);
+            blindspotBox.innerHTML = '<strong>🔥 班级高频思维盲区诊断：</strong><div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px;">' + sorted.map(k => `
+              <span class="stat-pill error" style="padding: 3px 8px;">${escapeHtml(k)}: <strong>${bStats[k]}</strong> 次</span>
+            `).join('') + '</div>';
+          }
+        }
+      } catch (err) {
+        console.warn('loadClassAnalytics error:', err);
+      }
+    }
+
+    function downloadClassReportCsv() {
+      const classSelect = document.getElementById('classAnalyticsFilter');
+      const cname = classSelect ? classSelect.value : '';
+      const url = cname ? `/api/admin/analytics/class_report?class_name=${encodeURIComponent(cname)}&format=csv` : '/api/admin/analytics/class_report?format=csv';
+
+      const token = localStorage.getItem('cogni_token');
+      // Use hidden link or fetch blob
+      fetch(url, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+        credentials: 'same-origin'
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('下载失败');
+        return res.blob();
+      })
+      .then(blob => {
+        const a = document.createElement('a');
+        const href = window.URL.createObjectURL(blob);
+        a.href = href;
+        a.download = `class_report_${cname || 'all'}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(href);
+        showToast('班级学情报表 CSV 已成功导出！');
+      })
+      .catch(err => {
+        showToast('导出失败，请重试');
+      });
+    }
+
+    // ============================================================
+    // 🔑 用户个人专属 DeepSeek API Key 管理逻辑
+    // ============================================================
+    function openCustomApiModal() {
+      const modal = document.getElementById('customApiKeyModal');
+      const alertBox = document.getElementById('customApiAlertBox');
+      if (alertBox) {
+        alertBox.className = 'auth-alert-box';
+        alertBox.style.display = 'none';
+      }
+      if (modal) modal.classList.add('show');
+      loadCustomApiStatus();
+    }
+
+    function closeCustomApiKeyModal() {
+      const modal = document.getElementById('customApiKeyModal');
+      if (modal) modal.classList.remove('show');
+    }
+
+    function toggleCustomKeyVisibility() {
+      const input = document.getElementById('customApiKeyInput');
+      if (input) {
+        input.type = input.type === 'password' ? 'text' : 'password';
+      }
+    }
+
+    async function loadCustomApiStatus() {
+      const dot = document.getElementById('customApiStatusDot');
+      const title = document.getElementById('customApiStatusTitle');
+      const desc = document.getElementById('customApiStatusDesc');
+      const unbindBtn = document.getElementById('customApiUnbindBtn');
+
+      try {
+        const res = await apiFetch('/api/user/custom_api_key');
+        if (!res.ok) return;
+        const data = await res.json();
+
+        if (data.has_custom_key) {
+          if (dot) dot.style.background = '#10b981';
+          if (title) title.innerHTML = `🟢 专属 Key 模式已激活 (${escapeHtml(data.masked_key)})`;
+          if (desc) desc.textContent = '当前所有探究提问均优先使用您的专属 Key，不消耗学校公共每日额度。';
+          if (unbindBtn) unbindBtn.style.display = 'inline-block';
+        } else {
+          if (dot) dot.style.background = '#3b82f6';
+          if (title) title.textContent = '🏫 当前使用学校公共额度';
+          if (desc) desc.textContent = '每日分配限额定时重置。若想不受公共额度限制，可在下方导入个人专属 Key。';
+          if (unbindBtn) unbindBtn.style.display = 'none';
+        }
+      } catch (err) {
+        console.warn('loadCustomApiStatus error:', err);
+      }
+    }
+
+    async function handleSaveCustomApiKey(e) {
+      e.preventDefault();
+      const input = document.getElementById('customApiKeyInput');
+      const alertBox = document.getElementById('customApiAlertBox');
+      const saveBtn = document.getElementById('customApiSaveBtn');
+      const rawKey = (input?.value || '').trim();
+
+      if (!rawKey) {
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '请输入 API Key';
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = '⚡ 正在连接 DeepSeek 官方验证有效性...';
+      alertBox.style.display = 'none';
+
+      try {
+        const res = await apiFetch('/api/user/custom_api_key', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ api_key: rawKey })
+        });
+        const data = await res.json();
+        saveBtn.disabled = false;
+        saveBtn.textContent = '⚡ 校验并保存绑定';
+
+        if (!res.ok) {
+          alertBox.className = 'auth-alert-box error';
+          alertBox.style.display = 'block';
+          alertBox.textContent = data.detail || '验证失败';
+          return;
+        }
+
+        alertBox.className = 'auth-alert-box success';
+        alertBox.style.display = 'block';
+        alertBox.textContent = data.message || 'API Key 绑定成功！';
+        input.value = '';
+        loadCustomApiStatus();
+        showToast('专属 API Key 验证成功并已绑定！');
+      } catch (err) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = '⚡ 校验并保存绑定';
+        alertBox.className = 'auth-alert-box error';
+        alertBox.style.display = 'block';
+        alertBox.textContent = '网络异常，请重试';
+      }
+    }
+
+    async function handleUnbindCustomApiKey() {
+      if (!confirm('确定解除专属 API Key 绑定吗？解除后系统将恢复使用学校公共每日额度。')) return;
+      try {
+        const res = await apiFetch('/api/user/custom_api_key', { method: 'DELETE' });
+        const data = await res.json();
+        showToast(data.message || '已恢复使用学校公共额度');
+        loadCustomApiStatus();
+      } catch (err) {
+        showToast('网络异常');
+      }
+    }
+
 
     // --- 账号封禁与解封弹窗逻辑 ---
     function getCachedAdminUser(userId) {
@@ -8443,6 +9398,7 @@ student04, CogniScaffold123!, 李小明"></textarea>
               <td style="font-size: 0.75rem; color: var(--text-muted);">${formatEast8(s.created_at)}</td>
               <td style="text-align: right;">
                 <button class="admin-btn-sm" onclick="openAdminSessionDetail('${s.id}')">审查对话 ➔</button>
+                <button class="admin-btn-sm danger" style="padding: 2px 6px; margin-left: 4px;" onclick="adminDeleteSession('${s.id}')" title="移入回收站">🗑️</button>
               </td>
             </tr>
           `;
@@ -9115,5 +10071,137 @@ student04, CogniScaffold123!, 李小明"></textarea>
     // 页面启动
     initApp();
   </script>
+
+  <!-- 用户自定义专属 DeepSeek API Key 模态弹窗 -->
+  <div class="theme-modal-backdrop" id="customApiKeyModal" onclick="closeCustomApiKeyModal()">
+    <div class="theme-modal-card auth-modal-card" style="max-width: 520px;" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge" style="background: rgba(37, 99, 235, 0.15); color: #3b82f6;">🔑</span>
+          <div>
+            <h3 class="auth-title">个人专属 DeepSeek API Key</h3>
+            <p class="auth-subtitle">绑定个人 Key 优先使用专属额度，无缝平滑切换</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeCustomApiKeyModal()">✕</button>
+      </div>
+
+      <!-- 当前模式状态卡片 -->
+      <div class="api-key-mode-card" id="customApiStatusCard" style="background: var(--input-bg); border: 1px solid var(--card-border); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span id="customApiStatusDot" style="width: 8px; height: 8px; border-radius: 50%; background: #10b981; display: inline-block;"></span>
+            <span id="customApiStatusTitle" style="font-size: 0.86rem; font-weight: 600; color: var(--text-main);">正在获取绑定状态...</span>
+          </div>
+          <button id="customApiUnbindBtn" class="btn btn-sm btn-danger" style="display: none; padding: 3px 8px; font-size: 0.74rem;" onclick="handleUnbindCustomApiKey()">解除绑定</button>
+        </div>
+        <div id="customApiStatusDesc" style="font-size: 0.76rem; color: var(--text-muted); margin-top: 6px; line-height: 1.4;">
+          正在同步...
+        </div>
+      </div>
+
+      <div class="auth-alert-box" id="customApiAlertBox" style="display: none;"></div>
+
+      <form id="customApiKeyForm" class="auth-form" onsubmit="handleSaveCustomApiKey(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">DeepSeek API Key (sk-...)</label>
+          <div style="position: relative;">
+            <input type="password" class="auth-input" id="customApiKeyInput" placeholder="sk-..." autocomplete="off" required style="padding-right: 40px; font-family: monospace;">
+            <button type="button" onclick="toggleCustomKeyVisibility()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted); font-size: 0.85rem;" title="显示/隐藏密钥">👁️</button>
+          </div>
+        </div>
+        <div class="auth-btn-row" style="margin-top: 12px;">
+          <button type="button" class="auth-cancel-btn" onclick="closeCustomApiKeyModal()">取消</button>
+          <button type="submit" class="auth-submit-btn" id="customApiSaveBtn">⚡ 校验并保存绑定</button>
+        </div>
+      </form>
+
+      <!-- 严格遵守规则的指引教程卡片 -->
+      <div class="api-guide-card" style="margin-top: 18px; padding: 14px; background: rgba(37, 99, 235, 0.05); border: 1px solid rgba(37, 99, 235, 0.2); border-radius: 10px;">
+        <div style="font-weight: 600; font-size: 0.84rem; color: var(--primary); margin-bottom: 8px; display: flex; align-items: center; gap: 6px;">
+          <span>📖 如何获取官方 DeepSeek API Key？</span>
+        </div>
+        <div style="font-size: 0.78rem; color: var(--text-sub); line-height: 1.6;">
+          <div style="margin-bottom: 6px;"><strong>第一步：访问开放平台</strong><br>
+            复制此网址并在浏览器地址栏打开：<code style="background: var(--input-bg); padding: 2px 5px; border-radius: 4px; user-select: all;">https://platform.deepseek.com</code>
+          </div>
+          <div style="margin-bottom: 6px;"><strong>第二步：登录与创建 API Key</strong><br>
+            登录或注册您的账号，进入左侧菜单【API Keys】，点击【创建 API key】，生成并完整复制 <code style="user-select: all;">sk-</code> 开头的密钥。
+          </div>
+          <div style="margin-bottom: 6px;"><strong>第三步：充值账户（推荐 10 元）</strong><br>
+            进入左侧菜单【充值】，根据需要充值（推荐充值 10 元，按 DeepSeek 官方极低费率，足够数月深入学术探究）。
+          </div>
+          <div style="margin-bottom: 6px;"><strong>第四步：保存并生效</strong><br>
+            将密钥完整粘贴至上方输入框，点击【校验并保存绑定】。
+          </div>
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--card-border); font-size: 0.74rem; color: var(--text-muted);">
+            💡 说明：系统已锁定官方 deepseek-chat 教学模型；当检测到您的专属 Key 余额不足或网络异常时，将自动平滑使用学校每日配额，保障探究学习不中断。
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 批量重置用户密码模态弹窗 -->
+  <div class="theme-modal-backdrop" id="adminBatchResetPwdModal" onclick="closeBatchResetPwdModal()">
+    <div class="theme-modal-card auth-modal-card" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge" style="background: rgba(37, 99, 235, 0.15); color: #3b82f6;">🔑</span>
+          <div>
+            <h3 class="auth-title">批量重置密码</h3>
+            <p class="auth-subtitle" id="batchResetPwdSubtitle">为选中的 0 个账号设置统一初始密码</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeBatchResetPwdModal()">✕</button>
+      </div>
+
+      <div class="auth-alert-box" id="batchResetPwdAlertBox" style="display: none;"></div>
+
+      <form class="auth-form" onsubmit="handleBatchResetPwdSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">统一新密码 (至少8位字符，含字母和数字)</label>
+          <input type="text" class="auth-input" id="batchResetNewPwdInput" value="CogniScaffold123!" required>
+        </div>
+        <div style="font-size: 0.76rem; color: var(--text-muted); margin-bottom: 12px;">
+          ℹ️ 说明：重置后所有选中学生账号将在下一次登入时被系统强制要求修改新密码，保障凭据安全。
+        </div>
+        <div class="auth-btn-row">
+          <button type="button" class="auth-cancel-btn" onclick="closeBatchResetPwdModal()">取消</button>
+          <button type="submit" class="auth-submit-btn" id="batchResetPwdSubmitBtn">确认批量重置</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 批量设置 Token 上限模态弹窗 -->
+  <div class="theme-modal-backdrop" id="adminBatchSetLimitModal" onclick="closeBatchSetLimitModal()">
+    <div class="theme-modal-card auth-modal-card" onclick="event.stopPropagation()">
+      <div class="auth-modal-header">
+        <div class="auth-modal-title-row">
+          <span class="auth-icon-badge" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b;">⚡</span>
+          <div>
+            <h3 class="auth-title">批量设置每日 Token 上限</h3>
+            <p class="auth-subtitle" id="batchSetLimitSubtitle">调整选中的 0 个账号的每日配额</p>
+          </div>
+        </div>
+        <button class="auth-close-btn" onclick="closeBatchSetLimitModal()">✕</button>
+      </div>
+
+      <div class="auth-alert-box" id="batchSetLimitAlertBox" style="display: none;"></div>
+
+      <form class="auth-form" onsubmit="handleBatchSetLimitSubmit(event)">
+        <div class="auth-input-group">
+          <label class="auth-label">每日 Token 上限 (1,000 ~ 5,000,000)</label>
+          <input type="number" class="auth-input" id="batchSetLimitInput" value="50000" min="1000" max="5000000" step="1000" required>
+        </div>
+        <div class="auth-btn-row">
+          <button type="button" class="auth-cancel-btn" onclick="closeBatchSetLimitModal()">取消</button>
+          <button type="submit" class="auth-submit-btn" id="batchSetLimitSubmitBtn">确认批量生效</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>
